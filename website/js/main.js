@@ -195,55 +195,64 @@ if (focusChain) {
 const orbitStage = document.getElementById('orbitStage');
 if (orbitStage) {
   const orbitCards = orbitStage.querySelectorAll('.orbit-card');
-  const CARD_W = 250;
+  const CARD_HALF_W = 125;
   const DURATION = 30;                 // 30s 一圈，与原组件一致
+  const TILT = -6 * Math.PI / 180;     // 椭圆倾斜角（JS 坐标旋转，卡片保持直立）
   let paused = false;
   let angle0 = -Math.PI / 2;           // 第一张卡从最前方开始
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const isNarrow = () => window.innerWidth <= 900;
 
+  // 椭圆摆位：以舞台中心为锚点，calc(-50% + x) 定位，杜绝宽度测量误差
   const layout = (theta) => {
-    const w = orbitStage.clientWidth;
-    const rx = w / 2 - CARD_W / 2 - 10;
+    const W = orbitStage.getBoundingClientRect().width;
+    if (!W) return;
+    const rx = W / 2 - CARD_HALF_W - 16;
     const ry = 165;
     orbitCards.forEach((card, i) => {
       const t = theta + (i * Math.PI * 2) / orbitCards.length;
       const x = Math.cos(t) * rx;
       const y = Math.sin(t) * ry;
+      // 倾斜：坐标整体旋转 -6°，卡片本身保持直立
+      const xr = x * Math.cos(TILT) - y * Math.sin(TILT);
+      const yr = x * Math.sin(TILT) + y * Math.cos(TILT);
       // y>0 为近处（放大/不透明），y<0 为远处（缩小/半透明）
-      const depth = (Math.sin(t) + 1) / 2;           // 0 远 ~ 1 近
+      const depth = (Math.sin(t) + 1) / 2;
       const scale = 0.82 + depth * 0.24;
-      card.style.borderColor = `color-mix(in srgb, ${card.dataset.c} ${Math.round(20 + depth * 30)}%, var(--line))`;
       card.style.transform =
-        `translate(${x}px, ${y}px) translate(-50%, -50%) scale(${scale})`;
-      card.style.opacity = 0.5 + depth * 0.5;
+        `translate(calc(-50% + ${xr.toFixed(1)}px), calc(-50% + ${yr.toFixed(1)}px)) scale(${scale.toFixed(3)})`;
+      card.style.opacity = (0.5 + depth * 0.5).toFixed(2);
       card.style.zIndex = Math.round(depth * 20);
     });
   };
 
-  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const isNarrow = () => window.innerWidth <= 900;
+  const clearOrbit = () => {
+    orbitCards.forEach(c => { c.style.transform = ''; c.style.opacity = ''; c.style.zIndex = ''; });
+  };
 
-  if (reducedMotion || isNarrow()) {
-    orbitCards.forEach(c => { c.style.transform = ''; c.style.opacity = ''; });
+  if (reducedMotion) {
+    layout(angle0);
   } else {
     orbitStage.addEventListener('mouseenter', () => { paused = true; });
     orbitStage.addEventListener('mouseleave', () => { paused = false; });
+    window.addEventListener('resize', () => {
+      const el = performance.now();
+      layout(angle0 + (el / 1000 / DURATION) * Math.PI * 2);
+    });
     let last = null;
     let elapsed = 0;
     const tick = (ts) => {
       if (last === null) last = ts;
-      const dt = ts - last;
+      const dt = Math.min(ts - last, 100);
       last = ts;
       if (!isNarrow()) {
-        if (!paused) {
-          elapsed += dt;
-          layout(angle0 + (elapsed / 1000 / DURATION) * Math.PI * 2);
-        }
+        if (!paused) elapsed += dt;
+        layout(angle0 + (elapsed / 1000 / DURATION) * Math.PI * 2);
       } else {
-        orbitCards.forEach(c => { c.style.transform = ''; c.style.opacity = ''; });
+        clearOrbit();
       }
       requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
-    window.addEventListener('resize', () => { last = null; });
   }
 }

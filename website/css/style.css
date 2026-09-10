@@ -651,28 +651,26 @@ a { color: inherit; text-decoration: none; }
 .orbit-stage {
   position: relative;
   height: 560px;
-  transform: rotate(-6deg);
 }
 .orbit-path {
   position: absolute; left: 50%; top: 50%;
-  width: calc(100% - 210px); height: 340px;
-  transform: translate(-50%, -50%);
+  width: calc(100% - 210px); height: 330px;
+  transform: translate(-50%, -50%) rotate(-6deg);
   border: 1.5px dashed rgba(10, 132, 255, .28);
   border-radius: 50%;
 }
 .orbit-card {
-  position: absolute; left: 0; top: 0;
+  position: absolute; left: 50%; top: 50%;
   width: 250px;
   background: #fff; border-radius: var(--r-card);
-  border: 1px solid var(--line);
+  border: none;
   padding: 20px 22px;
-  box-shadow: 0 14px 40px rgba(23, 30, 60, .12);
+  box-shadow: 0 16px 44px rgba(23, 30, 60, .13);
   will-change: transform, opacity;
   transition: box-shadow .25s ease;
 }
 .orbit-card:hover {
-  box-shadow: 0 22px 54px rgba(10, 132, 255, .18);
-  border-color: var(--blue);
+  box-shadow: 0 24px 60px rgba(10, 132, 255, .2);
 }
 .orbit-card .oc-icon {
   display: flex; align-items: center; justify-content: center;
@@ -681,6 +679,7 @@ a { color: inherit; text-decoration: none; }
   color: var(--oc, var(--blue));
   background: color-mix(in srgb, var(--oc, var(--blue)) 12%, #fff);
 }
+.orbit-card .oc-icon svg { stroke: var(--oc, var(--blue)); }
 .orbit-card h3 { font-size: 16.5px; margin-bottom: 6px; color: var(--ink); }
 .orbit-card p { font-size: 13.5px; line-height: 1.6; color: var(--ink-2); margin: 0; }
 .orbit-hint {
@@ -689,9 +688,9 @@ a { color: inherit; text-decoration: none; }
 }
 /* 窄屏回退：取消公转，改回普通网格 */
 @media (max-width: 900px) {
-  .orbit-stage { height: auto; transform: none; display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+  .orbit-stage { height: auto; display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
   .orbit-path, .orbit-hint { display: none; }
-  .orbit-card { position: static; width: auto; }
+  .orbit-card { position: static; width: auto; transform: none !important; }
 }
 @media (max-width: 560px) {
   .orbit-stage { grid-template-columns: 1fr; }
