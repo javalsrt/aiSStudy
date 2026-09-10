@@ -71,7 +71,7 @@ export function LoginPage() {
           {/* 循环文字大圆 + 中心品牌 */}
           <div className="flex items-center justify-center flex-1 my-6 w-full">
             <CircularText
-              text="智学职达 · AI 驱动 · 智能学习管理系统 · 专注度分析 · 智能排课 · AI 答疑 · 10K+ 学生用户 · 500+ 教师 · 98% 满意度"
+              text="智学职达 · AI 驱动 · 智能学习管理系统 · 专注度分析 · 智能排课 · AI 答疑 · 试点覆盖 60+ 班级 · 2800+ 学生"
               spinDuration={40}
               fontSize={24}
               className="w-[min(42vw,40vh,430px)] aspect-square"
