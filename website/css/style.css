@@ -451,7 +451,7 @@ a { color: inherit; text-decoration: none; }
   position: relative;
   text-decoration: none;
 
-  display: flex; align-items: center; gap: 0.5rem;
+  display: flex; align-items: center; justify-content: center; gap: 0.3rem;
 
   transform-origin: center;
   padding: 1rem 2rem;
@@ -553,6 +553,7 @@ a { color: inherit; text-decoration: none; }
 
   font-family: system-ui, -apple-system, sans-serif;
   font-size: var(--btn-font-size);
+  display: flex; align-items: center; justify-content: center;
   padding: 0.9em 2em;
   border-radius: 0.75em;
   border: none;
