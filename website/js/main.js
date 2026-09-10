@@ -156,3 +156,37 @@ if (adminShot && adminShotUrl) {
     });
   });
 }
+
+// ===== 「学练测评管」True Focus 逐词聚焦（移植自 reactbits TrueFocus） =====
+const focusChain = document.getElementById('focusChain');
+if (focusChain) {
+  const fWords = focusChain.querySelectorAll('.focus-word');
+  const fFrame = focusChain.querySelector('.focus-frame');
+  let fIndex = 0;
+
+  // 将取景框对齐到当前词（相对容器定位）
+  const placeFrame = () => {
+    const word = fWords[fIndex];
+    if (!word || !fFrame) return;
+    const pRect = focusChain.getBoundingClientRect();
+    const wRect = word.getBoundingClientRect();
+    fFrame.style.left = (wRect.left - pRect.left) + 'px';
+    fFrame.style.top = (wRect.top - pRect.top) + 'px';
+    fFrame.style.width = wRect.width + 'px';
+    fFrame.style.height = wRect.height + 'px';
+    fFrame.classList.add('on');
+  };
+
+  const focusStep = () => {
+    fWords[fIndex].classList.remove('active');
+    fIndex = (fIndex + 1) % fWords.length;
+    fWords[fIndex].classList.add('active');
+    placeFrame();
+  };
+
+  fWords[0].classList.add('active');
+  // 等字体加载、布局稳定后先定位一次
+  placeFrame();
+  window.addEventListener('resize', placeFrame);
+  setInterval(focusStep, 1500); // 0.5s 过渡 + 1s 停留
+}
