@@ -131,7 +131,21 @@ a { color: inherit; text-decoration: none; }
 @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
 
 .hero h1 { font-size: clamp(38px, 5vw, 60px); line-height: 1.14; font-weight: 700; letter-spacing: -1px; }
-.grad-text { background: linear-gradient(100deg, #8ea2ff 0%, #a78bfa 45%, #22d3ee 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+/* 渐变文字动画（移植自 reactbits GradientText：首色复制结尾无缝循环 + yoyo 往返） */
+.grad-text {
+  background-image: linear-gradient(to right, #8ea2ff 0%, #a78bfa 45%, #22d3ee 100%, #8ea2ff 100%);
+  background-size: 300% 100%;
+  background-repeat: repeat;
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: gradientMove 8s ease-in-out infinite alternate;
+}
+@keyframes gradientMove {
+  from { background-position: 0% 50%; }
+  to { background-position: 100% 50%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .grad-text { animation: none; }
+}
 .hero-sub { margin-top: 22px; font-size: 17px; line-height: 1.75; color: rgba(255,255,255,.66); max-width: 540px; }
 .hero-actions { margin-top: 34px; display: flex; gap: 14px; flex-wrap: wrap; }
 .hero .btn-ghost { color: #fff; box-shadow: inset 0 0 0 1px rgba(255,255,255,.25); }
