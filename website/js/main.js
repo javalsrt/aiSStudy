@@ -142,3 +142,17 @@ if (isoBlocks.length && isoDescText) {
     });
   });
 }
+
+// ===== 管理端截图预览 · Tab 切换 =====
+const adminShot = document.getElementById('adminShot');
+const adminShotUrl = document.getElementById('adminShotUrl');
+if (adminShot && adminShotUrl) {
+  document.querySelectorAll('.shot-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.shot-tab').forEach(b => b.classList.remove('on'));
+      btn.classList.add('on');
+      adminShot.src = btn.dataset.src;
+      adminShotUrl.textContent = btn.dataset.url;
+    });
+  });
+}

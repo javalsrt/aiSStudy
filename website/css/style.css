@@ -321,3 +321,43 @@ a { color: inherit; text-decoration: none; }
   .section { padding: 80px 0; }
   .hero-stats { gap: 24px; }
 }
+
+/* ===== 真实截图预览（管理端 Tab 切换 / App 手机壳） ===== */
+.browser-shot { background: var(--bg-alt); }
+.shot-tabs {
+  display: flex; gap: 8px; padding: 12px 16px;
+  background: #fff; border-bottom: 1px solid var(--line);
+  overflow-x: auto; scrollbar-width: none;
+}
+.shot-tab {
+  flex: 0 0 auto; border: none; cursor: pointer;
+  background: #f2f2f4; color: var(--ink-2);
+  font-size: 13px; font-weight: 500; font-family: inherit;
+  padding: 7px 16px; border-radius: 8px; transition: all .2s;
+}
+.shot-tab:hover { color: var(--ink); }
+.shot-tab.on { background: var(--blue); color: #fff; }
+.browser-shot img { display: block; width: 100%; height: auto; }
+
+.app-shots {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 26px; margin-top: 46px;
+}
+.shot-phone {
+  margin: 0; background: #fff;
+  border: 1px solid var(--line); border-radius: 34px; padding: 10px;
+  box-shadow: 0 24px 60px rgba(23, 30, 60, .12);
+  transition: transform .25s ease;
+}
+.shot-phone:hover { transform: translateY(-6px); }
+.shot-phone img { display: block; width: 100%; border-radius: 26px; }
+.shot-phone figcaption {
+  text-align: center; font-size: 13px;
+  color: var(--ink-2); padding: 12px 0 6px;
+}
+@media (max-width: 960px) {
+  .app-shots { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 520px) {
+  .app-shots { grid-template-columns: repeat(2, 1fr); gap: 14px; }
+}
