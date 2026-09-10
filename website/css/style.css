@@ -646,45 +646,55 @@ a { color: inherit; text-decoration: none; }
   .galaxy-btn::before, .galaxy-btn:hover .galaxy-btn__stars { animation: none; }
 }
 
-/* ===== 六维能力轨道图（OrbitImages 移植：椭圆轨道/倾斜/深度层次） ===== */
-.card-orbit .icon { display: none; }
+/* ===== 学生端功能卡片椭圆轨道（OrbitImages 移植：卡片替代图片） ===== */
+.orbit-wrap { margin-top: 20px; }
 .orbit-stage {
   position: relative;
-  height: 200px;
-  margin: 6px 0 16px;
-  transform: rotate(-8deg);
-  cursor: default;
+  height: 560px;
+  transform: rotate(-6deg);
 }
 .orbit-path {
   position: absolute; left: 50%; top: 50%;
-  width: calc(100% - 44px); height: 116px;
+  width: calc(100% - 210px); height: 340px;
   transform: translate(-50%, -50%);
-  border: 1.5px dashed rgba(10, 132, 255, .3);
+  border: 1.5px dashed rgba(10, 132, 255, .28);
   border-radius: 50%;
 }
-.orbit-item {
+.orbit-card {
   position: absolute; left: 0; top: 0;
-  display: flex; align-items: center; justify-content: center; gap: 6px;
-  width: 76px; height: 36px;
-  background: #fff; border-radius: 999px;
-  font-size: 13px; font-weight: 600; color: var(--ink);
-  box-shadow: 0 6px 18px rgba(23, 30, 60, .16);
+  width: 250px;
+  background: #fff; border-radius: var(--r-card);
+  border: 1px solid var(--line);
+  padding: 20px 22px;
+  box-shadow: 0 14px 40px rgba(23, 30, 60, .12);
   will-change: transform, opacity;
+  transition: box-shadow .25s ease;
 }
-.orbit-item::before {
-  content: ""; width: 8px; height: 8px;
-  border-radius: 50%; background: var(--dot, var(--blue));
-  box-shadow: 0 0 8px var(--dot, var(--blue));
+.orbit-card:hover {
+  box-shadow: 0 22px 54px rgba(10, 132, 255, .18);
+  border-color: var(--blue);
 }
-.orbit-item[data-c="blue"]   { --dot: #0a84ff; }
-.orbit-item[data-c="green"]  { --dot: #34c759; }
-.orbit-item[data-c="purple"] { --dot: #8b5cf6; }
-.orbit-item[data-c="orange"] { --dot: #ff9f0a; }
-.orbit-item[data-c="cyan"]   { --dot: #22d3ee; }
-.orbit-item[data-c="red"]    { --dot: #ff375f; }
-.orbit-stage:hover .orbit-item { box-shadow: 0 8px 22px rgba(23, 30, 60, .22); }
-@media (prefers-reduced-motion: reduce) {
-  .orbit-stage { transform: rotate(-8deg); }
+.orbit-card .oc-icon {
+  display: flex; align-items: center; justify-content: center;
+  width: 42px; height: 42px; border-radius: 12px;
+  margin-bottom: 12px;
+  color: var(--oc, var(--blue));
+  background: color-mix(in srgb, var(--oc, var(--blue)) 12%, #fff);
+}
+.orbit-card h3 { font-size: 16.5px; margin-bottom: 6px; color: var(--ink); }
+.orbit-card p { font-size: 13.5px; line-height: 1.6; color: var(--ink-2); margin: 0; }
+.orbit-hint {
+  text-align: center; font-size: 13px; color: var(--ink-3);
+  margin-top: 6px;
+}
+/* 窄屏回退：取消公转，改回普通网格 */
+@media (max-width: 900px) {
+  .orbit-stage { height: auto; transform: none; display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+  .orbit-path, .orbit-hint { display: none; }
+  .orbit-card { position: static; width: auto; }
+}
+@media (max-width: 560px) {
+  .orbit-stage { grid-template-columns: 1fr; }
 }
 
 /* ===== 「学练测评管」True Focus 逐词聚焦（移植自 reactbits TrueFocus） ===== */
