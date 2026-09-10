@@ -12,5 +12,7 @@ RUN npm run build
 # 阶段2: Nginx 托管
 FROM nginx:alpine
 COPY --from=build /app/dist /usr/share/nginx/html
+# 项目官网（纯静态站点，由 nginx.conf 中 80 端口 server 托管）
+COPY website/ /usr/share/nginx/website
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]

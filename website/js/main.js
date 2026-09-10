@@ -113,33 +113,32 @@ const demoObserver = new IntersectionObserver(entries => {
 const demoEl = document.querySelector('.demo');
 if (demoEl) demoObserver.observe(demoEl);
 
-// ===== 3D 架构卡组 · 鼠标跟随微倾斜 =====
-const archScene = document.getElementById('archScene');
-const archStack = document.getElementById('archStack');
-if (archScene && archStack && window.matchMedia('(hover: hover)').matches) {
-  const BASE = 'rotateX(10deg)';
-  archScene.addEventListener('mousemove', e => {
-    const r = archScene.getBoundingClientRect();
-    const dx = (e.clientX - r.left) / r.width - 0.5;   // -0.5 ~ 0.5
-    const dy = (e.clientY - r.top) / r.height - 0.5;
-    archStack.style.transform = `rotateX(${10 + dy * -5}deg) rotateY(${dx * 8}deg)`;
-  });
-  archScene.addEventListener('mouseleave', () => {
-    archStack.style.transform = BASE;
-  });
-}
+// ===== 等轴测架构方块 · 悬停显示模块详解 =====
+const isoBlocks = document.querySelectorAll('.iso-block');
+const isoDescText = document.getElementById('isoDescText');
+const isoDescDot = document.querySelector('.iso-desc-dot');
+const isoDescBox = document.getElementById('isoDesc');
+const ISO_DEFAULT = isoDescText ? isoDescText.textContent : '';
 
-// ===== 架构区左右联动：悬停卡组 ↔ 高亮对应说明卡 =====
-const deckCards = document.querySelectorAll('.deck-card');
-const archCards = document.querySelectorAll('.arch-card');
-if (deckCards.length && archCards.length) {
-  deckCards.forEach((card, i) => {
-    card.addEventListener('mouseenter', () => archCards[i] && archCards[i].classList.add('active'));
-    card.addEventListener('mouseleave', () => archCards[i] && archCards[i].classList.remove('active'));
-  });
-  // 反向：悬停说明卡，对应架构层提前置顶
-  archCards.forEach((card, i) => {
-    card.addEventListener('mouseenter', () => deckCards[i] && deckCards[i].classList.add('peek'));
-    card.addEventListener('mouseleave', () => deckCards[i] && deckCards[i].classList.remove('peek'));
+if (isoBlocks.length && isoDescText) {
+  isoBlocks.forEach(block => {
+    block.addEventListener('mouseenter', () => {
+      isoDescText.textContent = block.dataset.desc;
+      isoDescText.setAttribute('data-title', block.querySelector('.iso-label').firstChild.textContent + ' · 详细作用');
+      isoDescBox.style.setProperty('--iso-c', getComputedStyle(block).getPropertyValue('--c'));
+      if (isoDescDot) {
+        isoDescDot.style.background = getComputedStyle(block).getPropertyValue('--c');
+        isoDescDot.style.boxShadow = `0 0 12px ${getComputedStyle(block).getPropertyValue('--c')}`;
+      }
+    });
+    block.addEventListener('mouseleave', () => {
+      isoDescText.textContent = ISO_DEFAULT;
+      isoDescText.removeAttribute('data-title');
+      isoDescBox.style.removeProperty('--iso-c');
+      if (isoDescDot) {
+        isoDescDot.style.background = '';
+        isoDescDot.style.boxShadow = '';
+      }
+    });
   });
 }

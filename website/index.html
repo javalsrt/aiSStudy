@@ -254,7 +254,7 @@
     </div>
   </section>
 
-  <!-- ===== 技术架构（3D 分层悬浮舞台） ===== -->
+  <!-- ===== 技术架构（等轴测方块） ===== -->
   <section class="section section-dark" id="tech">
     <div class="ai-bg" aria-hidden="true">
       <div class="glow glow-4"></div>
@@ -264,75 +264,44 @@
       <div class="sec-head sec-head-dark reveal">
         <span class="sec-label">ARCHITECTURE</span>
         <h2>技术架构 · 前后端分离的全栈体系</h2>
-        <p>四层架构立体呈现 —— 悬停任意一层，抬起查看该层核心技术。</p>
+        <p>悬停任意方块，查看该层模块的详细作用。</p>
       </div>
 
-      <div class="arch-wrap">
-        <!-- 3D 前后堆叠卡组 -->
-        <div class="arch-stage reveal">
-          <div class="arch-scene" id="archScene">
-            <div class="arch-stack" id="archStack">
-              <div class="deck-card" style="--i:0; --c1:#22d3ee; --c2:#0891b2;">
-                <div class="al-head">
-                  <span class="al-name">终端层</span>
-                  <span class="al-badge">01 · FRONTEND</span>
-                </div>
-                <div class="al-chips">
-                  <span>Android App</span><span>React 管理端</span><span>微信小程序</span>
-                </div>
-              </div>
-              <div class="deck-card" style="--i:1; --c1:#0a84ff; --c2:#2a5cd8;">
-                <div class="al-head">
-                  <span class="al-name">服务层</span>
-                  <span class="al-badge">02 · BACKEND</span>
-                </div>
-                <div class="al-chips">
-                  <span>Spring Boot</span><span>MySQL</span><span>Redis</span><span>WebSocket</span>
-                </div>
-              </div>
-              <div class="deck-card" style="--i:2; --c1:#8b5cf6; --c2:#5e6ad2;">
-                <div class="al-head">
-                  <span class="al-name">智能层</span>
-                  <span class="al-badge">03 · AI ENGINE</span>
-                </div>
-                <div class="al-chips">
-                  <span>DeepSeek V4 Flash</span><span>RAG 检索增强</span><span>语义判分</span>
-                </div>
-              </div>
-              <div class="deck-card" style="--i:3; --c1:#34c759; --c2:#1a7f37;">
-                <div class="al-head">
-                  <span class="al-name">基础设施</span>
-                  <span class="al-badge">04 · INFRA</span>
-                </div>
-                <div class="al-chips">
-                  <span>Docker Compose</span><span>Nginx</span><span>令牌桶限流</span>
-                </div>
-              </div>
-            </div>
-            <div class="arch-floor" aria-hidden="true"></div>
+      <div class="iso-stage reveal" id="isoStage">
+        <!-- 终端层 -->
+        <div class="iso-block" style="--c:#22d3ee;" data-desc="终端层：三端共用统一 REST API 与 WebSocket 实时通道，界面独立迭代、数据同源。Android App 原生体验，React 管理端面向教师，微信小程序轻量触达。">
+          <div class="iso-cube">
+            <span class="f" data-n="01"></span><span class="l"></span><span class="t"></span>
           </div>
-          <p class="arch-hint">悬停任意卡片 · 该层置顶优先展示</p>
+          <div class="iso-label">终端层<small>FRONTEND</small></div>
         </div>
+        <!-- 服务层 -->
+        <div class="iso-block" style="--c:#0a84ff;" data-desc="服务层：Controller / Service / Mapper 三层结构，JWT 鉴权、令牌桶限流、Redis 缓存一体化治理，WebSocket 承载专注度实时推送。">
+          <div class="iso-cube">
+            <span class="f" data-n="02"></span><span class="l"></span><span class="t"></span>
+          </div>
+          <div class="iso-label">服务层<small>BACKEND</small></div>
+        </div>
+        <!-- 智能层 -->
+        <div class="iso-block" style="--c:#8b5cf6;" data-desc="智能层：DeepSeek V4 Flash 大模型中台，RAG 按章节检索增强出题，AI 语义判分主观题，LlmService 排队调度 + 令牌桶并发控制。">
+          <div class="iso-cube">
+            <span class="f" data-n="03"></span><span class="l"></span><span class="t"></span>
+          </div>
+          <div class="iso-label">智能层<small>AI ENGINE</small></div>
+        </div>
+        <!-- 基础设施 -->
+        <div class="iso-block" style="--c:#34c759;" data-desc="基础设施：Docker Compose 一键拉起前端、后端、MySQL 与 Nginx 网关；出题结果指纹缓存 15 分钟，百人并发只调一次大模型，成本与延迟双降。">
+          <div class="iso-cube">
+            <span class="f" data-n="04"></span><span class="l"></span><span class="t"></span>
+          </div>
+          <div class="iso-label">基础设施<small>INFRA</small></div>
+        </div>
+      </div>
 
-        <!-- 3D 数字说明卡（weak-owl-45 风格） -->
-        <div class="arch-side">
-          <div class="arch-card reveal" style="--ac: #22d3ee;">
-            <span class="ac-num">01</span>
-            <div><b>前端 · 多端统一</b><p>三端共用统一 REST API 与 WebSocket 实时通道，界面独立迭代，数据同源。</p></div>
-          </div>
-          <div class="arch-card reveal" style="--ac: #0a84ff;">
-            <span class="ac-num">02</span>
-            <div><b>后端 · 服务分层</b><p>Controller / Service / Mapper 三层结构，鉴权、限流、缓存一体化治理。</p></div>
-          </div>
-          <div class="arch-card reveal" style="--ac: #8b5cf6;">
-            <span class="ac-num">03</span>
-            <div><b>智能 · 大模型中台</b><p>出题、判分、评估、答疑统一经 LlmService 排队调度，令牌桶控制并发。</p></div>
-          </div>
-          <div class="arch-card reveal" style="--ac: #34c759;">
-            <span class="ac-num">04</span>
-            <div><b>部署 · 容器化交付</b><p>Docker Compose 一键拉起前端、后端、数据库与 Nginx 网关，开箱即用。</p></div>
-          </div>
-        </div>
+      <!-- 悬停详解面板 -->
+      <div class="iso-desc reveal" id="isoDesc">
+        <span class="iso-desc-dot"></span>
+        <p id="isoDescText">将鼠标移到任意方块上，查看该架构层的详细作用。</p>
       </div>
     </div>
   </section>
