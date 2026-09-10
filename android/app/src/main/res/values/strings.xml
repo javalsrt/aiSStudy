@@ -1,14 +1,30 @@
 <resources>
     <string name="app_name">学习中</string>
-    <string name="login_title">欢迎回来</string>
-    <string name="login_subtitle">请登录您的学生账号</string>
+    <string name="login_title" />
+    <string name="login_subtitle" />
     <string name="username_hint">请输入学号 / 用户名</string>
     <string name="password_hint">请输入密码</string>
     <string name="login_btn">登 录</string>
     <string name="login_loading">登录中...</string>
-    <string name="brand_name">学习中心</string>
-    <string name="brand_desc">基于RAG的智能学习平台</string>
+    <string name="brand_name">学习中</string>
+    <string name="brand_desc">deepseek V4 flash OV</string>
     <string name="error_empty">请输入账号和密码</string>
     <string name="error_network">无法连接服务器</string>
     <string name="error_auth">账号或密码错误</string>
+
+    <!-- 登录页勾选与协议 -->
+    <string name="remember_password">记住密码</string>
+    <string name="agree_protocol_prefix">已阅读并同意</string>
+    <string name="user_agreement">服务协议</string>
+    <string name="privacy_policy">隐私政策</string>
+    <string name="protocol_and">和</string>
+    <string name="toast_agree_required">请阅读并同意服务协议和隐私政策</string>
+    <string name="protocol_title_user">用户服务协议</string>
+    <string name="protocol_title_privacy">隐私政策</string>
+
+    <!-- 一键登录 -->
+    <string name="quick_login_title">deepseek V4 flash OV</string>
+    <string name="quick_login_btn">一键登录</string>
+    <string name="quick_login_loading">登录中...</string>
+    <string name="switch_account">其他账号登录</string>
 </resources>

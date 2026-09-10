@@ -1,0 +1,16 @@
+# ===== 前端管理端构建（web-admin-react -> nginx 静态站点）=====
+# 阶段1: Node 构建
+FROM node:20-alpine AS build
+WORKDIR /app
+
+COPY web-admin-react/package.json web-admin-react/package-lock.json ./
+RUN npm ci --no-audit --no-fund --ignore-scripts
+
+COPY web-admin-react/ ./
+RUN npm run build
+
+# 阶段2: Nginx 托管
+FROM nginx:alpine
+COPY --from=build /app/dist /usr/share/nginx/html
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]

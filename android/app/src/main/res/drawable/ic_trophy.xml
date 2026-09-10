@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 金色奖杯（源自 uiverse ugly-horse-87 组件的 SVG 图标） -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="96dp"
+    android:height="96dp"
+    android:viewportWidth="1024"
+    android:viewportHeight="1024">
+    <!-- 底座支柱 -->
+    <path
+        android:fillColor="#EA9518"
+        android:pathData="M469.3,682.7h85.3v128h-85.3z" />
+    <!-- 底座 -->
+    <path
+        android:fillColor="#6E4A32"
+        android:pathData="M435.2,810.7h153.6c4.7,0 8.5,3.8 8.5,8.5v34.1h-170.6v-34.1c0,-4.7 3.8,-8.5 8.5,-8.5z" />
+    <!-- 双耳 -->
+    <path
+        android:fillColor="#F4EA2A"
+        android:pathData="M213.3,256v85.3a42.7,42.7 0 0 0 85.3,0V256H213.3zM170.7,213.3h170.7v128a85.3,85.3 0 1 1 -170.7,0V213.3zM725.3,256v85.3a42.7,42.7 0 0 0 85.3,0V256h-85.3zM682.7,213.3h170.7v128a85.3,85.3 0 1 1 -170.7,0V213.3z" />
+    <!-- 奖杯主体 -->
+    <path
+        android:fillColor="#F2BE45"
+        android:pathData="M298.7,85.3h426.7a42.7,42.7 0 0 1 42.7,42.7v341.3a256,256 0 1 1 -512,0V128a42.7,42.7 0 0 1 42.7,-42.7z" />
+    <!-- 五角星 -->
+    <path
+        android:fillColor="#FFF2A0"
+        android:pathData="M512,469.3l-100.3,52.7 19.2,-111.7 -81.2,-79.1 112.2,-16.3L512,213.3l50.2,101.6 112.1,16.3 -81.1,79.1 19.1,111.7z" />
+</vector>

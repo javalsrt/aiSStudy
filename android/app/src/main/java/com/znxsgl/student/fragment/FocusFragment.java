@@ -71,6 +71,7 @@ public class FocusFragment extends Fragment {
     private long lastPageEntryTime;
     private int lastPageIndex = -1;
     private Long latestSessionId;
+    private int quizPollAttempt; // 异步出题轮询次数（上限 90 次 ≈ 3 分钟）
 
     private final List<Object> panelData = new ArrayList<>();
     // 课程图片映射
@@ -291,81 +292,125 @@ public class FocusFragment extends Fragment {
                                 Toast.makeText(getContext(), "请先学习章节内容再答题", Toast.LENGTH_SHORT).show();
                                 return;
                             }
-                            new android.app.AlertDialog.Builder(getContext())
-                                    .setTitle("开始学习")
-                                    .setMessage("是否开始学习「" + subject + "」？")
-                                    .setPositiveButton("是", (d, w) -> startQuiz(subject, courseId))
-                                    .setNegativeButton("否", null).show();
+                            new com.znxsgl.student.dialog.ConfirmCardDialog(getContext(),
+                                    "开始练习", "是否开始学习「" + subject + "」？",
+                                    "AI 将为「" + subject + "」生成一套练习题。",
+                                    "否", "是", () -> startQuiz(subject, courseId)).show();
                         });
                     }
                     @Override public void onFailure(Call<ResponseBody> c, Throwable t) {
                         if (!isAdded()) return;
-                        handler.post(() -> new android.app.AlertDialog.Builder(getContext())
-                                .setTitle("开始学习")
-                                .setMessage("是否开始学习「" + subject + "」？")
-                                .setPositiveButton("是", (d, w) -> startQuiz(subject, courseId))
-                                .setNegativeButton("否", null).show());
+                        handler.post(() -> new com.znxsgl.student.dialog.ConfirmCardDialog(getContext(),
+                                "开始练习", "是否开始学习「" + subject + "」？",
+                                "AI 将为「" + subject + "」生成一套练习题。",
+                                "否", "是", () -> startQuiz(subject, courseId)).show());
                     }
                 });
     }
 
     private void startQuiz(String subject, long courseId) {
         if (!isAdded()) return;
-        android.app.ProgressDialog loading = new android.app.ProgressDialog(getContext());
-        loading.setMessage("正在生成「" + subject + "」题目...");
-        loading.setCancelable(false); loading.show();
-
         if ("错题解析".equals(subject)) {
-            loading.dismiss();
             showWrongAnalysis();
             return;
         }
+        com.znxsgl.student.dialog.FullscreenLoaderDialog loading =
+                new com.znxsgl.student.dialog.FullscreenLoaderDialog(requireContext(),
+                        com.znxsgl.student.dialog.FullscreenLoaderDialog.LoaderType.RARE_COW);
+        loading.show();
+
         Map<String, Object> b = new HashMap<>();
         b.put("subject", subject);
         b.put("subjectType", subject.contains("思政")||subject.contains("人文")?"公共":"专业");
         b.put("courseId", courseId);
+        // 异步出题：请求立即返回 taskId，不阻塞、不报"繁忙"，由 pollQuizResult 轮询取题
         RetrofitClient.getInstance().create(ApiService.class).generateQuiz(token, b).enqueue(new Callback<Map<String, Object>>() {
             @Override public void onResponse(Call<Map<String, Object>> c, Response<Map<String, Object>> r) {
-                loading.dismiss();
                 if (!isAdded()) return;
-                if (r.isSuccessful()&&r.body()!=null&&r.body().get("questions")!=null) {
-                    Object sid = r.body().get("sessionId");
-                    if (sid instanceof Number) latestSessionId = ((Number) sid).longValue();
-                    handler.post(() -> {
-                        quizQuestions.clear();
-                        for (Map<String, Object> qm : (List<Map<String, Object>>)r.body().get("questions")) {
-                            QuizQuestion q = new QuizQuestion();
-                            q.setQuestionType((String)qm.get("questionType"));
-                            q.setSubject((String)qm.get("subject"));
-                            q.setQuestion((String)qm.get("question"));
-                            q.setOptions((List<String>)qm.get("options"));
-                            q.setCorrectAnswer((String)qm.get("correctAnswer"));
-                            quizQuestions.add(q);
-                        }
-                        quizAdapter.notifyDataSetChanged();
-                        if (rvQuizPanels != null) rvQuizPanels.setVisibility(View.GONE);
-                        llQuizArea.setVisibility(View.VISIBLE);
-                        lastPageIndex=0; lastPageEntryTime=System.currentTimeMillis();
-                        quizActive = true;
-                    });
-                } else if (r.code() == 400) {
-                    String errMsg = "请先学习章节内容再答题";
-                    try {
-                        if (r.errorBody() != null) {
-                            JSONObject obj = new JSONObject(r.errorBody().string());
-                            if (obj.has("error")) errMsg = obj.getString("error");
-                        }
-                    } catch (Exception ignored) {}
-                    final String msg = errMsg;
-                    handler.post(() -> Toast.makeText(getContext(), msg, Toast.LENGTH_SHORT).show());
+                if (r.isSuccessful() && r.body() != null && r.body().get("taskId") != null) {
+                    quizPollAttempt = 0;
+                    pollQuizResult(String.valueOf(r.body().get("taskId")), loading);
                 } else {
-                    handler.post(()->Toast.makeText(getContext(),"题目生成失败",Toast.LENGTH_SHORT).show());
+                    loading.dismiss();
+                    handler.post(() -> Toast.makeText(getContext(), "出题启动失败", Toast.LENGTH_SHORT).show());
                 }
             }
             @Override public void onFailure(Call<Map<String, Object>> c, Throwable t) {
                 loading.dismiss();
-                handler.post(()->Toast.makeText(getContext(),"网络错误",Toast.LENGTH_SHORT).show());
+                handler.post(() -> Toast.makeText(getContext(), "网络错误", Toast.LENGTH_SHORT).show());
             }
+        });
+    }
+
+    /** 轮询异步出题结果：每 2 秒查一次，最多 90 次（3 分钟），完成后直接展示题目 */
+    private void pollQuizResult(final String taskId, final com.znxsgl.student.dialog.FullscreenLoaderDialog loading) {
+        RetrofitClient.getInstance().create(ApiService.class).getQuizResult(token, taskId).enqueue(new Callback<Map<String, Object>>() {
+            @Override public void onResponse(Call<Map<String, Object>> c, Response<Map<String, Object>> r) {
+                if (!isAdded()) return;
+                if (r.isSuccessful() && r.body() != null) {
+                    Map<String, Object> body = r.body();
+                    String status = body.get("status") != null ? body.get("status").toString() : "";
+                    if ("done".equals(status)) {
+                        quizPollAttempt = 0;
+                        loading.dismiss();
+                        showQuizQuestions(body);
+                    } else if ("error".equals(status)) {
+                        quizPollAttempt = 0;
+                        loading.dismiss();
+                        String err = body.get("error") != null ? body.get("error").toString() : "出题失败，请稍后重试";
+                        handler.post(() -> Toast.makeText(getContext(), err, Toast.LENGTH_SHORT).show());
+                    } else {
+                        // pending：继续轮询
+                        if (++quizPollAttempt > 90) {
+                            quizPollAttempt = 0;
+                            loading.dismiss();
+                            handler.post(() -> Toast.makeText(getContext(), "出题超时，请重试", Toast.LENGTH_SHORT).show());
+                            return;
+                        }
+                        handler.postDelayed(() -> pollQuizResult(taskId, loading), 2000);
+                    }
+                } else {
+                    quizPollAttempt = 0;
+                    loading.dismiss();
+                    handler.post(() -> Toast.makeText(getContext(), "查询出题状态失败", Toast.LENGTH_SHORT).show());
+                }
+            }
+            @Override public void onFailure(Call<Map<String, Object>> c, Throwable t) {
+                if (!isAdded()) return;
+                if (++quizPollAttempt > 90) {
+                    quizPollAttempt = 0;
+                    loading.dismiss();
+                    handler.post(() -> Toast.makeText(getContext(), "网络错误，请重试", Toast.LENGTH_SHORT).show());
+                    return;
+                }
+                handler.postDelayed(() -> pollQuizResult(taskId, loading), 2000);
+            }
+        });
+    }
+
+    /** 展示异步返回的题目 */
+    private void showQuizQuestions(Map<String, Object> body) {
+        if (!isAdded() || body.get("questions") == null) return;
+        Object sid = body.get("sessionId");
+        if (sid instanceof Number) latestSessionId = ((Number) sid).longValue();
+        handler.post(() -> {
+            quizQuestions.clear();
+            for (Map<String, Object> qm : (List<Map<String, Object>>) body.get("questions")) {
+                QuizQuestion q = new QuizQuestion();
+                q.setQuestionType((String)qm.get("questionType"));
+                q.setSubject((String)qm.get("subject"));
+                q.setQuestion((String)qm.get("question"));
+                q.setOptions((List<String>)qm.get("options"));
+                q.setCorrectAnswer((String)qm.get("correctAnswer"));
+                quizQuestions.add(q);
+            }
+            quizAdapter.notifyDataSetChanged();
+            // 重置到第1题：ViewPager2会保留上次测评停留的位置，不重置会导致新测试直接显示旧页（如第15题）
+            if (viewPagerQuiz != null) viewPagerQuiz.setCurrentItem(0, false);
+            if (rvQuizPanels != null) rvQuizPanels.setVisibility(View.GONE);
+            llQuizArea.setVisibility(View.VISIBLE);
+            lastPageIndex=0; lastPageEntryTime=System.currentTimeMillis();
+            quizActive = true;
         });
     }
 
@@ -393,20 +438,19 @@ public class FocusFragment extends Fragment {
         if (wrongCount > 0) msg += " | 错题 " + wrongCount;
         if (emptyCount > 0) msg += " | 空题 " + emptyCount;
 
-        new android.app.AlertDialog.Builder(getContext())
-                .setTitle("确认提交")
-                .setMessage(msg + "\n\n确实要提交吗？未答题将标记为\"不会\"")
-                .setPositiveButton("确认提交", (d,w)->{ submitQuiz(); })
-                .setNegativeButton("继续答题", null).show();
+        new com.znxsgl.student.dialog.ConfirmCardDialog(getContext(),
+                "确认提交", msg,
+                "确实要提交吗？未答题将标记为\"不会\"",
+                "继续答题", "确认提交", () -> submitQuiz()).show();
     }
 
     private void submitQuiz() {
         for (QuizQuestion q : quizQuestions)
             if (q.getUserAnswer()==null||q.getUserAnswer().isEmpty()) q.setUserAnswer("不会");
 
-        android.app.ProgressDialog pd = new android.app.ProgressDialog(getContext());
-        pd.setMessage("正在提交并生成测评报告...");
-        pd.setCancelable(false);
+        com.znxsgl.student.dialog.FullscreenLoaderDialog pd =
+                new com.znxsgl.student.dialog.FullscreenLoaderDialog(requireContext(),
+                        com.znxsgl.student.dialog.FullscreenLoaderDialog.LoaderType.RARE_COW);
         pd.show();
 
         List<Map<String, Object>> answers = new ArrayList<>();

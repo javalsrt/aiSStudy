@@ -38,8 +38,9 @@ public class LlmService {
 
     private final ObjectMapper mapper = new ObjectMapper();
 
-    // 全局限流：每秒最多 2 次 AI 调用，防止整体被刷爆
-    private final RateLimiter globalRateLimiter = RateLimiter.create(2.0);
+    // 全局限流：每秒最多 20 次 AI 调用（DeepSeek V4 Flash 平台并发额度 2500，20/s 仅是零头，
+    // 主要防止极端刷接口，不影响几十人并发刷题）
+    private final RateLimiter globalRateLimiter = RateLimiter.create(20.0);
 
     // 按用户限流：每分钟最多 10 次 AI 调用，防止单个用户滥用
     private final ConcurrentHashMap<Long, RateLimiter> userRateLimiters = new ConcurrentHashMap<>();
@@ -79,6 +80,16 @@ public class LlmService {
             throw new RateLimitException("AI 服务繁忙，请稍后再试");
         }
         return chatInternal(userId, systemPrompt, userMessage, 8192);
+    }
+
+    /**
+     * 排队调用 AI（后台任务用）：阻塞等待全局令牌，而不是拒绝。
+     * 适合异步出题等场景：高并发时请求自动排队，避免直接抛"繁忙"拒绝，
+     * 保证 100 人同时出题时所有人最终都能拿到结果（只是先后不同）。
+     */
+    public String chatQueued(String systemPrompt, String userMessage) {
+        globalRateLimiter.acquire(); // 20/s 速率下平均等待 50ms，排队而非拒绝
+        return chatInternal(null, systemPrompt, userMessage, 8192);
     }
 
     /**

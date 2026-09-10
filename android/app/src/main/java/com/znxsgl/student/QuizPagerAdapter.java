@@ -106,6 +106,8 @@ public class QuizPagerAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
 
         applyJudgeStyle(vh.btnTrue, "正确", selectedTrue, true);
         applyJudgeStyle(vh.btnFalse, "错误", selectedFalse, false);
+        applyPillFeedback(vh.btnTrue);
+        applyPillFeedback(vh.btnFalse);
 
         vh.btnTrue.setOnClickListener(v -> {
             if (selectedTrue) return;
@@ -183,8 +185,26 @@ public class QuizPagerAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
 
     private void applyJudgeStyle(TextView tv, String label, boolean selected, boolean isTrue) {
         tv.setText(label);
-        tv.setBackground(makeOptionBg(selected));
+        tv.setBackgroundResource(R.drawable.bg_btn_pill);
+        tv.setSelected(selected);
         tv.setTextColor(selected ? COLOR_WHITE : (isTrue ? COLOR_SUCCESS : COLOR_DANGER));
+        tv.setElevation(dp(tv.getContext(), selected ? 0 : 4));
+    }
+
+    private void applyPillFeedback(View v) {
+        v.setOnTouchListener((view, e) -> {
+            if (e.getAction() == android.view.MotionEvent.ACTION_DOWN) {
+                view.animate().scaleX(0.96f).scaleY(0.96f)
+                        .translationZ(dp(view.getContext(), 1))
+                        .setDuration(80).start();
+            } else if (e.getAction() == android.view.MotionEvent.ACTION_UP
+                    || e.getAction() == android.view.MotionEvent.ACTION_CANCEL) {
+                view.animate().scaleX(1f).scaleY(1f)
+                        .translationZ(dp(view.getContext(), 4))
+                        .setDuration(120).start();
+            }
+            return false;
+        });
     }
 
     private GradientDrawable makeOptionBg(boolean selected) {

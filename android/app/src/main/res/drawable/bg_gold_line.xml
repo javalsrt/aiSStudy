@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 金色渐变分割线（对应组件 splitLine：透明 → #F7B733 → 透明） -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:angle="0"
+        android:startColor="#00FFE8A0"
+        android:centerColor="#F7B733"
+        android:endColor="#00FFE8A0" />
+    <corners android:radius="4dp" />
+</shape>

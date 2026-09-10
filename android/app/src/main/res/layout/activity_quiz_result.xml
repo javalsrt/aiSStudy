@@ -1,9 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:background="@color/background">
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:id="@+id/report_content"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:background="@color/background">
 
     <include layout="@layout/layout_common_header" />
 
@@ -175,7 +180,8 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
-                android:orientation="horizontal">
+                android:orientation="horizontal"
+                android:baselineAligned="false">
 
                 <LinearLayout
                     android:layout_width="0dp"
@@ -199,7 +205,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="10dp"
-                        android:orientation="horizontal" />
+                        android:orientation="vertical" />
                 </LinearLayout>
 
                 <LinearLayout
@@ -224,7 +230,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="10dp"
-                        android:orientation="horizontal" />
+                        android:orientation="vertical" />
                 </LinearLayout>
             </LinearLayout>
 
@@ -365,4 +371,143 @@
             </LinearLayout>
         </LinearLayout>
     </ScrollView>
-</LinearLayout>
+    </LinearLayout>
+
+    <!-- ===== 测评揭晓动画层（模仿 uiverse ugly-horse-87 金色奖杯卡片） ===== -->
+    <FrameLayout
+        android:id="@+id/reveal_overlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/canvas"
+        android:clickable="true"
+        android:focusable="true">
+
+        <LinearLayout
+            android:id="@+id/reveal_card"
+            android:layout_width="300dp"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:orientation="vertical"
+            android:background="@drawable/bg_reveal_card"
+            android:elevation="8dp"
+            android:paddingStart="22dp"
+            android:paddingEnd="22dp"
+            android:paddingTop="20dp"
+            android:paddingBottom="18dp">
+
+            <!-- 大号得分 + 右上角奖杯（对应 ranking_number + trophy） -->
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <TextView
+                    android:id="@+id/tv_reveal_score"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_vertical|start"
+                    android:layout_marginStart="4dp"
+                    android:text="0%"
+                    android:textSize="64sp"
+                    android:textStyle="bold"
+                    android:textColor="#FFC64B" />
+
+                <ImageView
+                    android:id="@+id/iv_reveal_trophy"
+                    android:layout_width="88dp"
+                    android:layout_height="88dp"
+                    android:layout_gravity="end|top"
+                    android:layout_marginTop="2dp"
+                    android:layout_marginEnd="2dp"
+                    android:src="@drawable/ic_trophy"
+                    android:contentDescription="奖杯" />
+            </FrameLayout>
+
+            <!-- 金色渐变分割线 -->
+            <View
+                android:id="@+id/reveal_line"
+                android:layout_width="220dp"
+                android:layout_height="8dp"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/bg_gold_line" />
+
+            <!-- SCORE / TIME 数据行（对应 gradesBox 与 timeNum） -->
+            <LinearLayout
+                android:id="@+id/reveal_stats_row"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:orientation="horizontal">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:gravity="center">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="SCORE"
+                        android:letterSpacing="0.4"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        android:textColor="#424C50" />
+
+                    <TextView
+                        android:id="@+id/tv_reveal_correct"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="0/0"
+                        android:textSize="22sp"
+                        android:textStyle="bold"
+                        android:textColor="#EA9518" />
+                </LinearLayout>
+
+                <View
+                    android:layout_width="1dp"
+                    android:layout_height="36dp"
+                    android:layout_gravity="center_vertical"
+                    android:background="#E3C97E" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:gravity="center">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="TIME"
+                        android:letterSpacing="0.4"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        android:textColor="#424C50" />
+
+                    <TextView
+                        android:id="@+id/tv_reveal_time"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="0秒"
+                        android:textSize="22sp"
+                        android:textStyle="bold"
+                        android:textColor="#6CABF6" />
+                </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|center_horizontal"
+            android:layout_marginBottom="56dp"
+            android:text="正在生成测评报告 · 点击跳过"
+            android:textSize="12sp"
+            android:textColor="@color/ink_subtle" />
+    </FrameLayout>
+</FrameLayout>

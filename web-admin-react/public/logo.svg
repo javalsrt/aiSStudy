@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!--
+    智学职达 · 统一品牌图标（SVG 母版）
+    设计语言：iOS 极简 —— 纯色强调蓝 #0A84FF 圆角方形
+    核心元素：学士帽（学 + 职达）+ AI 星点（智）
+    Android / favicon 的 PNG 由此文件经 scripts/gen_app_icon.py 渲染生成
+  -->
+  <rect width="1024" height="1024" rx="224" fill="#0A84FF"/>
+
+  <!-- 帽身（先画，帽板压在其上） -->
+  <path d="M280 485 L280 640 C280 712 382 744 512 744 C642 744 744 712 744 640 L744 485 L512 604 Z"
+        fill="#FFFFFF" stroke="#FFFFFF" stroke-width="24" stroke-linejoin="round"/>
+
+  <!-- 流苏（挂于帽板右角） -->
+  <line x1="884" y1="420" x2="884" y2="560" stroke="#C6E0FF" stroke-width="18" stroke-linecap="round"/>
+  <circle cx="884" cy="592" r="30" fill="#C6E0FF"/>
+
+  <!-- 帽板（mortarboard） -->
+  <polygon points="512,210 884,400 512,590 140,400"
+           fill="#FFFFFF" stroke="#FFFFFF" stroke-width="28" stroke-linejoin="round"/>
+  <!-- 帽板中心扣 -->
+  <circle cx="512" cy="400" r="24" fill="#0A84FF"/>
+
+  <!-- AI 星点 -->
+  <polygon points="800,184 812,228 856,240 812,252 800,296 788,252 744,240 788,228" fill="#FFFFFF"/>
+  <polygon points="240,250 246,274 270,280 246,286 240,310 234,286 210,280 234,274" fill="#FFFFFF"/>
+  <circle cx="700" cy="180" r="11" fill="#C6E0FF"/>
+</svg>

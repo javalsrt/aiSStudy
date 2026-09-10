@@ -397,6 +397,43 @@ export interface StudentExamDetail {
   answers: StudentExamAnswerDetail[]
 }
 
+// 学生单次测评报告（教师查看）
+export interface QuizReportSession {
+  subject: string
+  difficulty: number
+  sessionNo: number
+  totalQuestions: number
+  answeredCount: number
+  correctCount: number
+  skipCount: number
+  totalDurationSec: number
+  scores: { name: string; value: number }[]
+  strengths: string[]
+  weaknesses: string[]
+  suggestion?: string
+  studyPlan: string[]
+  status: string
+  createdAt: string
+}
+
+export interface QuizReportAnswer {
+  questionIndex: number
+  questionType: string
+  question: string
+  options?: string
+  userAnswer?: string
+  correctAnswer?: string
+  isCorrect: number // 1对 0错 -1不会 -2跳过
+  durationSec: number
+  modifiedCount: number
+}
+
+export interface QuizReportDetail {
+  session: QuizReportSession
+  student: { realName?: string; studentNo?: string; className?: string }
+  answers: QuizReportAnswer[]
+}
+
 // 考试作业
 export interface ExamHomeworkItem {
   id: number

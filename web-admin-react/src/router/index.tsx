@@ -4,6 +4,7 @@ import { LoginPage } from '@/pages/login'
 import { DashboardPage } from '@/pages/dashboard'
 import { CoursesPage } from '@/pages/courses'
 import { StatsPage } from '@/pages/stats'
+import { QuizReportPage } from '@/pages/quiz-report'
 import { StaffPage } from '@/pages/admin/staff'
 import { SemesterPage } from '@/pages/admin/semester'
 import { CourseImportPage } from '@/pages/admin/course-import'
@@ -124,6 +125,10 @@ export const router = createBrowserRouter(
         {
           path: 'stats',
           element: <StatsPage />,
+        },
+        {
+          path: 'quiz-report/:sessionId',
+          element: <QuizReportPage />,
         },
         {
           path: 'course-chapters',

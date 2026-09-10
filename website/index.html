@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>智学职达 · AI 驱动的智能学习管理系统</title>
+  <meta name="description" content="智学职达 —— 面向职教学校的 AI 个性化学习平台。DeepSeek V4 Flash 驱动智能出题、专注度分析、六维能力测评与个性化学习计划。" />
+  <link rel="icon" type="image/png" href="assets/logo.png" />
+  <link rel="apple-touch-icon" href="assets/logo.png" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+  <!-- ===== 导航 ===== -->
+  <header class="nav" id="nav">
+    <div class="nav-inner">
+      <a class="logo" href="#top">
+        <img class="logo-img" src="assets/logo.png" alt="智学职达" />
+        智学职达
+      </a>
+      <nav class="nav-links" id="navLinks">
+        <a href="#student">学生端</a>
+        <a href="#ai">AI 出题引擎</a>
+        <a href="#admin">管理端</a>
+        <a href="#tech">技术架构</a>
+        <a href="#faq">常见问题</a>
+      </nav>
+      <a class="btn btn-sm btn-primary nav-cta" href="#hero-cta">立即体验</a>
+      <button class="nav-toggle" id="navToggle" aria-label="菜单">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ===== Hero ===== -->
+  <section class="hero" id="top">
+    <div class="hero-bg" aria-hidden="true">
+      <div class="glow glow-1"></div>
+      <div class="glow glow-2"></div>
+      <div class="glow glow-3"></div>
+      <div class="hero-grid"></div>
+    </div>
+
+    <div class="hero-inner">
+      <div class="hero-copy reveal">
+        <div class="hero-badge">
+          <span class="dot"></span> DeepSeek V4 Flash 大模型驱动
+        </div>
+        <h1>AI 驱动的<br /><span class="grad-text">智能学习管理系统</span></h1>
+        <p class="hero-sub">
+          智学职达打通「学 · 练 · 测 · 评 · 管」全链路：大模型智能出题、专注度实时分析、
+          六维能力测评报告、AI 学习计划，让每一位职教学子都有专属的 AI 学习导师。
+        </p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="#ai">查看 AI 出题演示</a>
+          <a class="btn btn-ghost" href="#student">了解学生端</a>
+        </div>
+        <div class="hero-stats">
+          <div class="stat"><b>10K+</b><span>学生用户</span></div>
+          <div class="stat"><b>500+</b><span>教师入驻</span></div>
+          <div class="stat"><b>98%</b><span>满意度</span></div>
+          <div class="stat"><b>6</b><span>维能力模型</span></div>
+        </div>
+      </div>
+
+      <!-- 手机样机 -->
+      <div class="hero-phone reveal" aria-hidden="true">
+        <div class="phone">
+          <div class="phone-notch"></div>
+          <div class="phone-screen">
+            <div class="app-head">
+              <span class="app-title">专注刷题 · 计算机网络基础</span>
+              <span class="app-timer">05:32</span>
+            </div>
+            <div class="app-q">
+              <span class="app-tag">单选题</span>
+              <p>带宽的单位是什么？</p>
+              <div class="app-opt">A. 字节每秒</div>
+              <div class="app-opt on">B. 比特每秒 ✓</div>
+              <div class="app-opt">C. 帧每秒</div>
+              <div class="app-opt">D. 报文每秒</div>
+            </div>
+            <div class="app-report">
+              <span>本次测评 · 正确率</span>
+              <b>87%</b>
+              <div class="app-bar"><i style="width:87%"></i></div>
+              <div class="app-dims">
+                <span>逻辑思维力</span><span>判断决策力</span><span>专注耐力</span>
+                <span>专业学习力</span><span>信息检索力</span><span>自律执行力</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="phone-shadow"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 学生端 ===== -->
+  <section class="section" id="student">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <span class="sec-label">STUDENT APP</span>
+        <h2>学生端 · 把 AI 导师装进口袋</h2>
+        <p>Android 原生应用，覆盖课前学习、课中练习、课后测评的完整闭环。</p>
+      </div>
+
+      <div class="grid grid-3">
+        <div class="card reveal">
+          <div class="icon icon-blue">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>
+          </div>
+          <h3>AI 智能出题</h3>
+          <p>单选 / 判断 / 解析 / 填空四种题型随机组卷，根据正确率与用时自动升降难度，越刷越懂你。</p>
+        </div>
+        <div class="card reveal">
+          <div class="icon icon-green">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/></svg>
+          </div>
+          <h3>专注度实时分析</h3>
+          <p>学习过程中实时采集专注指标，刷题节奏、答题用时全程量化，帮助找到最佳学习状态。</p>
+        </div>
+        <div class="card reveal">
+          <div class="icon icon-purple">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>
+          </div>
+          <h3>六维能力测评报告</h3>
+          <p>逻辑思维、判断决策、专注耐力、专业学习、信息检索、自律执行六维雷达，一测即知强弱项。</p>
+        </div>
+        <div class="card reveal">
+          <div class="icon icon-orange">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M15 9.5a3.5 3.5 0 00-7 .5c0 2 3 2.2 3 4"/><circle cx="12" cy="17.5" r=".5"/></svg>
+          </div>
+          <h3>AI 错题解析</h3>
+          <p>错题自动归档，AI 逐题剖析知识点、错误原因与改进建议，让每一道错题都变成提分点。</p>
+        </div>
+        <div class="card reveal">
+          <div class="icon icon-cyan">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg>
+          </div>
+          <h3>AI 学习计划</h3>
+          <p>基于测评结果与薄弱章节，自动生成阶段化学习计划，推荐最该复习的章节内容。</p>
+        </div>
+        <div class="card reveal">
+          <div class="icon icon-red">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 01-8.5 8.4 8.6 8.6 0 01-3.8-.9L3 21l2-5.6a8.3 8.3 0 01-1-4A8.4 8.4 0 0112.5 3 8.4 8.4 0 0121 11.5z"/></svg>
+          </div>
+          <h3>AI 智能答疑</h3>
+          <p>接入 DeepSeek 大模型的对话式答疑助手，随时追问概念细节，解析题作答思路秒回。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== AI 出题引擎（深色展示区） ===== -->
+  <section class="section section-dark" id="ai">
+    <div class="ai-bg" aria-hidden="true">
+      <div class="glow glow-4"></div>
+      <div class="glow glow-5"></div>
+    </div>
+    <div class="wrap">
+      <div class="sec-head sec-head-dark reveal">
+        <span class="sec-label">POWERED BY DEEPSEEK V4 FLASH</span>
+        <h2>AI 出题引擎 · 看得见的生成能力</h2>
+        <p>RAG 检索增强 + 大模型生成 + AI 语义判分，从章节内容到个性化试卷只需一次点击。</p>
+      </div>
+
+      <!-- 对话演示 -->
+      <div class="demo reveal">
+        <div class="demo-window">
+          <div class="demo-bar">
+            <span class="d"></span><span class="d"></span><span class="d"></span>
+            <span class="demo-title">智学职达 · AI 出题控制台</span>
+          </div>
+          <div class="demo-body">
+            <div class="msg msg-user">为《计算机网络基础》生成一套基础档练习题，范围：第 1-3 章</div>
+            <div class="msg msg-ai">
+              <div class="msg-meta">DeepSeek V4 Flash · <span id="genState">正在检索章节内容…</span></div>
+              <div class="msg-json" id="typeDemo"></div>
+              <div class="msg-q" id="genQuestion"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="demo-side">
+          <div class="demo-item reveal">
+            <b>3 档自适应难度</b>
+            <p>基础记忆 → 理解应用 → 综合分析，依据正确率、跳过率与用时连续两轮同向才调档，稳定不折腾。</p>
+          </div>
+          <div class="demo-item reveal">
+            <b>RAG 章节级检索增强</b>
+            <p>Embedding 服务按已学章节向量检索教材内容，题目严格限定在所学范围内，绝不超纲。</p>
+          </div>
+          <div class="demo-item reveal">
+            <b>AI 语义判分</b>
+            <p>解析题、填空题按要点覆盖与理解程度判定对错，措辞不同、语义正确照样得分，拒绝死板比对。</p>
+          </div>
+          <div class="demo-item reveal">
+            <b>出题缓存降本</b>
+            <p>同课同档位指纹缓存 15 分钟，百人并发刷题只调一次大模型，成本与延迟双降。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 管理端 ===== -->
+  <section class="section section-alt" id="admin">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <span class="sec-label">ADMIN CONSOLE</span>
+        <h2>管理端 · 教学数据一屏掌控</h2>
+        <p>React 现代化管理后台，为教师与教学管理者提供从课程到个人的全维度数据视图。</p>
+      </div>
+
+      <!-- 浏览器样机 -->
+      <div class="browser reveal" aria-hidden="true">
+        <div class="browser-bar">
+          <span class="d"></span><span class="d"></span><span class="d"></span>
+          <span class="browser-url">admin.zhixuezhiba.cn / dashboard</span>
+        </div>
+        <div class="browser-body">
+          <div class="bd-side">
+            <span class="on">数据看板</span><span>学生管理</span><span>课程管理</span><span>作业考试</span><span>AI 学情分析</span>
+          </div>
+          <div class="bd-main">
+            <div class="bd-cards">
+              <div class="bd-card"><span>活跃学生</span><b>2,381</b><i class="up">+12.4%</i></div>
+              <div class="bd-card"><span>本周测评</span><b>1,064</b><i class="up">+8.1%</i></div>
+              <div class="bd-card"><span>平均正确率</span><b>82.6%</b><i class="up">+3.2%</i></div>
+              <div class="bd-card"><span>平均专注度</span><b>76.9</b><i class="down">-1.4%</i></div>
+            </div>
+            <div class="bd-chart">
+              <span>六维能力 · 班级均值</span>
+              <div class="bars">
+                <div class="bar-v"><i style="height:72%"></i><em>逻辑</em></div>
+                <div class="bar-v"><i style="height:64%"></i><em>决策</em></div>
+                <div class="bar-v"><i style="height:81%"></i><em>专注</em></div>
+                <div class="bar-v"><i style="height:58%"></i><em>专业</em></div>
+                <div class="bar-v"><i style="height:69%"></i><em>检索</em></div>
+                <div class="bar-v"><i style="height:77%"></i><em>自律</em></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-4 admin-grid">
+        <div class="mini-card reveal"><b>数据看板</b><span>全校 / 班级 / 个人三级数据钻取，趋势一目了然</span></div>
+        <div class="mini-card reveal"><b>学生画像</b><span>六维能力、错题分布、专注曲线全维度画像</span></div>
+        <div class="mini-card reveal"><b>课程与题库</b><span>章节内容管理、AI 出题范围控制、题目质量审核</span></div>
+        <div class="mini-card reveal"><b>作业与考试</b><span>在线发布、自动判分、成绩单导出全流程覆盖</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 技术架构（3D 分层悬浮舞台） ===== -->
+  <section class="section section-dark" id="tech">
+    <div class="ai-bg" aria-hidden="true">
+      <div class="glow glow-4"></div>
+      <div class="glow glow-5"></div>
+    </div>
+    <div class="wrap">
+      <div class="sec-head sec-head-dark reveal">
+        <span class="sec-label">ARCHITECTURE</span>
+        <h2>技术架构 · 前后端分离的全栈体系</h2>
+        <p>四层架构立体呈现 —— 悬停任意一层，抬起查看该层核心技术。</p>
+      </div>
+
+      <div class="arch-wrap">
+        <!-- 3D 前后堆叠卡组 -->
+        <div class="arch-stage reveal">
+          <div class="arch-scene" id="archScene">
+            <div class="arch-stack" id="archStack">
+              <div class="deck-card" style="--i:0; --c1:#22d3ee; --c2:#0891b2;">
+                <div class="al-head">
+                  <span class="al-name">终端层</span>
+                  <span class="al-badge">01 · FRONTEND</span>
+                </div>
+                <div class="al-chips">
+                  <span>Android App</span><span>React 管理端</span><span>微信小程序</span>
+                </div>
+              </div>
+              <div class="deck-card" style="--i:1; --c1:#0a84ff; --c2:#2a5cd8;">
+                <div class="al-head">
+                  <span class="al-name">服务层</span>
+                  <span class="al-badge">02 · BACKEND</span>
+                </div>
+                <div class="al-chips">
+                  <span>Spring Boot</span><span>MySQL</span><span>Redis</span><span>WebSocket</span>
+                </div>
+              </div>
+              <div class="deck-card" style="--i:2; --c1:#8b5cf6; --c2:#5e6ad2;">
+                <div class="al-head">
+                  <span class="al-name">智能层</span>
+                  <span class="al-badge">03 · AI ENGINE</span>
+                </div>
+                <div class="al-chips">
+                  <span>DeepSeek V4 Flash</span><span>RAG 检索增强</span><span>语义判分</span>
+                </div>
+              </div>
+              <div class="deck-card" style="--i:3; --c1:#34c759; --c2:#1a7f37;">
+                <div class="al-head">
+                  <span class="al-name">基础设施</span>
+                  <span class="al-badge">04 · INFRA</span>
+                </div>
+                <div class="al-chips">
+                  <span>Docker Compose</span><span>Nginx</span><span>令牌桶限流</span>
+                </div>
+              </div>
+            </div>
+            <div class="arch-floor" aria-hidden="true"></div>
+          </div>
+          <p class="arch-hint">悬停任意卡片 · 该层置顶优先展示</p>
+        </div>
+
+        <!-- 3D 数字说明卡（weak-owl-45 风格） -->
+        <div class="arch-side">
+          <div class="arch-card reveal" style="--ac: #22d3ee;">
+            <span class="ac-num">01</span>
+            <div><b>前端 · 多端统一</b><p>三端共用统一 REST API 与 WebSocket 实时通道，界面独立迭代，数据同源。</p></div>
+          </div>
+          <div class="arch-card reveal" style="--ac: #0a84ff;">
+            <span class="ac-num">02</span>
+            <div><b>后端 · 服务分层</b><p>Controller / Service / Mapper 三层结构，鉴权、限流、缓存一体化治理。</p></div>
+          </div>
+          <div class="arch-card reveal" style="--ac: #8b5cf6;">
+            <span class="ac-num">03</span>
+            <div><b>智能 · 大模型中台</b><p>出题、判分、评估、答疑统一经 LlmService 排队调度，令牌桶控制并发。</p></div>
+          </div>
+          <div class="arch-card reveal" style="--ac: #34c759;">
+            <span class="ac-num">04</span>
+            <div><b>部署 · 容器化交付</b><p>Docker Compose 一键拉起前端、后端、数据库与 Nginx 网关，开箱即用。</p></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== FAQ ===== -->
+  <section class="section section-alt" id="faq">
+    <div class="wrap wrap-narrow">
+      <div class="sec-head reveal">
+        <span class="sec-label">FAQ</span>
+        <h2>常见问题</h2>
+      </div>
+      <div class="faq-list">
+        <details class="faq reveal">
+          <summary>AI 出题的质量和范围如何保证？<i></i></summary>
+          <p>系统基于 RAG 按学生已学章节做向量检索，将教材原文注入出题 Prompt 并明确要求不超纲；同时按课程+难度+章节指纹缓存题目，保证同批次学生题目一致、便于公平对比。</p>
+        </details>
+        <details class="faq reveal">
+          <summary>解析题答案不唯一，如何判分？<i></i></summary>
+          <p>主观题由大模型按「要点覆盖 + 语义一致性」判分：核心概念表达正确即判对，部分覆盖且无概念错误也给分，出现概念性错误才判错；AI 不可用时自动降级为文本相似度兜底。</p>
+        </details>
+        <details class="faq reveal">
+          <summary>难度自适应会不会忽高忽低？<i></i></summary>
+          <p>不会。采用保守策略：正确率 ≥ 80%、跳过率 ≤ 10% 且平均用时 ≤ 60 秒需连续两轮同向满足才升档，反之才降档，避免单次偶然波动影响难度档位。</p>
+        </details>
+        <details class="faq reveal">
+          <summary>支持哪些终端？<i></i></summary>
+          <p>学生使用 Android App 与微信小程序，教师与管理者使用 React Web 管理端；所有端通过统一的 REST API 与 WebSocket 与服务端通信，Docker Compose 一键部署。</p>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 底部 CTA ===== -->
+  <section class="cta" id="hero-cta">
+    <div class="wrap">
+      <h2 class="reveal">让每一次学习，都有 AI 同行</h2>
+      <p class="reveal">智学职达 · 面向职教学校的 AI 个性化学习平台</p>
+      <div class="hero-actions reveal">
+        <a class="btn btn-primary btn-lg" href="#top">体验学生端</a>
+        <a class="btn btn-ghost btn-lg" href="#admin">了解管理端</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Footer ===== -->
+  <footer class="footer">
+    <div class="wrap footer-inner">
+      <div class="footer-brand">
+        <span class="logo"><img class="logo-img" src="assets/logo.png" alt="智学职达" />智学职达</span>
+        <p>AI Powered Learning · 中国国际大学生创新大赛参赛项目</p>
+      </div>
+      <div class="footer-links">
+        <a href="#student">学生端</a><a href="#ai">AI 引擎</a><a href="#admin">管理端</a><a href="#tech">技术架构</a>
+      </div>
+      <div class="footer-copy">© 2026 智学职达 · Powered by DeepSeek V4 Flash</div>
+    </div>
+  </footer>
+
+  <script src="js/main.js"></script>
+</body>
+</html>

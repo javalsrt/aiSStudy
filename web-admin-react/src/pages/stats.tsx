@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -28,6 +29,8 @@ import {
   Radar,
   Legend,
   Cell,
+  LineChart,
+  Line,
 } from 'recharts'
 import {
   Users,
@@ -45,6 +48,8 @@ import {
   MinusCircle,
   Eye,
   School,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react'
 import { useRole } from '@/hooks/use-role'
 import {
@@ -124,8 +129,22 @@ function questionTypeLabel(type?: string) {
   return map[type || ''] || type || '未知题型'
 }
 
+function difficultyLabelOf(d?: number) {
+  switch (d) {
+    case 1:
+      return '基础'
+    case 2:
+      return '中等'
+    case 3:
+      return '进阶'
+    default:
+      return '-'
+  }
+}
+
 export function StatsPage() {
   const { isAdmin } = useRole()
+  const navigate = useNavigate()
   const [stats, setStats] = useState<TeacherStats | null>(null)
   const [trend, setTrend] = useState<TrendItem[]>([])
   const [classSummary, setClassSummary] = useState<ClassSummaryItem[]>([])
@@ -140,6 +159,11 @@ export function StatsPage() {
   const [focusQuiz, setFocusQuiz] = useState<StudentFocusQuiz | null>(null)
   const [chapterProgress, setChapterProgress] = useState<StudentCourseChapterProgress[]>([])
   const [examRecords, setExamRecords] = useState<StudentExamRecord[]>([])
+
+  // 专注刷题tab：专注记录折叠状态、刷题记录筛选条件
+  const [focusExpanded, setFocusExpanded] = useState(false)
+  const [quizSubjectFilter, setQuizSubjectFilter] = useState('all')
+  const [quizTimeFilter, setQuizTimeFilter] = useState('all')
 
   const [profileTab, setProfileTab] = useState('profile')
   const [detailOpen, setDetailOpen] = useState(false)
@@ -196,6 +220,9 @@ export function StatsPage() {
     const fetchStudent = async () => {
       setStudentLoading(true)
       setStudentError('')
+      setFocusExpanded(false)
+      setQuizSubjectFilter('all')
+      setQuizTimeFilter('all')
       try {
         const [profile, fq, cp, exams] = await Promise.all([
           getStudentStats(selectedStudentId),
@@ -277,6 +304,30 @@ export function StatsPage() {
 
   const classRankingData = stats?.classFocusRanking || []
   const students = stats?.students || []
+
+  // 刷题记录筛选与趋势数据
+  const quizSessions = focusQuiz?.quizSessions || []
+  const quizSubjects = Array.from(new Set(quizSessions.map((q) => q.subject || '综合刷题')))
+  const filteredQuizSessions = quizSessions.filter((qs) => {
+    if (quizSubjectFilter !== 'all' && (qs.subject || '综合刷题') !== quizSubjectFilter) return false
+    if (quizTimeFilter !== 'all') {
+      const days = Number(quizTimeFilter)
+      const created = new Date(qs.createdAt).getTime()
+      if (Number.isNaN(created) || Date.now() - created > days * 86400000) return false
+    }
+    return true
+  })
+  // 趋势按时间正序，x轴取月-日
+  const accuracyTrend = [...filteredQuizSessions]
+    .reverse()
+    .map((qs, i) => ({
+      date: (formatDateTime(qs.createdAt).split(' ')[0] || '').slice(5) || `第${i + 1}次`,
+      accuracy: parseInt(qs.accuracy || '0', 10),
+    }))
+  const totalFocusMinutes = (focusQuiz?.focusSessions || []).reduce(
+    (s, f) => s + (f.durationMinutes || 0),
+    0
+  )
 
   return (
     <div className="space-y-6">
@@ -649,75 +700,214 @@ export function StatsPage() {
 
                     {/* 专注刷题 */}
                     <TabsContent value="focusQuiz" className="mt-0">
-                      <div className="space-y-6 max-h-[520px] overflow-y-auto pr-1">
-                        {/* 专注记录 */}
+                      <div className="space-y-6 max-h-[560px] overflow-y-auto pr-1">
+                        {/* 专注记录：折叠为一行汇总，不常看 */}
                         <div>
                           <h4 className="text-sm font-semibold text-neutral-900 mb-3 flex items-center gap-2">
                             <Clock className="w-4 h-4 text-primary-550" />
                             专注记录
                           </h4>
                           {focusQuiz?.focusSessions && focusQuiz.focusSessions.length > 0 ? (
-                            <div className="space-y-2">
-                              {focusQuiz.focusSessions.map((fs) => (
-                                <div
-                                  key={fs.id}
-                                  className="p-3 rounded-lg border border-neutral-100 bg-white flex items-center justify-between"
-                                >
-                                  <div>
-                                    <div className="text-sm font-medium text-neutral-900">
-                                      {fs.durationMinutes} 分钟
-                                    </div>
-                                    <div className="text-xs text-neutral-500 mt-1">
-                                      {formatDateTime(fs.startedAt)} ~ {formatDateTime(fs.finishedAt)}
-                                    </div>
-                                  </div>
-                                  <Badge variant="secondary">专注</Badge>
+                            <div
+                              data-testid="focus-summary"
+                              className="rounded-lg border border-neutral-100 bg-white cursor-pointer select-none"
+                              onClick={() => setFocusExpanded((v) => !v)}
+                            >
+                              <div className="p-3 flex items-center justify-between">
+                                <div className="text-sm text-neutral-600">
+                                  累计专注{' '}
+                                  <span className="font-semibold text-neutral-900">
+                                    {totalFocusMinutes}
+                                  </span>{' '}
+                                  分钟 · 共{' '}
+                                  <span className="font-semibold text-neutral-900">
+                                    {focusQuiz.focusSessions.length}
+                                  </span>{' '}
+                                  次专注学习
                                 </div>
-                              ))}
+                                {focusExpanded ? (
+                                  <ChevronDown className="w-4 h-4 text-neutral-400 shrink-0" />
+                                ) : (
+                                  <ChevronRight className="w-4 h-4 text-neutral-400 shrink-0" />
+                                )}
+                              </div>
+                              {focusExpanded && (
+                                <div className="space-y-2 px-3 pb-3 border-t border-neutral-100 pt-3">
+                                  {focusQuiz.focusSessions.map((fs) => (
+                                    <div
+                                      key={fs.id}
+                                      className="p-3 rounded-lg bg-neutral-50 flex items-center justify-between"
+                                    >
+                                      <div>
+                                        <div className="text-sm font-medium text-neutral-900">
+                                          {fs.durationMinutes} 分钟
+                                        </div>
+                                        <div className="text-xs text-neutral-500 mt-1">
+                                          {formatDateTime(fs.startedAt)} ~{' '}
+                                          {formatDateTime(fs.finishedAt)}
+                                        </div>
+                                      </div>
+                                      <Badge variant="secondary">专注</Badge>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                           ) : (
-                            <div className="h-[120px] flex items-center justify-center text-neutral-400 text-sm border border-dashed border-neutral-200 rounded-lg">
+                            <div className="h-[80px] flex items-center justify-center text-neutral-400 text-sm border border-dashed border-neutral-200 rounded-lg">
                               暂无专注记录
                             </div>
                           )}
                         </div>
 
-                        {/* 刷题记录 */}
+                        {/* 刷题记录：重点展示 */}
                         <div>
                           <h4 className="text-sm font-semibold text-neutral-900 mb-3 flex items-center gap-2">
                             <Brain className="w-4 h-4 text-primary-550" />
                             刷题记录
+                            {quizSessions.length > 0 && (
+                              <span className="text-xs font-normal text-neutral-400">
+                                共 {quizSessions.length} 次测评
+                              </span>
+                            )}
                           </h4>
-                          {focusQuiz?.quizSessions && focusQuiz.quizSessions.length > 0 ? (
-                            <div className="space-y-2">
-                              {focusQuiz.quizSessions.map((qs) => (
-                                <div
-                                  key={qs.id}
-                                  className="p-3 rounded-lg border border-neutral-100 bg-white"
-                                >
-                                  <div className="flex items-center justify-between">
-                                    <div className="text-sm font-medium text-neutral-900">
-                                      {qs.subject || '综合刷题'}
+                          {quizSessions.length > 0 ? (
+                            <>
+                              {/* 正确率趋势折线图 */}
+                              <div className="rounded-xl border border-neutral-100 bg-white p-4 mb-3">
+                                <div className="text-xs text-neutral-500 mb-2">正确率趋势</div>
+                                <div className="h-40">
+                                  {accuracyTrend.length >= 2 ? (
+                                    <ResponsiveContainer width="100%" height="100%">
+                                      <LineChart data={accuracyTrend}>
+                                        <CartesianGrid
+                                          strokeDasharray="3 3"
+                                          stroke="#e6e9ef"
+                                          vertical={false}
+                                        />
+                                        <XAxis
+                                          dataKey="date"
+                                          stroke="#7f8798"
+                                          fontSize={11}
+                                          axisLine={false}
+                                          tickLine={false}
+                                        />
+                                        <YAxis
+                                          domain={[0, 100]}
+                                          unit="%"
+                                          stroke="#7f8798"
+                                          fontSize={11}
+                                          axisLine={false}
+                                          tickLine={false}
+                                          width={40}
+                                        />
+                                        <Tooltip
+                                          contentStyle={{
+                                            backgroundColor: '#fff',
+                                            border: '1px solid #e6e9ef',
+                                            borderRadius: '12px',
+                                            boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
+                                          }}
+                                          formatter={(value: number) => [`${value}%`, '正确率']}
+                                        />
+                                        <Line
+                                          type="monotone"
+                                          dataKey="accuracy"
+                                          stroke="#5b58ff"
+                                          strokeWidth={2}
+                                          dot={{ r: 3, fill: '#5b58ff' }}
+                                          activeDot={{ r: 5 }}
+                                        />
+                                      </LineChart>
+                                    </ResponsiveContainer>
+                                  ) : (
+                                    <div className="h-full flex items-center justify-center text-xs text-neutral-400">
+                                      至少 2 次测评后展示趋势
                                     </div>
-                                    <Badge
-                                      variant={parseInt(qs.accuracy || '0', 10) >= 60 ? 'success' : 'secondary'}
-                                    >
-                                      正确率 {qs.accuracy}
-                                    </Badge>
-                                  </div>
-                                  <div className="text-xs text-neutral-500 mt-2 flex flex-wrap gap-x-4 gap-y-1">
-                                    <span>难度 {qs.difficulty ?? '-'}</span>
-                                    <span>总题 {qs.totalQuestions}</span>
-                                    <span>答对 {qs.correctCount}</span>
-                                    <span>跳过 {qs.skipCount}</span>
-                                    <span>用时 {formatDuration(qs.totalDurationSec)}</span>
-                                  </div>
-                                  <div className="text-xs text-neutral-400 mt-1">
-                                    {formatDateTime(qs.createdAt)}
-                                  </div>
+                                  )}
                                 </div>
-                              ))}
-                            </div>
+                              </div>
+
+                              {/* 筛选器：学科 + 时间范围 */}
+                              <div className="flex items-center gap-2 mb-3">
+                                <select
+                                  value={quizSubjectFilter}
+                                  onChange={(e) => setQuizSubjectFilter(e.target.value)}
+                                  className="h-8 rounded-md border border-neutral-200 bg-white px-2 text-xs text-neutral-700 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                                >
+                                  <option value="all">全部学科</option>
+                                  {quizSubjects.map((s) => (
+                                    <option key={s} value={s}>
+                                      {s}
+                                    </option>
+                                  ))}
+                                </select>
+                                <select
+                                  value={quizTimeFilter}
+                                  onChange={(e) => setQuizTimeFilter(e.target.value)}
+                                  className="h-8 rounded-md border border-neutral-200 bg-white px-2 text-xs text-neutral-700 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                                >
+                                  <option value="all">全部时间</option>
+                                  <option value="7">近 7 天</option>
+                                  <option value="30">近 30 天</option>
+                                </select>
+                                <span className="text-xs text-neutral-400">
+                                  {filteredQuizSessions.length} 条记录
+                                </span>
+                              </div>
+
+                              {/* 记录列表 */}
+                              <div className="space-y-2">
+                                {filteredQuizSessions.length > 0 ? (
+                                  filteredQuizSessions.map((qs) => (
+                                    <div
+                                      key={qs.id}
+                                      className="p-3 rounded-lg border border-neutral-100 bg-white"
+                                    >
+                                      <div className="flex items-center justify-between">
+                                        <div className="text-sm font-medium text-neutral-900">
+                                          {qs.subject || '综合刷题'}
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          <Badge
+                                            variant={
+                                              parseInt(qs.accuracy || '0', 10) >= 60
+                                                ? 'success'
+                                                : 'secondary'
+                                            }
+                                          >
+                                            正确率 {qs.accuracy}
+                                          </Badge>
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => navigate(`/quiz-report/${qs.id}`)}
+                                          >
+                                            <Eye className="w-3.5 h-3.5 mr-1" />
+                                            查看报告
+                                          </Button>
+                                        </div>
+                                      </div>
+                                      <div className="text-xs text-neutral-500 mt-2 flex flex-wrap gap-x-4 gap-y-1">
+                                        <span>第 {qs.sessionNo ?? '-'} 次</span>
+                                        <span>难度 {difficultyLabelOf(qs.difficulty)}</span>
+                                        <span>总题 {qs.totalQuestions}</span>
+                                        <span>答对 {qs.correctCount}</span>
+                                        <span>跳过 {qs.skipCount}</span>
+                                        <span>用时 {formatDuration(qs.totalDurationSec)}</span>
+                                      </div>
+                                      <div className="text-xs text-neutral-400 mt-1">
+                                        {formatDateTime(qs.createdAt)}
+                                      </div>
+                                    </div>
+                                  ))
+                                ) : (
+                                  <div className="h-[100px] flex items-center justify-center text-neutral-400 text-sm border border-dashed border-neutral-200 rounded-lg">
+                                    暂无符合条件的刷题记录
+                                  </div>
+                                )}
+                              </div>
+                            </>
                           ) : (
                             <div className="h-[120px] flex items-center justify-center text-neutral-400 text-sm border border-dashed border-neutral-200 rounded-lg">
                               暂无刷题记录

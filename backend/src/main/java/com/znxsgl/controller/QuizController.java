@@ -18,6 +18,10 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 @RestController
 @RequestMapping("/api/quiz")
@@ -32,6 +36,33 @@ public class QuizController {
     private final RagService ragService;
     private final ObjectMapper json = new ObjectMapper();
 
+    // 出题结果缓存：key=MD5指纹（课程+难度+科目+题型+已学章节），value=题目+过期时间（15分钟）
+    // 同课同档位的学生并发刷题时只调一次 AI，其余直接命中缓存，大幅降低 AI 调用压力
+    private final ConcurrentHashMap<String, CachedQuestions> questionCache = new ConcurrentHashMap<>();
+
+    /** 出题缓存条目 */
+    private static class CachedQuestions {
+        final List<Map<String, Object>> questions;
+        final long expireAt;
+        CachedQuestions(List<Map<String, Object>> questions, long expireAt) {
+            this.questions = questions;
+            this.expireAt = expireAt;
+        }
+    }
+
+    // 异步出题：固定线程池（并发 20，与全局 20/s 限流配合，任务在池内排队执行）
+    // 高并发下 100 人同时点「开始刷题」：请求立即返回 taskId，不占 Tomcat 线程、不阻塞、不报错
+    private final ExecutorService quizExecutor = Executors.newFixedThreadPool(20);
+    private final ConcurrentHashMap<String, QuizTask> quizTasks = new ConcurrentHashMap<>();
+
+    /** 异步出题任务状态 */
+    private static class QuizTask {
+        volatile String status = "pending"; // pending / done / error
+        volatile Map<String, Object> result;
+        volatile String error;
+        volatile long expireAt; // 0 表示未完成，完成后记录过期时间（10 分钟）
+    }
+
     public QuizController(LlmService llmService, QuizSessionMapper sessionMapper,
                           QuizAnswerMapper answerMapper, QuestionBookmarkMapper bookmarkMapper,
                           UserMapper userMapper, JdbcTemplate jdbc, RagService ragService) {
@@ -44,7 +75,11 @@ public class QuizController {
         this.ragService = ragService;
     }
 
-    /** 生成题目（自适应：按课程难度+已学章节RAG检索出题） */
+    /**
+     * 生成题目（异步）：立即返回 taskId，不阻塞。
+     * 真正的出题（查进度→RAG→调AI）在线程池排队执行，高并发下所有人都能秒响应，
+     * 互不影响（即使不同专业/不同进度同时点）。
+     */
     @PostMapping("/generate")
     public ResponseEntity<Map<String, Object>> generate(@RequestBody Map<String, Object> body, Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
@@ -59,51 +94,119 @@ public class QuizController {
         }
         Long courseId = Long.valueOf(body.get("courseId").toString());
 
-        // 查当前难度档位（无记录默认1）
-        int difficulty = 1;
+        // 惰性清理已过期任务，防止 map 无限增长
+        quizTasks.entrySet().removeIf(e -> e.getValue().expireAt != 0
+                && e.getValue().expireAt < System.currentTimeMillis());
+
+        String taskId = UUID.randomUUID().toString();
+        QuizTask task = new QuizTask();
+        quizTasks.put(taskId, task);
+        quizExecutor.submit(() -> doGenerate(userId, subject, subjectType, courseId, task));
+        return ResponseEntity.ok(Map.of("taskId", taskId));
+    }
+
+    /** 异步出题结果查询：前端轮询（pending / done / error） */
+    @GetMapping("/generate/result")
+    public ResponseEntity<Map<String, Object>> generateResult(@RequestParam String taskId) {
+        QuizTask task = quizTasks.get(taskId);
+        if (task == null) {
+            return ResponseEntity.ok(Map.of("status", "error", "error", "出题任务已过期，请重新开始"));
+        }
+        if ("done".equals(task.status)) {
+            Map<String, Object> r = new HashMap<>(task.result);
+            r.put("status", "done");
+            return ResponseEntity.ok(r);
+        }
+        if ("error".equals(task.status)) {
+            return ResponseEntity.ok(Map.of("status", "error", "error", task.error));
+        }
+        return ResponseEntity.ok(Map.of("status", "pending"));
+    }
+
+    /** 后台出题任务：不占请求线程，在固定线程池内排队执行 */
+    private void doGenerate(Long userId, String subject, String subjectType, Long courseId, QuizTask task) {
         try {
-            Integer d = jdbc.queryForObject(
-                    "SELECT difficulty FROM user_course_difficulty WHERE user_id = ? AND course_id = ?",
-                    Integer.class, userId, courseId);
-            if (d != null) difficulty = d;
-        } catch (Exception ignored) {}
+            // 查当前难度档位（无记录默认1）
+            int difficulty = 1;
+            try {
+                Integer d = jdbc.queryForObject(
+                        "SELECT difficulty FROM user_course_difficulty WHERE user_id = ? AND course_id = ?",
+                        Integer.class, userId, courseId);
+                if (d != null) difficulty = d;
+            } catch (Exception ignored) {}
 
-        // 查已完成章节
-        List<Long> chapterIds = jdbc.queryForList(
-                "SELECT DISTINCT chapter_id FROM chapter_read_progress WHERE user_id = ? AND course_id = ?",
-                Long.class, userId, courseId);
-        if (chapterIds.isEmpty()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "请先学习章节内容再答题"));
+            // 查已完成章节
+            List<Long> chapterIds = jdbc.queryForList(
+                    "SELECT DISTINCT chapter_id FROM chapter_read_progress WHERE user_id = ? AND course_id = ?",
+                    Long.class, userId, courseId);
+            if (chapterIds.isEmpty()) {
+                task.status = "error";
+                task.error = "请先学习章节内容再答题";
+                return;
+            }
+
+            // RAG 按章节检索
+            String chapterContext = ragService.retrieveByChapters(chapterIds, subject);
+            if (chapterContext == null || chapterContext.isEmpty()) {
+                task.status = "error";
+                task.error = "章节内容尚未准备好";
+                return;
+            }
+
+            String prompt = buildAdaptivePrompt(subject, subjectType, difficulty, chapterContext);
+
+            // 出题缓存：按 课程+难度+科目+题型+已学章节 的 MD5 指纹缓存 15 分钟，
+            // 同课同档位学生并发刷题只调一次 AI，其余直接命中缓存
+            List<Long> sortedChapters = new ArrayList<>(chapterIds);
+            Collections.sort(sortedChapters);
+            String cacheKey = md5(courseId + "|" + difficulty + "|" + subject + "|" + subjectType + "|" + sortedChapters);
+            CachedQuestions cached = questionCache.get(cacheKey);
+            List<Map<String, Object>> questions;
+            if (cached != null && cached.expireAt > System.currentTimeMillis()) {
+                questions = cached.questions;
+                System.out.println("=== 出题缓存命中: " + cacheKey);
+            } else {
+                // 排队式调用：高并发时阻塞等待令牌，而不是直接抛"繁忙"拒绝
+                String raw = llmService.chatQueued("你是专业出题专家，只输出纯JSON数组，不要任何解释文字。", prompt);
+                System.out.println("=== AI出题原始返回: " + (raw != null ? raw.substring(0, Math.min(300, raw.length())) : "null"));
+                questions = parseQuestions(raw);
+                if (!questions.isEmpty()) {
+                    questionCache.put(cacheKey, new CachedQuestions(questions, System.currentTimeMillis() + 15 * 60 * 1000L));
+                }
+            }
+            if (questions.isEmpty()) {
+                task.status = "error";
+                task.error = "题目生成失败，请稍后重试";
+                return;
+            }
+
+            int sessionNo = sessionMapper.countByUser(userId) + 1;
+            QuizSession session = new QuizSession();
+            session.setUserId(userId); session.setSubject(subject);
+            session.setCourseId(courseId); session.setDifficulty(difficulty);
+            session.setChapterScope(jsonValue(chapterIds));
+            session.setSubjectType(subjectType); session.setSessionNo(sessionNo);
+            session.setTotalQuestions(questions.size()); session.setStatus("pending");
+            session.setCreatedAt(LocalDateTime.now());
+            sessionMapper.insert(session);
+
+            Map<String, Object> result = new HashMap<>();
+            result.put("sessionId", session.getId());
+            result.put("sessionNo", sessionNo);
+            result.put("subject", subject);
+            result.put("difficulty", difficulty);
+            result.put("questions", questions);
+            task.result = result;
+            task.status = "done";
+        } catch (Exception e) {
+            System.out.println("=== 后台出题异常: " + e.getMessage());
+            e.printStackTrace();
+            task.status = "error";
+            task.error = "出题失败，请稍后重试";
+        } finally {
+            // 结果保留 10 分钟供前端轮询
+            task.expireAt = System.currentTimeMillis() + 10 * 60 * 1000L;
         }
-
-        // RAG 按章节检索
-        String chapterContext = ragService.retrieveByChapters(chapterIds, subject);
-        if (chapterContext == null || chapterContext.isEmpty()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "章节内容尚未准备好"));
-        }
-
-        String prompt = buildAdaptivePrompt(subject, subjectType, difficulty, chapterContext);
-        String raw = llmService.chat("你是专业出题专家，只输出纯JSON数组，不要任何解释文字。", prompt);
-        System.out.println("=== AI出题原始返回: " + (raw != null ? raw.substring(0, Math.min(300, raw.length())) : "null"));
-
-        List<Map<String, Object>> questions = parseQuestions(raw);
-        if (questions.isEmpty()) {
-            return ResponseEntity.ok(Map.of("error", "题目生成失败", "questions", List.of()));
-        }
-
-        int sessionNo = sessionMapper.countByUser(userId) + 1;
-        QuizSession session = new QuizSession();
-        session.setUserId(userId); session.setSubject(subject);
-        session.setCourseId(courseId); session.setDifficulty(difficulty);
-        session.setChapterScope(jsonValue(chapterIds));
-        session.setSubjectType(subjectType); session.setSessionNo(sessionNo);
-        session.setTotalQuestions(questions.size()); session.setStatus("pending");
-        session.setCreatedAt(LocalDateTime.now());
-        sessionMapper.insert(session);
-
-        return ResponseEntity.ok(Map.of(
-                "sessionId", session.getId(), "sessionNo", sessionNo,
-                "subject", subject, "difficulty", difficulty, "questions", questions));
     }
 
     /** 提交评估 */
@@ -122,6 +225,8 @@ public class QuizController {
         int earlyCorrect = 0, earlyTotal = 0, midCorrect = 0, midTotal = 0, lateCorrect = 0, lateTotal = 0;
         int total = answers.size(), third = total / 3;
         List<QuizAnswer> savedAnswers = new ArrayList<>();
+        // 主观题（解析/填空）待AI语义判定：pendingJudge[i] = {answers下标, savedAnswers下标}
+        List<int[]> pendingJudge = new ArrayList<>();
 
         for (int i = 0; i < answers.size(); i++) {
             Map<String, Object> a = answers.get(i);
@@ -142,10 +247,16 @@ public class QuizController {
             String ca = qa.getCorrectAnswer();
             int isCorrect = -2;
             if (ua != null && !ua.isEmpty() && !"不会".equals(ua)) {
-                boolean ok = isAnswerCorrect(ua, ca, qa.getQuestionType());
-                isCorrect = ok ? 1 : 0;
-                if (ok) correct++;
                 answered++;
+                if (isSubjective(qa.getQuestionType())) {
+                    // 主观题答案不唯一，先占位，稍后由AI按理解程度判定
+                    isCorrect = 0;
+                    pendingJudge.add(new int[]{i, savedAnswers.size()});
+                } else {
+                    boolean ok = isAnswerCorrect(ua, ca, qa.getQuestionType());
+                    isCorrect = ok ? 1 : 0;
+                    if (ok) correct++;
+                }
             } else if ("不会".equals(ua)) {
                 isCorrect = -1; skip++;
             } else {
@@ -157,12 +268,23 @@ public class QuizController {
             qa.setCreatedAt(LocalDateTime.now());
             answerMapper.insert(qa);
             savedAnswers.add(qa);
+        }
 
-            if (isCorrect == 1) {
-                if (i < third) earlyCorrect++;
-                else if (i >= total - third) lateCorrect++;
+        // 主观题AI语义判分：按要点理解程度判定是否正确（答案表述不唯一）
+        if (!pendingJudge.isEmpty()) {
+            Map<Integer, Boolean> judged = judgeSubjectiveAnswers(savedAnswers, pendingJudge);
+            for (int[] p : pendingJudge) {
+                boolean ok = judged.getOrDefault(p[0], false);
+                QuizAnswer qa = savedAnswers.get(p[1]);
+                qa.setIsCorrect(ok ? 1 : 0);
+                if (ok) correct++;
+                if (p[0] < third) earlyCorrect++;
+                else if (p[0] >= total - third) lateCorrect++;
                 else midCorrect++;
             }
+        }
+
+        for (int i = 0; i < answers.size(); i++) {
             if (i < third) earlyTotal++;
             else if (i >= total - third) lateTotal++;
             else midTotal++;
@@ -178,7 +300,8 @@ public class QuizController {
         String r3 = lateTotal > 0 ? (lateCorrect * 100 / lateTotal) + "%" : "0%";
 
         String evalPrompt = buildEvaluatePrompt(answers, userId, totalSec, r1, r2, r3, skip);
-        String evalRaw = llmService.chat("你是大学生能力测评专家，只输出JSON，不要多余文字。评分严格稳定。", evalPrompt);
+        // 排队式调用：并发提交评估时阻塞等待令牌，而不是抛"繁忙"拒绝（评分失败也不影响主流程）
+        String evalRaw = llmService.chatQueued("你是大学生能力测评专家，只输出JSON，不要多余文字。评分严格稳定。", evalPrompt);
         System.out.println("=== AI评估返回: " + (evalRaw != null ? evalRaw.substring(0, Math.min(200, evalRaw.length())) : "null"));
 
         Map<String, Object> evalResult = parseEvalResult(evalRaw);
@@ -380,6 +503,108 @@ public class QuizController {
         return u.equalsIgnoreCase(c);
     }
 
+    /** 主观题类型：答案表述不唯一，需按语义理解程度判定 */
+    private boolean isSubjective(String type) {
+        return "解析".equals(type) || "简答".equals(type) || "填空".equals(type);
+    }
+
+    /**
+     * 主观题AI语义判分：一次批量判定所有解析/填空题。
+     * 不要求学生答案与参考答案逐字相同，按要点覆盖与理解程度判定。
+     * AI 调用失败时降级为字符 bigram 相似度兜底。
+     */
+    private Map<Integer, Boolean> judgeSubjectiveAnswers(List<QuizAnswer> savedAnswers, List<int[]> pendingJudge) {
+        Map<Integer, Boolean> result = new HashMap<>();
+
+        StringBuilder sb = new StringBuilder();
+        for (int k = 0; k < pendingJudge.size(); k++) {
+            QuizAnswer qa = savedAnswers.get(pendingJudge.get(k)[1]);
+            sb.append(String.format("%d.[%s] %s\n  学生回答：%s\n  参考答案：%s\n\n",
+                    k + 1, qa.getQuestionType(), qa.getQuestion(),
+                    qa.getUserAnswer() != null ? qa.getUserAnswer() : "未作答",
+                    qa.getCorrectAnswer() != null ? qa.getCorrectAnswer() : ""));
+        }
+        String prompt =
+                "你是阅卷老师。以下主观题（解析题/填空题）的参考答案仅供参考，学生回答的措辞不必与参考答案相同。\n" +
+                "请逐题判断学生回答是否理解正确：只要关键要点/核心概念表达正确、语义一致即判 true；\n" +
+                "表述完整准确判 true；只覆盖部分要点但无错误概念也判 true（理解即可）；出现概念错误或答非所问判 false。\n" +
+                "只输出JSON数组，不要多余文字：[{\"index\":1,\"correct\":true},{\"index\":2,\"correct\":false}]\n\n" +
+                sb;
+
+        try {
+            String raw = llmService.chatQueued("你是阅卷老师，只输出JSON数组。", prompt);
+            System.out.println("=== 主观题AI判分返回: " + (raw != null ? raw.substring(0, Math.min(200, raw.length())) : "null"));
+            JsonNode arr = readJsonArray(raw);
+            if (arr != null && arr.isArray()) {
+                for (JsonNode n : arr) {
+                    int idx = n.path("index").asInt(-1) - 1; // 转回0基下标
+                    if (idx >= 0 && idx < pendingJudge.size()) {
+                        result.put(pendingJudge.get(idx)[0], n.path("correct").asBoolean(false));
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.out.println("=== 主观题AI判分失败，降级相似度判定: " + e.getMessage());
+        }
+
+        // 未被AI判定的题目（调用失败/解析失败）用相似度兜底
+        for (int k = 0; k < pendingJudge.size(); k++) {
+            int answerIdx = pendingJudge.get(k)[0];
+            if (!result.containsKey(answerIdx)) {
+                QuizAnswer qa = savedAnswers.get(pendingJudge.get(k)[1]);
+                result.put(answerIdx, similarityCorrect(qa.getUserAnswer(), qa.getCorrectAnswer()));
+            }
+        }
+        return result;
+    }
+
+    /** 相似度兜底判定：字符 bigram Dice 系数 >= 0.35 视为理解正确 */
+    private boolean similarityCorrect(String user, String correct) {
+        if (user == null || correct == null || user.trim().isEmpty() || correct.trim().isEmpty()) return false;
+        return diceSimilarity(user, correct) >= 0.35;
+    }
+
+    /** 字符 bigram Dice 相似度（0~1） */
+    private double diceSimilarity(String a, String b) {
+        String s1 = a.replaceAll("\\s+", "");
+        String s2 = b.replaceAll("\\s+", "");
+        if (s1.length() < 2 || s2.length() < 2) {
+            return s1.equals(s2) ? 1.0 : 0.0;
+        }
+        Map<String, Integer> m1 = new HashMap<>();
+        for (int i = 0; i < s1.length() - 1; i++) {
+            m1.merge(s1.substring(i, i + 2), 1, Integer::sum);
+        }
+        int overlap = 0, total = 0;
+        Map<String, Integer> m2 = new HashMap<>();
+        for (int i = 0; i < s2.length() - 1; i++) {
+            m2.merge(s2.substring(i, i + 2), 1, Integer::sum);
+        }
+        for (Map.Entry<String, Integer> e : m1.entrySet()) {
+            overlap += Math.min(e.getValue(), m2.getOrDefault(e.getKey(), 0));
+        }
+        for (int v : m1.values()) total += v;
+        for (int v : m2.values()) total += v;
+        return total == 0 ? 0.0 : 2.0 * overlap / total;
+    }
+
+    /** 从AI返回文本中提取JSON数组（容错处理） */
+    private JsonNode readJsonArray(String raw) {
+        if (raw == null || raw.trim().isEmpty()) return null;
+        try {
+            String clean = raw.trim();
+            if (clean.startsWith("```")) {
+                int s = clean.indexOf("["), e = clean.lastIndexOf("]");
+                if (s >= 0 && e > s) clean = clean.substring(s, e + 1);
+            }
+            int s = clean.indexOf("["), e = clean.lastIndexOf("]");
+            if (s < 0 || e <= s) return null;
+            return json.readTree(clean.substring(s, e + 1));
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     private void vectorizeSummary(Long userId, QuizSession session, Map<String, Object> eval) {
         try {
             if (eval == null) return;
@@ -389,6 +614,19 @@ public class QuizController {
             jdbc.update("INSERT INTO document_vector (course_name, doc_name, content_chunk, created_at) VALUES (?,?,?,NOW())",
                     "学生测评记录", "测评#" + session.getSessionNo(), summary);
         } catch (Exception ignored) {}
+    }
+
+    /** MD5 指纹（用于出题缓存 key） */
+    private String md5(String s) {
+        try {
+            java.security.MessageDigest md = java.security.MessageDigest.getInstance("MD5");
+            byte[] d = md.digest(s.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder();
+            for (byte b : d) sb.append(String.format("%02x", b));
+            return sb.toString();
+        } catch (Exception e) {
+            return Integer.toHexString(s.hashCode());
+        }
     }
 
     private String safeStr(Map<String, Object> m, String key) {

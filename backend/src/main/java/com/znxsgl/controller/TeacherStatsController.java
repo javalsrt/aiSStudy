@@ -522,6 +522,117 @@ public class TeacherStatsController {
         return ResponseEntity.ok(data);
     }
 
+    /** 教师查看学生单次测评报告详情（含每题作答明细） */
+    @GetMapping("/quiz-session/{sessionId}/report")
+    public ResponseEntity<Map<String, Object>> getQuizSessionReport(
+            @PathVariable Long sessionId, Authentication auth) {
+        // 查询会话基本信息
+        Map<String, Object> session;
+        try {
+            session = jdbc.queryForMap(
+                    "SELECT s.user_id AS userId, s.subject, s.difficulty, s.session_no AS sessionNo, " +
+                            "s.total_questions AS totalQuestions, s.answered_count AS answeredCount, " +
+                            "s.correct_count AS correctCount, s.skip_count AS skipCount, " +
+                            "s.total_duration_sec AS totalDurationSec, s.scores, s.strengths, " +
+                            "s.weaknesses, s.suggestion, s.study_plan AS studyPlan, s.status, " +
+                            "s.created_at AS createdAt " +
+                            "FROM quiz_session s WHERE s.id = ?", sessionId);
+        } catch (Exception e) {
+            return ResponseEntity.status(404).body(Map.of("error", "测评记录不存在"));
+        }
+
+        Long studentUserId = session.get("userId") instanceof Number
+                ? ((Number) session.get("userId")).longValue() : null;
+        if (studentUserId == null) {
+            return ResponseEntity.status(404).body(Map.of("error", "测评记录不存在"));
+        }
+
+        // 权限：管理员可查全部，教师仅可查自己学生
+        boolean isAdmin = auth.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+        if (!isAdmin) {
+            Long teacherUserId = (Long) auth.getPrincipal();
+            Long realTeacherId = getRealTeacherId(teacherUserId);
+            if (!studentBelongsToTeacher(studentUserId, realTeacherId)) {
+                return ResponseEntity.status(403).body(Map.of("error", "无权限"));
+            }
+        }
+
+        // 学生信息（报告头部展示）
+        Map<String, Object> studentInfo;
+        try {
+            studentInfo = jdbc.queryForMap(
+                    "SELECT u.real_name AS realName, u.student_no AS studentNo, " +
+                            "ci.class_name AS className " +
+                            "FROM user u LEFT JOIN class_info ci ON ci.id = u.class_id " +
+                            "WHERE u.id = ?", studentUserId);
+        } catch (Exception e) {
+            studentInfo = new HashMap<>();
+        }
+
+        // 每题作答明细
+        List<Map<String, Object>> answers = jdbc.queryForList(
+                "SELECT question_index AS questionIndex, question_type AS questionType, " +
+                        "question, options, user_answer AS userAnswer, " +
+                        "correct_answer AS correctAnswer, is_correct AS isCorrect, " +
+                        "duration_sec AS durationSec, modified_count AS modifiedCount " +
+                        "FROM quiz_answer WHERE session_id = ? ORDER BY question_index",
+                sessionId);
+
+        // 解析 JSON 字段为前端可直接使用的结构
+        session.remove("userId");
+        session.put("scores", parseScoresJson(session.get("scores")));
+        session.put("strengths", parseStringListJson(session.get("strengths")));
+        session.put("weaknesses", parseStringListJson(session.get("weaknesses")));
+        session.put("studyPlan", parseStringListJson(session.get("studyPlan")));
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("session", session);
+        data.put("student", studentInfo);
+        data.put("answers", answers);
+        return ResponseEntity.ok(data);
+    }
+
+    /** 解析六维评分JSON（{"逻辑思维力":8,...}）为 [{name,value}] 列表 */
+    private List<Map<String, Object>> parseScoresJson(Object json) {
+        List<Map<String, Object>> list = new ArrayList<>();
+        if (json == null) return list;
+        try {
+            com.fasterxml.jackson.databind.JsonNode node =
+                    new com.fasterxml.jackson.databind.ObjectMapper().readTree(json.toString());
+            if (node.isObject()) {
+                Iterator<Map.Entry<String, com.fasterxml.jackson.databind.JsonNode>> it = node.fields();
+                while (it.hasNext()) {
+                    Map.Entry<String, com.fasterxml.jackson.databind.JsonNode> e = it.next();
+                    Map<String, Object> item = new HashMap<>();
+                    item.put("name", e.getKey());
+                    item.put("value", e.getValue().asInt(0));
+                    list.add(item);
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return list;
+    }
+
+    /** 解析字符串数组JSON（["...","..."]）为 List<String> */
+    private List<String> parseStringListJson(Object json) {
+        List<String> list = new ArrayList<>();
+        if (json == null) return list;
+        try {
+            com.fasterxml.jackson.databind.JsonNode node =
+                    new com.fasterxml.jackson.databind.ObjectMapper().readTree(json.toString());
+            if (node.isArray()) {
+                for (com.fasterxml.jackson.databind.JsonNode item : node) {
+                    String text = item.asText("");
+                    if (!text.isEmpty()) list.add(text);
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return list;
+    }
+
     /** 学生章节学习进度 */
     @GetMapping("/student/{studentId}/chapters")
     public ResponseEntity<List<Map<String, Object>>> getStudentChapterProgress(

@@ -1,0 +1,145 @@
+/* ============ 智学职达官网 · 交互 ============ */
+
+// ===== 导航滚动态 =====
+const nav = document.getElementById('nav');
+const onScroll = () => {
+  if (window.scrollY > 24) nav.classList.add('scrolled');
+  else nav.classList.remove('scrolled');
+};
+window.addEventListener('scroll', onScroll, { passive: true });
+onScroll();
+
+// ===== 移动端菜单 =====
+const navToggle = document.getElementById('navToggle');
+if (navToggle) {
+  navToggle.addEventListener('click', () => nav.classList.toggle('open'));
+  document.querySelectorAll('#navLinks a').forEach(a =>
+    a.addEventListener('click', () => nav.classList.remove('open')));
+}
+
+// ===== 滚动渐入（IntersectionObserver） =====
+const io = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      e.target.classList.add('in');
+      // 浏览器样机中的柱状图进入视口后再播放生长动画
+      e.target.querySelectorAll('.bar-v i').forEach(bar => {
+        bar.style.animation = 'none';
+        void bar.offsetWidth;
+        bar.style.animation = '';
+      });
+      io.unobserve(e.target);
+    }
+  });
+}, { threshold: 0.15 });
+document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+
+// ===== DeepSeek 出题打字动画 =====
+const typeDemo = document.getElementById('typeDemo');
+const genQuestion = document.getElementById('genQuestion');
+const genState = document.getElementById('genState');
+
+const JSON_SNIPPET = `[
+  { "type": "单选", "question": "带宽的单位是什么？",
+    "options": ["A. 字节每秒", "B. 比特每秒*", "C. 帧每秒", "D. 报文每秒"] },
+  { "type": "判断", "question": "吞吐量总是等于带宽。", "options": ["错误*"] },
+  { "type": "解析", "question": "请解释带宽与吞吐量的区别。" },
+  ... 共 15 题 (7单选 · 3判断 · 3解析 · 2填空)
+]`;
+
+const QUESTION_HTML = `
+  <div class="qt">AI 生成 · 第 1 题 · 单选</div>
+  <div class="qq">带宽的单位是什么？</div>
+  <div class="qo">A. 字节每秒</div>
+  <div class="qo ok">B. 比特每秒 ✓（正确答案）</div>
+  <div class="qo">C. 帧每秒</div>
+  <div class="qo">D. 报文每秒</div>`;
+
+let demoPlayed = false;
+
+function playDemo() {
+  if (!typeDemo || demoPlayed) return;
+  demoPlayed = true;
+
+  const stages = [
+    ['正在检索章节内容…', 1400],
+    ['DeepSeek V4 Flash 生成中…', 1600],
+    ['出题完成 · 缓存已更新（15 分钟）', 0]
+  ];
+  let stage = 0;
+  const nextStage = () => {
+    if (stage < stages.length) {
+      genState.textContent = stages[stage][0];
+      const wait = stages[stage][1];
+      stage++;
+      if (wait > 0) setTimeout(nextStage, wait);
+    }
+  };
+  nextStage();
+
+  // 1.2s 后开始流式输出 JSON
+  setTimeout(() => {
+    let i = 0;
+    const cur = document.createElement('span');
+    cur.className = 'cur';
+    typeDemo.appendChild(cur);
+    const timer = setInterval(() => {
+      // 每帧输出 2~4 个字符，模拟流式生成
+      i += 2 + Math.floor(Math.random() * 3);
+      typeDemo.textContent = JSON_SNIPPET.slice(0, i);
+      typeDemo.appendChild(cur);
+      if (i >= JSON_SNIPPET.length) {
+        clearInterval(timer);
+        cur.remove();
+        // 展示渲染后的题目卡片
+        setTimeout(() => {
+          genQuestion.innerHTML = QUESTION_HTML;
+          genQuestion.classList.add('show');
+        }, 500);
+      }
+    }, 34);
+  }, 1200);
+}
+
+// 深色 AI 区块进入视口时触发演示
+const demoObserver = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      playDemo();
+      demoObserver.unobserve(e.target);
+    }
+  });
+}, { threshold: 0.3 });
+const demoEl = document.querySelector('.demo');
+if (demoEl) demoObserver.observe(demoEl);
+
+// ===== 3D 架构卡组 · 鼠标跟随微倾斜 =====
+const archScene = document.getElementById('archScene');
+const archStack = document.getElementById('archStack');
+if (archScene && archStack && window.matchMedia('(hover: hover)').matches) {
+  const BASE = 'rotateX(10deg)';
+  archScene.addEventListener('mousemove', e => {
+    const r = archScene.getBoundingClientRect();
+    const dx = (e.clientX - r.left) / r.width - 0.5;   // -0.5 ~ 0.5
+    const dy = (e.clientY - r.top) / r.height - 0.5;
+    archStack.style.transform = `rotateX(${10 + dy * -5}deg) rotateY(${dx * 8}deg)`;
+  });
+  archScene.addEventListener('mouseleave', () => {
+    archStack.style.transform = BASE;
+  });
+}
+
+// ===== 架构区左右联动：悬停卡组 ↔ 高亮对应说明卡 =====
+const deckCards = document.querySelectorAll('.deck-card');
+const archCards = document.querySelectorAll('.arch-card');
+if (deckCards.length && archCards.length) {
+  deckCards.forEach((card, i) => {
+    card.addEventListener('mouseenter', () => archCards[i] && archCards[i].classList.add('active'));
+    card.addEventListener('mouseleave', () => archCards[i] && archCards[i].classList.remove('active'));
+  });
+  // 反向：悬停说明卡，对应架构层提前置顶
+  archCards.forEach((card, i) => {
+    card.addEventListener('mouseenter', () => deckCards[i] && deckCards[i].classList.add('peek'));
+    card.addEventListener('mouseleave', () => deckCards[i] && deckCards[i].classList.remove('peek'));
+  });
+}

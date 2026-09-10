@@ -9,6 +9,7 @@ import type {
   StudentCourseChapterProgress,
   StudentExamRecord,
   StudentExamDetail,
+  QuizReportDetail,
 } from '@/types'
 
 // 教师数据总览
@@ -54,4 +55,9 @@ export const getStudentExamRecords = (studentId: number) => {
 // 学生某次考试/作业的每题作答明细
 export const getStudentExamDetails = (studentId: number, examId: number) => {
   return request.get<any, StudentExamDetail>(`/teacher/student/${studentId}/exam/${examId}/details`)
+}
+
+// 学生单次测评报告详情（教师查看）
+export const getQuizSessionReport = (sessionId: number) => {
+  return request.get<any, QuizReportDetail>(`/teacher/quiz-session/${sessionId}/report`)
 }

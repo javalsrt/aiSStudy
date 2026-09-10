@@ -1,11 +1,15 @@
 package com.znxsgl.student;
 
+import android.animation.ValueAnimator;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.animation.DecelerateInterpolator;
+import android.view.animation.OvershootInterpolator;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
@@ -26,6 +30,8 @@ public class QuizResultActivity extends AppCompatActivity {
 
     private String token;
     private final Gson gson = new Gson();
+    private boolean revealFinished = false;
+    private Runnable revealFinishRunnable;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -88,6 +94,110 @@ public class QuizResultActivity extends AppCompatActivity {
         });
 
         findViewById(R.id.btn_done).setOnClickListener(v -> finish());
+
+        // 提交后先播放揭晓动画，再衔接显示测评报告
+        playRevealAnimation(accuracy, correct, total, totalSec);
+    }
+
+    /**
+     * 揭晓动画：模仿 uiverse ugly-horse-87 金色奖杯卡片
+     * 卡片自顶部滑入（slide-in-top）→ 奖杯弹出 → 分割线展开 → 正确率数字滚动 → 停留后淡出衔接报告
+     */
+    private void playRevealAnimation(int accuracy, int correct, int total, int totalSec) {
+        View overlay = findViewById(R.id.reveal_overlay);
+        View card = findViewById(R.id.reveal_card);
+        ImageView trophy = findViewById(R.id.iv_reveal_trophy);
+        View line = findViewById(R.id.reveal_line);
+        View statsRow = findViewById(R.id.reveal_stats_row);
+        TextView tvScore = findViewById(R.id.tv_reveal_score);
+        TextView tvCorrect = findViewById(R.id.tv_reveal_correct);
+        TextView tvTime = findViewById(R.id.tv_reveal_time);
+
+        tvCorrect.setText(correct + "/" + total);
+        tvTime.setText(formatDuration(totalSec));
+
+        // 报告内容先隐藏并下移，等待动画结束后淡入
+        View content = findViewById(R.id.report_content);
+        content.setAlpha(0f);
+        content.setTranslationY(dp(32));
+
+        // 初始状态（对应组件的 slide-in-top 起始帧）
+        card.setAlpha(0f);
+        card.setTranslationY(-dp(160));
+        trophy.setAlpha(0f);
+        trophy.setScaleX(0.3f);
+        trophy.setScaleY(0.3f);
+        line.setScaleX(0f);
+        statsRow.setAlpha(0f);
+        statsRow.setTranslationY(dp(16));
+
+        // 卡片自顶部滑入
+        card.animate().translationY(0f).alpha(1f)
+                .setDuration(850)
+                .setInterpolator(new DecelerateInterpolator(1.6f))
+                .start();
+
+        // 奖杯回弹式弹出
+        trophy.animate().alpha(1f).scaleX(1f).scaleY(1f)
+                .setStartDelay(320)
+                .setDuration(520)
+                .setInterpolator(new OvershootInterpolator(1.5f))
+                .start();
+
+        // 金色分割线从中心向两侧展开
+        line.animate().scaleX(1f)
+                .setStartDelay(550)
+                .setDuration(600)
+                .setInterpolator(new DecelerateInterpolator())
+                .start();
+
+        // 正确率数字从 0 滚动到实际值
+        ValueAnimator counter = ValueAnimator.ofInt(0, Math.max(accuracy, 0));
+        counter.setStartDelay(450);
+        counter.setDuration(1100);
+        counter.setInterpolator(new DecelerateInterpolator());
+        counter.addUpdateListener(a -> tvScore.setText(a.getAnimatedValue() + "%"));
+        counter.start();
+
+        // SCORE / TIME 数据行淡入
+        statsRow.animate().alpha(1f).translationY(0f)
+                .setStartDelay(900)
+                .setDuration(450)
+                .start();
+
+        // 点击可跳过
+        overlay.setOnClickListener(v -> finishRevealOverlay());
+
+        // 停留约 1.4 秒后淡出，衔接显示报告
+        revealFinishRunnable = this::finishRevealOverlay;
+        overlay.postDelayed(revealFinishRunnable, 2500);
+    }
+
+    /** 淡出动画层，显示完整报告 */
+    private void finishRevealOverlay() {
+        if (revealFinished) return;
+        revealFinished = true;
+
+        View overlay = findViewById(R.id.reveal_overlay);
+        View content = findViewById(R.id.report_content);
+
+        overlay.animate().alpha(0f)
+                .setDuration(450)
+                .withEndAction(() -> overlay.setVisibility(View.GONE))
+                .start();
+        content.animate().alpha(1f).translationY(0f)
+                .setDuration(550)
+                .setInterpolator(new DecelerateInterpolator())
+                .start();
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (revealFinishRunnable != null) {
+            View overlay = findViewById(R.id.reveal_overlay);
+            if (overlay != null) overlay.removeCallbacks(revealFinishRunnable);
+        }
+        super.onDestroy();
     }
 
     private String formatDuration(int sec) {
@@ -132,7 +242,8 @@ public class QuizResultActivity extends AppCompatActivity {
             container.addView(tv);
             return;
         }
-        for (String tag : tags) {
+        for (int i = 0; i < tags.size(); i++) {
+            String tag = tags.get(i);
             TextView tv = new TextView(this);
             tv.setText(tag);
             tv.setTextSize(13);
@@ -141,7 +252,10 @@ public class QuizResultActivity extends AppCompatActivity {
             tv.setPadding(dp(10), dp(4), dp(10), dp(4));
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-            lp.setMargins(0, 0, dp(8), dp(8));
+            // 垂直堆叠：仅条目之间留 8dp 间距，最后一条不留，避免卡片底部多出空白
+            if (i < tags.size() - 1) {
+                lp.setMargins(0, 0, 0, dp(8));
+            }
             tv.setLayoutParams(lp);
             container.addView(tv);
         }

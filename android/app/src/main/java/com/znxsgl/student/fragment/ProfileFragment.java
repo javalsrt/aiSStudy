@@ -280,9 +280,24 @@ public class ProfileFragment extends Fragment implements WebSocketManager.OnChat
 
     /** 退出登录 */
     private void doLogout() {
+        // 保留记住密码的账号信息，退出后进入一键登录页
+        String savedUsername = prefs.getString("saved_username", "");
+        String savedPassword = prefs.getString("saved_password", "");
+        boolean remember = prefs.getBoolean("remember", false);
+
         prefs.edit().clear().apply();
+        SharedPreferences.Editor editor = prefs.edit();
+        editor.putBoolean("remember", remember)
+                .putString("saved_username", savedUsername)
+                .putString("saved_password", savedPassword);
+        editor.apply();
+
         com.znxsgl.student.network.WebSocketManager.getInstance().disconnect();
-        Intent intent = new Intent(getActivity(), com.znxsgl.student.LoginActivity.class);
+
+        Class<?> target = (remember && !savedUsername.isEmpty() && !savedPassword.isEmpty())
+                ? com.znxsgl.student.QuickLoginActivity.class
+                : com.znxsgl.student.LoginActivity.class;
+        Intent intent = new Intent(getActivity(), target);
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
         startActivity(intent);
         requireActivity().finish();

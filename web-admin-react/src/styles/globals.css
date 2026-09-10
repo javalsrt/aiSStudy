@@ -89,3 +89,132 @@
     background: transparent;
   }
 }
+
+/* ============================================================
+   登录页动效（登录页专用）
+   ============================================================ */
+
+/* --- 动态雨点光效背景（适配 uiverse SelfMadeSystem/sweet-dolphin-36，保留蓝色主色） --- */
+@keyframes trae-rain-drift {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 0 720px; /* 300px*2.4 保证平铺无缝循环 */
+  }
+}
+
+.trae-rain {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.55;
+  background-image:
+    radial-gradient(1.6px 1.6px at 12% 22%, rgba(255, 255, 255, 0.7) 70%, transparent 72%),
+    radial-gradient(5px 70px at 38% 65%, rgba(140, 215, 255, 0.5), transparent 78%),
+    radial-gradient(1.6px 1.6px at 52% 12%, rgba(255, 255, 255, 0.65) 70%, transparent 72%),
+    radial-gradient(5px 70px at 78% 40%, rgba(140, 215, 255, 0.45), transparent 78%),
+    radial-gradient(1.6px 1.6px at 88% 78%, rgba(255, 255, 255, 0.6) 70%, transparent 72%),
+    radial-gradient(5px 70px at 22% 88%, rgba(140, 215, 255, 0.45), transparent 78%),
+    radial-gradient(1.6px 1.6px at 68% 92%, rgba(255, 255, 255, 0.6) 70%, transparent 72%),
+    radial-gradient(5px 70px at 60% 20%, rgba(255, 255, 255, 0.35), transparent 78%),
+    radial-gradient(2px 2px at 32% 45%, rgba(255, 255, 255, 0.5) 70%, transparent 72%),
+    radial-gradient(2px 2px at 72% 55%, rgba(255, 255, 255, 0.45) 70%, transparent 72%),
+    radial-gradient(3px 3px at 45% 82%, rgba(255, 255, 255, 0.4) 70%, transparent 72%),
+    radial-gradient(3px 3px at 8% 55%, rgba(255, 255, 255, 0.4) 70%, transparent 72%);
+  background-size: 300px 300px, 300px 240px, 300px 300px, 300px 240px, 300px 300px,
+    300px 240px, 300px 300px, 300px 240px, 300px 300px, 300px 300px, 300px 300px,
+    300px 300px;
+  animation: trae-rain-drift 48s linear infinite;
+}
+
+/* 网点网格层（模拟原始效果的屏幕网格） */
+.trae-rain-mesh {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(
+    circle at 50% 50%,
+    transparent 0,
+    transparent 2px,
+    rgba(6, 16, 38, 0.14) 2px
+  );
+  background-size: 8px 8px;
+}
+
+/* --- Shiny 文字（ReactBits ShinyText） --- */
+@keyframes trae-shine {
+  0% {
+    background-position: 200% center;
+  }
+  100% {
+    background-position: -200% center;
+  }
+}
+
+.trae-shiny-text {
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  background-size: 200% auto;
+  background-repeat: no-repeat;
+  animation: trae-shine var(--ts-speed, 2s) linear var(--ts-delay, 0s) infinite;
+}
+
+.trae-shiny-text[data-yoyo='true'] {
+  animation-direction: alternate;
+}
+
+.trae-shiny-text[data-pause-hover='true']:hover {
+  animation-play-state: paused;
+}
+
+/* --- 循环文字旋转（ReactBits CircularText） --- */
+@keyframes trae-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.trae-spin {
+  transform-origin: center center;
+  will-change: transform;
+  animation: trae-spin var(--ts-duration, 20s) linear infinite;
+}
+
+.trae-spin-pause-hover:hover {
+  animation-play-state: paused;
+}
+
+/* --- 渐变流动文字（ReactBits GradientText） --- */
+@keyframes trae-gradient {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.trae-gradient-text {
+  background-size: 300% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: trae-gradient var(--ts-duration, 8s) linear infinite;
+}
+
+/* 用户偏好减少动效时关闭以上动画 */
+@media (prefers-reduced-motion: reduce) {
+  .trae-rain,
+  .trae-shiny-text,
+  .trae-spin,
+  .trae-gradient-text {
+    animation: none !important;
+  }
+}

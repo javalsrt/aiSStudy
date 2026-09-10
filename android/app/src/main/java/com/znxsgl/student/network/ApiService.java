@@ -122,6 +122,12 @@ public interface ApiService {
             @Header("Authorization") String token,
             @Body Map<String, Object> body);
 
+    // 异步出题结果查询（轮询）
+    @GET("/api/quiz/generate/result")
+    Call<Map<String, Object>> getQuizResult(
+            @Header("Authorization") String token,
+            @Query("taskId") String taskId);
+
     @GET("/api/course-chapter/course/{courseId}/chapters")
     Call<List<Chapter>> getCourseChapters(
             @Header("Authorization") String token,

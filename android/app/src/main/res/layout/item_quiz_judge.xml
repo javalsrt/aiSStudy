@@ -31,17 +31,19 @@
         android:gravity="center" android:weightSum="2">
 
         <TextView android:id="@+id/btn_true" android:layout_width="0dp"
-            android:layout_height="88dp" android:layout_weight="1"
-            android:text="✓ 正确" android:textSize="18sp" android:textColor="@color/success"
-            android:gravity="center" android:background="@drawable/bg_card_entry"
+            android:layout_height="72dp" android:layout_weight="1"
+            android:text="正确" android:textSize="18sp" android:textColor="@color/success"
+            android:gravity="center" android:background="@drawable/bg_btn_pill"
             android:layout_marginEnd="12dp"
+            android:elevation="4dp"
             android:clickable="true" android:focusable="true" />
 
         <TextView android:id="@+id/btn_false" android:layout_width="0dp"
-            android:layout_height="88dp" android:layout_weight="1"
-            android:text="✕ 错误" android:textSize="18sp" android:textColor="@color/danger"
-            android:gravity="center" android:background="@drawable/bg_card_entry"
+            android:layout_height="72dp" android:layout_weight="1"
+            android:text="错误" android:textSize="18sp" android:textColor="@color/danger"
+            android:gravity="center" android:background="@drawable/bg_btn_pill"
             android:layout_marginStart="12dp"
+            android:elevation="4dp"
             android:clickable="true" android:focusable="true" />
     </LinearLayout>
 

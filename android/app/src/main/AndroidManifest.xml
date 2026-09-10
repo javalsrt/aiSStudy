@@ -52,6 +52,13 @@
             android:name=".ImagePreviewActivity"
             android:exported="false"
             android:theme="@style/Theme.ZnxsglStudent" />
+        <activity
+            android:name=".ProtocolActivity"
+            android:exported="false"
+            android:parentActivityName=".LoginActivity" />
+        <activity
+            android:name=".QuickLoginActivity"
+            android:exported="false" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

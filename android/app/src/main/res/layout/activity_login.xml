@@ -2,62 +2,45 @@
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/background">
+    android:background="@color/background"
+    android:fillViewport="true">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
         android:paddingHorizontal="28dp"
-        android:paddingTop="80dp"
+        android:paddingTop="100dp"
         android:paddingBottom="40dp">
 
-        <!-- Logo / 品牌 -->
+        <!-- 品牌 -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:gravity="center"
-            android:layout_marginBottom="48dp">
+            android:layout_marginBottom="56dp">
 
             <TextView
+                android:id="@+id/tv_brand_name"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
                 android:text="@string/brand_name"
-                android:textSize="24sp"
+                android:textSize="36sp"
                 android:textColor="@color/text_primary"
                 android:fontFamily="sans-serif-medium"
                 android:letterSpacing="-0.02" />
 
             <TextView
+                android:id="@+id/tv_brand_desc"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
+                android:layout_marginTop="10dp"
                 android:text="@string/brand_desc"
-                android:textSize="13sp"
-                android:textColor="@color/text_secondary"
-                android:fontFamily="sans-serif" />
+                android:textSize="14sp"
+                android:textColor="@color/primary"
+                android:fontFamily="sans-serif-medium" />
         </LinearLayout>
-
-        <!-- 欢迎文字 -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/login_title"
-            android:textSize="22sp"
-            android:textColor="@color/text_primary"
-            android:fontFamily="sans-serif-medium" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:layout_marginBottom="28dp"
-            android:text="@string/login_subtitle"
-            android:textSize="14sp"
-            android:textColor="@color/text_secondary"
-            android:fontFamily="sans-serif" />
 
         <!-- 输入框 -->
         <TextView
@@ -81,7 +64,6 @@
             android:textColorHint="@color/text_tertiary"
             android:fontFamily="sans-serif"
             android:inputType="text"
-            android:text="student1"
             android:layout_marginBottom="16dp" />
 
         <TextView
@@ -105,8 +87,60 @@
             android:textColorHint="@color/text_tertiary"
             android:fontFamily="sans-serif"
             android:inputType="textPassword"
-            android:text="123456"
-            android:layout_marginBottom="8dp" />
+            android:layout_marginBottom="16dp" />
+
+        <!-- 记住密码 -->
+        <CheckBox
+            android:id="@+id/cb_remember"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/remember_password"
+            android:textSize="13sp"
+            android:textColor="@color/text_primary"
+            android:fontFamily="sans-serif"
+            android:button="@null"
+            android:background="@null"
+            android:drawableStart="@drawable/checkbox_selector"
+            android:drawablePadding="6dp"
+            android:padding="0dp"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:gravity="center_vertical" />
+
+        <!-- 同意协议 -->
+        <LinearLayout
+            android:id="@+id/layout_agree"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="8dp">
+
+            <CheckBox
+                android:id="@+id/cb_agree"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:button="@null"
+                android:background="@null"
+                android:drawableStart="@drawable/checkbox_selector"
+                android:drawablePadding="0dp"
+                android:padding="0dp"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:gravity="center_vertical" />
+
+            <TextView
+                android:id="@+id/tv_agree"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:textSize="13sp"
+                android:textColor="@color/text_primary"
+                android:fontFamily="sans-serif"
+                android:lineSpacingMultiplier="1.1" />
+        </LinearLayout>
 
         <!-- 错误提示（占位） -->
         <TextView
@@ -126,6 +160,7 @@
             android:layout_height="24dp"
             android:layout_gravity="center"
             android:visibility="gone"
+            android:indeterminateTint="@color/primary"
             android:layout_marginBottom="12dp" />
 
         <!-- 登录按钮 -->
@@ -133,7 +168,7 @@
             android:id="@+id/btn_login"
             android:layout_width="match_parent"
             android:layout_height="50dp"
-            android:background="@drawable/bg_login_btn"
+            android:background="@drawable/bg_btn_primary"
             android:text="@string/login_btn"
             android:textSize="16sp"
             android:textColor="@color/white"

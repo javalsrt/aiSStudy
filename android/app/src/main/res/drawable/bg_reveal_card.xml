@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 揭晓动画卡片：金色渐变底（对应组件 outlinePage 的 45deg 金色渐变） -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:angle="45"
+        android:startColor="#FFFBF0"
+        android:centerColor="#FFEFB8"
+        android:endColor="#FFDD87" />
+    <corners android:radius="25dp" />
+</shape>
