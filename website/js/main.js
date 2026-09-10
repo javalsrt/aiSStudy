@@ -195,7 +195,7 @@ if (focusChain) {
 const orbitStage = document.getElementById('orbitStage');
 if (orbitStage) {
   const orbitCards = orbitStage.querySelectorAll('.orbit-card');
-  const CARD_HALF_W = 125;
+  const CARD_HALF_W = 105;
   const DURATION = 30;                 // 30s 一圈，与原组件一致
   const TILT = -6 * Math.PI / 180;     // 椭圆倾斜角（JS 坐标旋转，卡片保持直立）
   let paused = false;
