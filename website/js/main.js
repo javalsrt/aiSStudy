@@ -190,3 +190,51 @@ if (focusChain) {
   window.addEventListener('resize', placeFrame);
   setInterval(focusStep, 1500); // 0.5s 过渡 + 1s 停留
 }
+
+// ===== 六维能力轨道图（移植自 OrbitImages：椭圆/倾斜/深度缩放，标签替代图片） =====
+const orbitStage = document.getElementById('orbitStage');
+if (orbitStage) {
+  const orbitItems = orbitStage.querySelectorAll('.orbit-item');
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const DURATION = 30;                 // 30s 一圈，与原组件一致
+  let paused = false;
+  let angle0 = -Math.PI / 2;           // 第一个词从最前方开始
+
+  const layout = (theta) => {
+    const w = orbitStage.clientWidth;
+    const rx = w / 2 - 76 / 2 - 6;     // 预留标签宽度
+    const ry = 52;
+    orbitItems.forEach((item, i) => {
+      const t = theta + (i * Math.PI * 2) / orbitItems.length;
+      const x = Math.cos(t) * rx;
+      const y = Math.sin(t) * ry;
+      // y>0 为近处（放大/不透明），y<0 为远处（缩小/半透明）
+      const depth = (Math.sin(t) + 1) / 2;             // 0 远 ~ 1 近
+      const scale = 0.78 + depth * 0.32;
+      item.style.transform =
+        `translate(${x}px, ${y}px) translate(-50%, -50%) scale(${scale})`;
+      item.style.opacity = 0.45 + depth * 0.55;
+      item.style.zIndex = Math.round(depth * 20);
+    });
+  };
+
+  if (reducedMotion) {
+    layout(angle0);                      // 静态摆位
+  } else {
+    orbitStage.addEventListener('mouseenter', () => { paused = true; });
+    orbitStage.addEventListener('mouseleave', () => { paused = false; });
+    let last = null;
+    let elapsed = 0;
+    const tick = (ts) => {
+      if (last === null) last = ts;
+      const dt = ts - last;
+      last = ts;
+      if (!paused) {
+        elapsed += dt;
+        layout(angle0 + (elapsed / 1000 / DURATION) * Math.PI * 2);
+      }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }
+}
