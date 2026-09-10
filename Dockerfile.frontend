@@ -4,7 +4,9 @@ FROM node:20-alpine AS build
 WORKDIR /app
 
 COPY web-admin-react/package.json web-admin-react/package-lock.json ./
-RUN npm ci --no-audit --no-fund --ignore-scripts
+# 国内服务器使用 npmmirror 镜像源安装依赖
+RUN npm config set registry https://registry.npmmirror.com && \
+    npm ci --no-audit --no-fund --ignore-scripts
 
 COPY web-admin-react/ ./
 RUN npm run build
