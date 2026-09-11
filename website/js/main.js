@@ -143,6 +143,7 @@ if (techMosaic) {
     cube.className = 'cube';
     X_POS.forEach(x => {
       const cl = document.createElement('div');
+      cl.className = 'cl';
       cl.style.setProperty('--x', x);
       I_POS.forEach(i => {
         const s = document.createElement('span');
