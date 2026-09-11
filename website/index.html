@@ -559,6 +559,36 @@
         <span class="sec-label">FAQ</span>
         <h2>常见问题</h2>
       </div>
+
+      <!-- 用户常见问题循环墙（摘自 docs/系统常见问题FAQ.md，悬停暂停 · 悬停查看解答） -->
+      <div class="faq-marquee reveal">
+        <div class="fm-row">
+          <div class="fm-track">
+            <span class="fm-pill" title="出题范围只覆盖已完成阅读的章节，请先在课程中完成章节阅读，再开始刷题。"><i></i>点「开始刷题」没反应？</span>
+            <span class="fm-pill" title="出题是异步任务，结果仅保留 10 分钟，超时后重新开始即可。"><i></i>提示「出题任务已过期」？</span>
+            <span class="fm-pill" title="六维评估由 AI 生成，AI 失败时降级跳过（显示 0 分），稍后重新测评即可。"><i></i>提交测评后没有六维评估结果？</span>
+            <span class="fm-pill" title="AI 繁忙导致，稍后重试；也可先「标记明白」减少错题数再分析。"><i></i>错题解析一直「生成中」？</span>
+            <span class="fm-pill" title="需先上传课程文档且向量化成功；提问时带上课程语境效果更佳。"><i></i>AI 回答像「瞎编」，没用课程资料？</span>
+            <span class="fm-pill" title="触发限流保护（每人 10 次/分钟）或服务临时波动，稍后再试。"><i></i>AI 不回复 / 提示「AI 服务繁忙」？</span>
+            <span class="fm-pill" title="支持 PDF / DOCX / DOC / TXT / MD，扫描件请先转成文字版再上传。"><i></i>上传文档提示「暂不支持的文件类型」？</span>
+            <span class="fm-pill" title="这是出题范围的约束：必须先完成章节阅读，系统才会为其生成题目。"><i></i>提示「请先学习章节内容再答题」？</span>
+          </div>
+        </div>
+        <div class="fm-row fm-rev">
+          <div class="fm-track">
+            <span class="fm-pill" title="对方不在线时不做实时推送，消息已落库，刷新或重新进入聊天页即可拉取。"><i></i>聊天消息收不到？</span>
+            <span class="fm-pill" title="确认接收方网络正常且后端可达；上传文件上限 20MB。"><i></i>图片 / 文件发出去看不到？</span>
+            <span class="fm-pill" title="消息包含 @AI 才触发 AI 回答，普通消息正常发送——这是节省 AI 额度的设计。"><i></i>为什么 AI 不回群聊消息？</span>
+            <span class="fm-pill" title="入口展示所有已发布且未结束的考试作业；已结束或已提交的可查看详情与成绩。"><i></i>学生端看不到考试 / 作业？</span>
+            <span class="fm-pill" title="调课需点「确认」提交；学生端下拉刷新或重新进入课表页即可同步。"><i></i>调课后课表没变化？</span>
+            <span class="fm-pill" title="自动排课只排周一至周五；周日课程需手动排课，导入后需重启后端生效。"><i></i>周日课程不显示？</span>
+            <span class="fm-pill" title="真机需将 BaseUrl 改为电脑局域网 IP 并重新构建 APK，且与电脑处于同一 Wi-Fi。"><i></i>App 连不上后端？</span>
+            <span class="fm-pill" title="异步出题 + 排队式 AI 调用 + 15 分钟指纹缓存，可支撑 100 人同时刷题。"><i></i>几十人同时刷题会卡死吗？</span>
+            <span class="fm-pill" title="单用户每分钟 10 次的 AI 限流保护，属于防滥用机制而非故障。"><i></i>报「请求过于频繁」？</span>
+          </div>
+        </div>
+      </div>
+
       <div class="faq-list">
         <details class="faq reveal">
           <summary>AI 出题的质量和范围如何保证？<i></i></summary>

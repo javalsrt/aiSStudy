@@ -378,11 +378,17 @@ a { color: inherit; text-decoration: none; }
   background: #ef4149;
 }
 
-/* 右侧粒子文字面板 */
-.particle-panel { width: 440px; padding-top: 30px; }
+/* 右侧粒子文字面板：占满立方体以外的全部剩余区域 */
+.particle-panel {
+  flex: 1 1 0; min-width: 460px;
+  max-width: 620px;
+  padding-top: 12px;
+}
 #particleCanvas {
-  display: block; width: 100%; height: 480px;
+  display: block; width: 100%; height: 640px;
   background: transparent;
+  /* 光晕改由 GPU 合成层承担，替代 JS 逐帧 shadowBlur（原为 2.4 万次/帧的软件高斯模糊） */
+  filter: drop-shadow(0 0 5px rgba(139, 92, 246, .45));
 }
 @media (prefers-reduced-motion: reduce) {
   .tech-mosaic { animation: none; }
@@ -391,9 +397,37 @@ a { color: inherit; text-decoration: none; }
 /* 窄屏缩放 */
 @media (max-width: 760px) {
   .tech-mosaic { transform: skewY(-20deg) scale(.6); margin: 0 auto; }
+  .particle-panel { min-width: 0; width: 100%; max-width: 560px; }
+  #particleCanvas { height: 520px; }
 }
 
 /* ===== FAQ ===== */
+/* 用户常见问题循环墙：双行反向无缝滚动，悬停暂停 */
+.faq-marquee {
+  display: flex; flex-direction: column; gap: 14px;
+  margin-bottom: 44px;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent);
+}
+.fm-row { overflow: hidden; }
+.fm-track { display: flex; width: max-content; animation: fmScroll var(--fm-dur, 45s) linear infinite; }
+.fm-row:hover .fm-track { animation-play-state: paused; }
+.fm-row.fm-rev .fm-track { animation-direction: reverse; }
+@keyframes fmScroll { to { transform: translateX(-50%); } }
+.fm-pill {
+  flex: none; display: inline-flex; align-items: center; gap: 9px;
+  margin-right: 12px; padding: 11px 20px;
+  background: #fff; border-radius: 999px;
+  font-size: 13.5px; font-weight: 500; color: var(--ink-2);
+  box-shadow: var(--shadow); white-space: nowrap; cursor: default;
+  transition: transform .25s ease, color .25s ease, box-shadow .25s ease;
+}
+.fm-pill i { width: 6px; height: 6px; border-radius: 50%; background: var(--blue); flex: none; }
+.fm-pill:hover { transform: translateY(-2px); color: var(--ink); box-shadow: 0 8px 28px rgba(0, 0, 0, .1); }
+@media (prefers-reduced-motion: reduce) {
+  .fm-track { animation: none; flex-wrap: wrap; width: auto; }
+  .fm-row { overflow: visible; }
+}
 .faq-list { display: flex; flex-direction: column; gap: 14px; }
 .faq { background: #fff; border-radius: var(--r-card); box-shadow: var(--shadow); overflow: hidden; }
 .faq summary { list-style: none; display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; font-size: 15.5px; font-weight: 600; cursor: pointer; }

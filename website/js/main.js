@@ -160,17 +160,16 @@ if (techMosaic) {
   const panel = document.getElementById('particlePanel');
   const ctx = canvas ? canvas.getContext('2d') : null;
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const PCFG = { size: 3, density: 5, color: '#ffffff', highlight: '#8b5cf6', scatter: 150, gather: 1400, stagger: 380, repel: 38, radius: 110, drift: .7, font: 96, weight: 800 };
+  const PCFG = { size: 1.5, density: 2, color: '#ffffff', highlight: '#8b5cf6', scatter: 150, gather: 1400, stagger: 380, repel: 38, radius: 110, drift: .7, font: 120, weight: 800 };
 
   const PT = {
     particles: [], raf: null, build: 0,
-    gathering: false, gatherStart: 0,
-    w: 0, h: 0, dpr: 1,
+    gathering: false, gatherStart: 0, frame: 0,
+    w: 0, h: 0, dpr: 1, visible: true,
     pointer: { active: false, x: 0, y: 0, sx: 0, sy: 0 }
   };
 
   const clamp = (v, a, b) => Math.min(Math.max(v, a), b);
-  const easeOutCubic = t => 1 - Math.pow(1 - t, 3);
   const hexToRgb = hex => {
     const c = hex.replace('#', '');
     return { r: parseInt(c.slice(0, 2), 16), g: parseInt(c.slice(2, 4), 16), b: parseInt(c.slice(4, 6), 16) };
@@ -180,6 +179,16 @@ if (techMosaic) {
     g: Math.round(a.g + (b.g - a.g) * t),
     b: Math.round(a.b + (b.b - a.b) * t)
   });
+  const rgbCss = rgb => `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
+
+  // 调色板：白→紫量化 17 级。渲染时按色索引批量切换 fillStyle，
+  // 状态切换次数从「每粒子一次（2.4 万次/帧）」降为「每帧最多 17 次」
+  const PALETTE_N = 17;
+  const PALETTE = (() => {
+    const base = hexToRgb(PCFG.color), hl = hexToRgb(PCFG.highlight), arr = [];
+    for (let i = 0; i < PALETTE_N; i++) arr.push(rgbCss(mixRgb(base, hl, i / (PALETTE_N - 1))));
+    return arr;
+  })();
 
   const startGather = fromScatter => {
     if (!PT.particles.length) return;
@@ -199,56 +208,72 @@ if (techMosaic) {
   };
 
   const render = now => {
+    const ps = PT.particles, n = ps.length;
     ctx.clearRect(0, 0, PT.w, PT.h);
-    if (!reducedMotion) {
-      ctx.shadowBlur = PCFG.size * 3;
-      ctx.shadowColor = PCFG.highlight;
-    }
+
     PT.pointer.sx += (PT.pointer.x - PT.pointer.sx) * 0.18;
     PT.pointer.sy += (PT.pointer.y - PT.pointer.sy) * 0.18;
+    const px = PT.pointer.sx, py = PT.pointer.sy;
+    const pointerOn = PT.pointer.active && !reducedMotion;
+    const R = PCFG.radius, R2 = R * R, repel = PCFG.repel;
+    const gathering = PT.gathering;
+    const follow = reducedMotion ? 1 : 0.22;
+    const t = now * 0.001;
+    // 漂移的三角函数隔帧计算并缓存：follow=0.22 的插值下视觉完全无差
+    const driftOn = !reducedMotion && ((PT.frame++ & 1) === 0);
+    const drift = PCFG.drift;
     let complete = true;
+    let curColor = -1;
 
-    PT.particles.forEach(p => {
+    ctx.globalAlpha = 1;
+    for (let k = 0; k < n; k++) {
+      const p = ps[k];
       let bx = p.tx, by = p.ty, progress = 1;
-      if (PT.gathering) {
+      if (gathering) {
         const local = (now - PT.gatherStart - p.delay) / PCFG.gather;
-        progress = clamp(local, 0, 1);
-        const eased = easeOutCubic(progress);
+        if (local < 1) { complete = false; progress = local > 0 ? local : 0; }
+        const eased = 1 - (1 - progress) * (1 - progress) * (1 - progress); // easeOutCubic 内联
         bx = p.sx + (p.tx - p.sx) * eased;
         by = p.sy + (p.ty - p.sy) * eased;
-        if (progress < 1) complete = false;
       } else if (!reducedMotion) {
-        const t = now * 0.001;
-        bx += Math.sin(t * 0.9 + p.seed * 10) * PCFG.drift * p.depth;
-        by += Math.cos(t * 0.75 + p.depth * 10) * PCFG.drift * p.depth;
+        if (driftOn) {
+          p.ddx = Math.sin(t * 0.9 + p.ph1) * drift * p.depth;
+          p.ddy = Math.cos(t * 0.75 + p.ph2) * drift * p.depth;
+        }
+        bx += p.ddx; by += p.ddy;
       }
-      if (PT.pointer.active && !reducedMotion) {
-        const dx = bx - PT.pointer.sx, dy = by - PT.pointer.sy;
-        const dist = Math.hypot(dx, dy);
-        if (dist > 0 && dist < PCFG.radius) {
-          const force = Math.pow(1 - dist / PCFG.radius, 2) * PCFG.repel;
+      if (pointerOn) {
+        // 平方距离判据代替 hypot；(1-d/R)² 代数展开代替 pow
+        const dx = bx - px, dy = by - py;
+        const d2 = dx * dx + dy * dy;
+        if (d2 > 0.01 && d2 < R2) {
+          const dist = Math.sqrt(d2);
+          const f = 1 - dist / R;
+          const force = f * f * repel;
           bx += (dx / dist) * force;
           by += (dy / dist) * force;
         }
       }
-      const follow = reducedMotion ? 1 : 0.22;
       p.x += (bx - p.x) * follow;
       p.y += (by - p.y) * follow;
 
-      ctx.globalAlpha = clamp(0.35 + progress * 0.65, 0, 1);
-      ctx.fillStyle = p.color;
-      if (p.size <= 2.1) {
-        ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
-      } else {
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size / 2, 0, Math.PI * 2);
-        ctx.fill();
+      // alpha 仅在聚合期逐粒子变化；静止期为 1，不再设置
+      if (gathering) {
+        ctx.globalAlpha = progress >= 1 ? 1 : 0.35 + progress * 0.65;
       }
-    });
+      const ci = p.ci;
+      if (ci !== curColor) { ctx.fillStyle = PALETTE[ci]; curColor = ci; }
+      ctx.fillRect(p.x - p.hs, p.y - p.hs, p.size, p.size);
+    }
 
     ctx.globalAlpha = 1;
-    ctx.shadowBlur = 0;
-    if (PT.gathering && complete) PT.gathering = false;
+    if (gathering && complete) PT.gathering = false;
+
+    // 帧调度：滚出视口 / 标签页隐藏 / 降级动效且已静止时停止渲染，事件驱动恢复
+    if (!PT.visible || document.hidden || (reducedMotion && !PT.gathering)) {
+      PT.raf = null;
+      return;
+    }
     PT.raf = requestAnimationFrame(render);
   };
 
@@ -281,8 +306,8 @@ if (techMosaic) {
       offCtx.font = nameFont(nameSize);
     }
 
-    // 描述：先按 26px 换行，行数超高清晰度优先逐级缩小字号
-    let descSize = 26;
+    // 描述：先按 32px 换行，行数超高清晰度优先逐级缩小字号
+    let descSize = 32;
     const wrapDesc = s => {
       const charsPerLine = Math.max(8, Math.floor((PT.w * 0.94) / s));
       const ls = [];
@@ -297,7 +322,7 @@ if (techMosaic) {
     const availH = PT.h - descTop - 24;
     let lines = wrapDesc(descSize);
     let lineHeight = Math.round(descSize * 1.5);
-    while (lines.length * lineHeight > availH && descSize > 16) {
+    while (lines.length * lineHeight > availH && descSize > 18) {
       descSize -= 2;
       lines = wrapDesc(descSize);
       lineHeight = Math.round(descSize * 1.5);
@@ -327,32 +352,34 @@ if (techMosaic) {
       }
     }
 
-    const maxParticles = 5200;
+    const maxParticles = 24000;
     const stride = Math.max(1, Math.ceil(targets.length / maxParticles));
-    const baseRgb = hexToRgb(PCFG.color);
-    const hlRgb = hexToRgb(PCFG.highlight);
 
     PT.particles = targets.filter((_, i) => i % stride === 0).map((t, i) => {
       const seed = ((i * 9301 + 49297) % 233280) / 233280;
       const depth = 0.45 + (((i * 233 + 97) % 1000) / 1000) * 0.9;
       const blend = clamp(t.x / Math.max(1, PT.w) + (seed - 0.5) * 0.35, 0, 1);
-      const color = rgbCss(mixRgb(baseRgb, hlRgb, blend));
+      const size = Math.max(0.8, PCFG.size * (0.75 + t.alpha * 0.45));
       return {
         // 散开态：全画布均匀随机分布（无矩形边界）
         x: reducedMotion ? t.x : Math.random() * PT.w,
         y: reducedMotion ? t.y : Math.random() * PT.h,
         sx: 0, sy: 0, tx: t.x, ty: t.y,
-        size: Math.max(0.8, PCFG.size * (0.75 + t.alpha * 0.45)),
-        color, seed, depth, delay: 0
+        size, hs: size * 0.5,
+        ci: Math.round(blend * (PALETTE_N - 1)),  // 调色板色索引（替代每粒子颜色字符串）
+        ddx: 0, ddy: 0,                            // 漂移偏移缓存（隔帧更新）
+        ph1: seed * 10, ph2: depth * 10,           // 预计算三角函数相位
+        seed, depth, delay: 0
       };
     });
+    // 按色索引排序：渲染循环中 fillStyle 切换次数 = 调色板级数（17），而非粒子数
+    PT.particles.sort((a, b) => a.ci - b.ci);
 
     PT.pointer.x = PT.w / 2; PT.pointer.y = PT.h / 2;
     PT.pointer.sx = PT.pointer.x; PT.pointer.sy = PT.pointer.y;
     if (build !== PT.build) return;
     startGather(true);
   };
-  const rgbCss = rgb => `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
 
   // 立方体悬停 → 名称与描述共同融入粒子特效
   const allSpans = techMosaic.querySelectorAll('.cl span');
@@ -383,6 +410,19 @@ if (techMosaic) {
     }).observe(panel);
   }
 
+  // 帧率优化：区块滚出视口时暂停渲染循环，回到视口自动恢复（事件驱动，不再空转 rAF）
+  if (panel && 'IntersectionObserver' in window) {
+    new IntersectionObserver(entries => {
+      entries.forEach(e => {
+        PT.visible = e.isIntersecting;
+        if (PT.visible && PT.raf === null) PT.raf = requestAnimationFrame(render);
+      });
+    }, { threshold: 0 }).observe(panel);
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && PT.visible && PT.raf === null) PT.raf = requestAnimationFrame(render);
+  });
+
   // 初始文字（等待字体就绪）
   if (ctx) {
     if (document.fonts && document.fonts.ready) {
@@ -407,6 +447,20 @@ if (adminShotUrl) {
     });
   });
 }
+
+// ===== FAQ 用户常见问题循环墙（克隆一份实现 -50% 无缝循环，速度按内容宽度自适应） =====
+document.querySelectorAll('.fm-track').forEach(track => {
+  Array.from(track.children).forEach(el => {
+    const clone = el.cloneNode(true);
+    clone.setAttribute('aria-hidden', 'true');
+    track.appendChild(clone);
+  });
+  // ~55px/s 匀速滚动，内容越长周期越久，保证观感一致
+  requestAnimationFrame(() => {
+    const half = track.scrollWidth / 2;
+    if (half > 0) track.style.setProperty('--fm-dur', (half / 55).toFixed(1) + 's');
+  });
+});
 
 // ===== 「学练测评管」True Focus 逐词聚焦（移植自 reactbits TrueFocus） =====
 const focusChain = document.getElementById('focusChain');
