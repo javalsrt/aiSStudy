@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /assets/screens/
+
+Sitemap: https://www.zhixuezhida.top/sitemap.xml
