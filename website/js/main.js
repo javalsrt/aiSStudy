@@ -119,20 +119,20 @@ const techMosaic = document.getElementById('techMosaic');
 if (techMosaic) {
   // 技术详情（按视觉从上到下：前端 → 后端 → 底层模型）
   const TECHS = [
-    { n: 'Android App', d: 'Java 原生开发的学生端应用，覆盖刷题、专注训练与 AI 答疑全场景。' },
-    { n: 'React 管理端', d: 'React 18 + Vite 构建的教师管理后台，组件化开发、路由懒加载。' },
-    { n: '微信小程序', d: 'uni-app 跨端开发，轻量触达学生用户，与 App 数据同源。' },
-    { n: 'Tailwind CSS', d: '原子化 CSS 框架，统一 Web 端设计语言与视觉规范。' },
-    { n: 'ECharts 可视化', d: '六维能力雷达、学情趋势与统计图表的高性能渲染。' },
-    { n: 'Spring Boot', d: 'Controller / Service / Mapper 三层架构，统一 REST API 网关。' },
-    { n: 'RAG 检索增强', d: '按已学章节向量检索教材内容注入 Prompt，保证 AI 出题不超纲。' },
-    { n: 'JWT 鉴权 + 限流', d: '无状态令牌认证，配合令牌桶算法实现接口并发控制。' },
-    { n: 'WebSocket', d: '专注度数据的实时双向推送通道，秒级同步学习状态。' },
-    { n: 'AI 语义判分', d: '大模型按要点覆盖与语义一致性判定主观题得分，拒绝死板比对。' },
-    { n: 'BGE-M3', d: 'BGE-M3（BAAI General Embedding M3），是北京智源人工智能研究院（BAAI）开源的多语言全能文本嵌入（Embedding）模型。' },
-    { n: 'DeepSeek V4 Flash', d: '大语言模型驱动的智能出题与答疑引擎，支持流式输出。' },
-    { n: 'MySQL 8.0', d: '业务数据、题库与出题缓存指纹的持久化存储。' },
-    { n: 'Docker Compose', d: '前端、后端、数据库与 Nginx 网关一键容器化编排部署。' }
+    { n: 'Android App', d: '基于 Java 与 Android SDK 原生开发的学生端应用，采用 MVVM 分层设计，集成 JWT 鉴权、OkHttp 网络层与 WebSocket 专注度上报，覆盖刷题、错题、测评全学习场景。' },
+    { n: 'React 管理端', d: '基于 React 18 + TypeScript + Vite 构建的教师管理后台，使用 Zustand 状态管理、TanStack Table 数据表格与 React Router 权限路由，支持组件级懒加载。' },
+    { n: '微信小程序', d: '基于 uni-app（Vue 3 语法）跨端编译，复用统一 REST API 与会话体系，提供轻量化的课程浏览、刷题与学习入口，无需安装即可触达学生。' },
+    { n: 'Tailwind CSS', d: '原子化 CSS 引擎，通过设计令牌（Design Tokens）统一多端色彩、间距与圆角规范，配合 PostCSS 按需Tree-Shaking，生产样式体积减少约 70%。' },
+    { n: 'ECharts 可视化', d: '基于 Apache ECharts 渲染六维能力雷达图、学情趋势折线图与班级对比柱状图，支持大数据量 Canvas 降采样与容器响应式自适应。' },
+    { n: 'Spring Boot', d: '后端采用 Controller / Service / Mapper 三层架构，统一 REST API 规范与全局异常处理，集成 MyBatis-Plus ORM、HikariCP 连接池与声明式事务管理。' },
+    { n: 'RAG 检索增强', d: '检索增强生成管线：BGE-M3 将章节内容向量化入库，出题时按已学章节 Top-K 召回最相关教材片段注入 Prompt，从源头约束大模型不超纲。' },
+    { n: 'JWT 鉴权 + 限流', d: 'HS256 签名的无状态令牌认证实现接口鉴权，配合令牌桶算法对登录、AI 出题等敏感接口做并发限流，防止恶意请求与资源耗尽。' },
+    { n: 'WebSocket', d: '基于 STOMP over WebSocket 的双向实时通信通道，毫秒级推送专注度指标、聊天消息与系统通知，服务端心跳机制保障长连接稳定性。' },
+    { n: 'AI 语义判分', d: '主观题由大模型按「要点覆盖度 + 语义一致性」双维度评分，辅以文本相似度算法兜底；AI 服务不可用时自动降级，保障判分链路可用性。' },
+    { n: 'BGE-M3', d: 'BGE-M3（BAAI General Embedding M3），是北京智源人工智能研究院（BAAI）开源的多语言全能文本嵌入（Embedding）模型。支持多语言、多粒度（稠密 + 稀疏 + ColBERT）混合检索，单模型即可覆盖语义检索全场景，本项目中负责章节教材与用户查询的向量化。' },
+    { n: 'DeepSeek V4 Flash', d: 'DeepSeek 旗舰级高速推理模型，承担智能出题、错题归因解析与答疑对话三大核心任务，输出 JSON Schema 约束的结构化试题并支持流式响应，大幅降低首字延迟。' },
+    { n: 'MySQL 8.0', d: '核心业务数据主库，存储用户、课程、题库与学习行为记录；utf8mb4 字符集 + 组合索引 + 出题指纹缓存表设计，将重复大模型调用减少约 90%。' },
+    { n: 'Docker Compose', d: '四容器编排（Nginx / Spring Boot / MySQL / Embedding Service），一键构建部署与健康检查，数据卷持久化，支持 --profile 按需启用 AI 向量化能力。' }
   ];
 
   // 生成 DOM：3 个 .cube × 3 个 .cl(--x: -1/0/1) × 3 个 span(--i: 3/2/1)
@@ -160,10 +160,6 @@ if (techMosaic) {
   const tipName = document.getElementById('cubeTipName');
   const tipDesc = document.getElementById('cubeTipDesc');
   const stage = document.getElementById('isoStage');
-  const isoDescText = document.getElementById('isoDescText');
-  const isoDescDot = document.querySelector('.iso-desc-dot');
-  const isoDescBox = document.getElementById('isoDesc');
-  const ISO_DEFAULT = isoDescText ? isoDescText.textContent : '';
 
   const allSpans = techMosaic.querySelectorAll('.cl span');
   allSpans.forEach((s, idx) => {
@@ -179,24 +175,9 @@ if (techMosaic) {
         tip.style.top = Math.max(0, sRect.top - stRect.top - tip.offsetHeight - 14) + 'px';
         tip.classList.add('on');
       }
-      if (isoDescText && isoDescBox) {
-        isoDescText.textContent = tech.d;
-        isoDescText.setAttribute('data-title', tech.n);
-        isoDescBox.style.setProperty('--iso-c', '#ef4149');
-        if (isoDescDot) {
-          isoDescDot.style.background = '#ef4149';
-          isoDescDot.style.boxShadow = '0 0 12px #ef4149';
-        }
-      }
     });
     s.addEventListener('mouseleave', () => {
       if (tip) tip.classList.remove('on');
-      if (isoDescText) {
-        isoDescText.textContent = ISO_DEFAULT;
-        isoDescText.removeAttribute('data-title');
-        isoDescBox.style.removeProperty('--iso-c');
-        if (isoDescDot) { isoDescDot.style.background = ''; isoDescDot.style.boxShadow = ''; }
-      }
     });
   });
 }
