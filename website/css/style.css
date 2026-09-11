@@ -381,7 +381,7 @@ a { color: inherit; text-decoration: none; }
 /* 右侧粒子文字面板 */
 .particle-panel { width: 440px; padding-top: 30px; }
 #particleCanvas {
-  display: block; width: 100%; height: 400px;
+  display: block; width: 100%; height: 480px;
   background: transparent;
 }
 @media (prefers-reduced-motion: reduce) {

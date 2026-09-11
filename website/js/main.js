@@ -160,7 +160,7 @@ if (techMosaic) {
   const panel = document.getElementById('particlePanel');
   const ctx = canvas ? canvas.getContext('2d') : null;
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const PCFG = { size: 2.6, density: 4, color: '#ffffff', highlight: '#8b5cf6', scatter: 150, gather: 1400, stagger: 380, repel: 38, radius: 110, drift: .7, font: 72, weight: 800 };
+  const PCFG = { size: 3, density: 5, color: '#ffffff', highlight: '#8b5cf6', scatter: 150, gather: 1400, stagger: 380, repel: 38, radius: 110, drift: .7, font: 96, weight: 800 };
 
   const PT = {
     particles: [], raf: null, build: 0,
@@ -274,20 +274,33 @@ if (techMosaic) {
     let nameSize = PCFG.font;
     const nameFont = s => `${PCFG.weight} ${s}px ${family}`;
     offCtx.font = nameFont(nameSize);
-    const maxNameW = PT.w * 0.92;
+    const maxNameW = PT.w * 0.94;
     const nameW = offCtx.measureText(name).width;
     if (nameW > maxNameW) {
-      nameSize = Math.max(30, nameSize * (maxNameW / nameW));
+      nameSize = Math.max(36, nameSize * (maxNameW / nameW));
       offCtx.font = nameFont(nameSize);
     }
 
-    // 描述：按画布宽度换行
-    const descSize = 21;
-    const charsPerLine = Math.max(10, Math.floor((PT.w * 0.92) / descSize));
+    // 描述：先按 26px 换行，行数超高清晰度优先逐级缩小字号
+    let descSize = 26;
+    const wrapDesc = s => {
+      const charsPerLine = Math.max(8, Math.floor((PT.w * 0.94) / s));
+      const ls = [];
+      for (let i = 0; i < descText.length; i += charsPerLine) {
+        ls.push(descText.slice(i, i + charsPerLine));
+      }
+      return ls;
+    };
     const descText = desc || '';
-    const lines = [];
-    for (let i = 0; i < descText.length; i += charsPerLine) {
-      lines.push(descText.slice(i, i + charsPerLine));
+    const nameY = Math.round(nameSize * 0.72);
+    const descTop = nameY + Math.round(nameSize * 0.62);
+    const availH = PT.h - descTop - 24;
+    let lines = wrapDesc(descSize);
+    let lineHeight = Math.round(descSize * 1.5);
+    while (lines.length * lineHeight > availH && descSize > 16) {
+      descSize -= 2;
+      lines = wrapDesc(descSize);
+      lineHeight = Math.round(descSize * 1.5);
     }
 
     // 离屏合成：名称居上、描述居下
@@ -296,12 +309,11 @@ if (techMosaic) {
     offCtx.fillStyle = '#fff';
     offCtx.textAlign = 'center';
     offCtx.textBaseline = 'middle';
-    const nameY = Math.round(nameSize * 0.75);
     offCtx.font = nameFont(nameSize);
     offCtx.fillText(name, PT.w / 2, nameY);
     offCtx.font = `500 ${descSize}px ${family}`;
     lines.forEach((line, li) => {
-      offCtx.fillText(line, PT.w / 2, nameY + 52 + li * 32);
+      offCtx.fillText(line, PT.w / 2, descTop + lineHeight * li + lineHeight / 2);
     });
 
     // 采样像素点
