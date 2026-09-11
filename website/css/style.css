@@ -313,11 +313,11 @@ a { color: inherit; text-decoration: none; }
   gap: 44px; flex-wrap: wrap;
   padding: 56px 0 20px;
 }
-/* ===== 技术架构 · 等轴测马赛克（uiverse csemzepp 原版风格） ===== */
+/* ===== 技术架构 · 3×3×3 立方体（uiverse csemzepp 原版结构移植） ===== */
 .tech-mosaic {
   position: relative;
-  width: 640px; height: 380px;
-  margin: 40px auto 0;
+  width: 420px; height: 420px;
+  margin: 20px auto 10px;
   transform: skewY(-20deg);
   animation: cubeHue 5s linear infinite;
 }
@@ -325,72 +325,57 @@ a { color: inherit; text-decoration: none; }
   0% { filter: hue-rotate(0deg); }
   100% { filter: hue-rotate(360deg); }
 }
-/* 中央 3×3 立方体阵列（JS 生成，与参考一致） */
-.mosaic-center {
-  position: absolute; left: 50%; top: 50%;
-  translate: -50% -50%;
+/* 三个深度副本：中(z2) / 后(z1, 左上偏移) / 前(z3, 右下偏移) */
+.tech-mosaic .cube {
+  position: absolute; left: 105px; top: 105px;
+  width: 210px; height: 210px;
 }
-.mosaic-center span {
-  position: absolute; left: 50%; top: 50%;
+.tech-mosaic .cube:nth-of-type(1) { z-index: 2; }
+.tech-mosaic .cube:nth-of-type(2) { z-index: 1; translate: -60px -60px; }
+.tech-mosaic .cube:nth-of-type(3) { z-index: 3; translate: 60px 60px; }
+
+/* 每个立方体 = 3 列（--x）× 3 行（span 堆叠） */
+.tech-mosaic .cl {
+  position: absolute;
+  display: flex; flex-direction: column; gap: 30px;
+  translate: calc(-70px * var(--x)) 0;
+}
+.tech-mosaic .cl span {
+  position: relative; display: inline-block;
   width: 50px; height: 50px;
-  translate: calc(-50% + var(--gx)) calc(-50% + var(--gy));
   background: #dcdcdc;
+  cursor: pointer;
   transition: 1.5s;
 }
-.mosaic-center span::before {
+.tech-mosaic .cl span::before {
   content: "";
-  position: absolute; right: 100%; width: 36px; height: 100%;
+  position: absolute; left: -36px;
+  width: 36px; height: 100%;
   background: #fff;
   transform-origin: right; transform: skewY(45deg);
   transition: 1.5s;
 }
-.mosaic-center span::after {
+.tech-mosaic .cl span::after {
   content: "";
-  position: absolute; bottom: 100%; left: 0; width: 100%; height: 36px;
+  position: absolute; top: -36px; left: 0;
+  width: 100%; height: 36px;
   background: #f2f2f2;
   transform-origin: bottom; transform: skewX(45deg);
   transition: 1.5s;
 }
-
-/* 周围 15 个技术方块（悬停变红显示详情） */
-.tech-mosaic > span.cube {
-  position: absolute; left: 50%; top: 50%;
-  width: 50px; height: 50px;
-  translate: calc(-50% + var(--gx)) calc(-50% + var(--gy));
-  background: var(--cc, #dcdcdc);
-  cursor: pointer;
-  transition: 1.5s;
-}
-.tech-mosaic > span.cube::before {
-  content: "";
-  position: absolute; right: 100%; width: 36px; height: 100%;
-  background: color-mix(in srgb, var(--cc, #dcdcdc) 60%, #000 25%);
-  transform-origin: right; transform: skewY(45deg);
-  transition: 1.5s;
-}
-.tech-mosaic > span.cube::after {
-  content: "";
-  position: absolute; bottom: 100%; left: 0; width: 100%; height: 36px;
-  background: color-mix(in srgb, var(--cc, #dcdcdc) 85%, #fff 35%);
-  transform-origin: bottom; transform: skewX(45deg);
-  transition: 1.5s;
-}
-.tech-mosaic > span.cube:hover,
-.tech-mosaic > span.cube.active {
+/* 悬停：单个方块瞬间变红发光 */
+.tech-mosaic .cl span:hover {
   transition: 0s;
   background: #ef4149;
   filter: drop-shadow(0 0 26px #ef4149);
-  z-index: 30;
 }
-.tech-mosaic > span.cube:hover::before,
-.tech-mosaic > span.cube:hover::after,
-.tech-mosaic > span.cube.active::before,
-.tech-mosaic > span.cube.active::after {
+.tech-mosaic .cl span:hover::before,
+.tech-mosaic .cl span:hover::after {
   transition: 0s;
   background: #ef4149;
 }
 
-/* 方块旁的悬浮详情 */
+/* 悬浮技术详情 */
 .cube-tip {
   position: absolute; z-index: 40;
   width: 300px;
@@ -406,18 +391,13 @@ a { color: inherit; text-decoration: none; }
 .cube-tip.on { opacity: 1; }
 .cube-tip b { display: block; font-size: 14.5px; color: #ff8a90; margin-bottom: 6px; }
 .cube-tip p { font-size: 13px; line-height: 1.7; color: rgba(255,255,255,.78); margin: 0; }
-
-.mosaic-legend {
-  text-align: center; font-size: 13px; color: var(--ink-3);
-  margin-top: 10px;
-}
 @media (prefers-reduced-motion: reduce) {
   .tech-mosaic { animation: none; }
-  .tech-mosaic > span.cube, .mosaic-center span { transition: none; }
+  .tech-mosaic .cl span, .tech-mosaic .cl span::before, .tech-mosaic .cl span::after { transition: none; }
 }
-/* 窄屏缩放整个马赛克 */
+/* 窄屏缩放 */
 @media (max-width: 760px) {
-  .tech-mosaic { transform: skewY(-20deg) scale(.62); margin-top: 0; }
+  .tech-mosaic { transform: skewY(-20deg) scale(.6); margin: 0 auto; }
 }
 
 /* 悬停详解面板 */
