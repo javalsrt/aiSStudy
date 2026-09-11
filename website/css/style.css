@@ -381,15 +381,8 @@ a { color: inherit; text-decoration: none; }
 /* 右侧粒子文字面板 */
 .particle-panel { width: 440px; padding-top: 30px; }
 #particleCanvas {
-  display: block; width: 100%; height: 260px;
+  display: block; width: 100%; height: 400px;
   background: transparent;
-}
-.particle-desc {
-  margin-top: 16px;
-  font-size: 13.5px; line-height: 1.75;
-  color: rgba(255, 255, 255, .72);
-  min-height: 70px;
-  text-align: left;
 }
 @media (prefers-reduced-motion: reduce) {
   .tech-mosaic { animation: none; }

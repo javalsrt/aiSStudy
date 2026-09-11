@@ -157,7 +157,6 @@ if (techMosaic) {
   // 悬停详情：视觉顺序（左上 → 右下）循环分配技术条目
   // —— 右侧粒子文字面板（原生移植 reactbits ParticleText）——
   const canvas = document.getElementById('particleCanvas');
-  const descEl = document.getElementById('particleDesc');
   const panel = document.getElementById('particlePanel');
   const ctx = canvas ? canvas.getContext('2d') : null;
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -253,57 +252,70 @@ if (techMosaic) {
     PT.raf = requestAnimationFrame(render);
   };
 
-  // 将文字采样为粒子目标点并触发聚合动画
-  const setParticleText = text => {
+  // 将「技术名 + 详细说明」共同采样为粒子目标点并触发聚合动画
+  const setParticleText = (name, desc) => {
     if (!ctx) return;
-    PT.current = text;
+    PT.current = name;
+    PT.currentDesc = desc || '';
     const build = ++PT.build;
     const rect = panel.getBoundingClientRect();
     PT.w = Math.max(1, Math.floor(rect.width));
-    PT.h = 250;
+    PT.h = Math.max(280, Math.floor(canvas.clientHeight || 400));
     PT.dpr = Math.min(window.devicePixelRatio || 1, 2);
     canvas.width = PT.w * PT.dpr;
     canvas.height = PT.h * PT.dpr;
     ctx.setTransform(PT.dpr, 0, 0, PT.dpr, 0, 0);
 
     const family = '"PingFang SC", "Microsoft YaHei", sans-serif';
-    let size = PCFG.font;
     const off = document.createElement('canvas');
     const offCtx = off.getContext('2d', { willReadFrequently: true });
-    const fitFont = () => `${PCFG.weight} ${size}px ${family}`;
-    offCtx.font = fitFont();
-    const maxW = PT.w * 0.9;
-    const measured = offCtx.measureText(text).width;
-    if (measured > maxW) {
-      size = Math.max(20, size * (maxW / measured));
-      offCtx.font = fitFont();
+
+    // 技术名：大字，超宽自动缩小
+    let nameSize = PCFG.font;
+    const nameFont = s => `${PCFG.weight} ${s}px ${family}`;
+    offCtx.font = nameFont(nameSize);
+    const maxNameW = PT.w * 0.92;
+    const nameW = offCtx.measureText(name).width;
+    if (nameW > maxNameW) {
+      nameSize = Math.max(30, nameSize * (maxNameW / nameW));
+      offCtx.font = nameFont(nameSize);
     }
 
-    const left = Math.ceil(offCtx.measureText(text).actualBoundingBoxLeft || 0);
-    const ascent = Math.ceil(size * 0.8);
-    const descent = Math.ceil(size * 0.24);
-    const pad = 14;
-    off.width = Math.ceil(offCtx.measureText(text).width) + pad * 2;
-    off.height = ascent + descent + pad * 2;
-    offCtx.font = fitFont();
-    offCtx.fillStyle = '#fff';
-    offCtx.fillText(text, pad - left, pad + ascent);
+    // 描述：按画布宽度换行
+    const descSize = 21;
+    const charsPerLine = Math.max(10, Math.floor((PT.w * 0.92) / descSize));
+    const descText = desc || '';
+    const lines = [];
+    for (let i = 0; i < descText.length; i += charsPerLine) {
+      lines.push(descText.slice(i, i + charsPerLine));
+    }
 
+    // 离屏合成：名称居上、描述居下
+    off.width = PT.w;
+    off.height = PT.h;
+    offCtx.fillStyle = '#fff';
+    offCtx.textAlign = 'center';
+    offCtx.textBaseline = 'middle';
+    const nameY = Math.round(nameSize * 0.75);
+    offCtx.font = nameFont(nameSize);
+    offCtx.fillText(name, PT.w / 2, nameY);
+    offCtx.font = `500 ${descSize}px ${family}`;
+    lines.forEach((line, li) => {
+      offCtx.fillText(line, PT.w / 2, nameY + 52 + li * 32);
+    });
+
+    // 采样像素点
     const img = offCtx.getImageData(0, 0, off.width, off.height);
     const targets = [];
     const step = PCFG.density;
     for (let y = 0; y < off.height; y += step) {
       for (let x = 0; x < off.width; x += step) {
         const a = img.data[(y * off.width + x) * 4 + 3];
-        if (a > 40) targets.push({
-          x: PT.w / 2 - off.width / 2 + x,
-          y: PT.h / 2 - off.height / 2 + y,
-          alpha: a / 255
-        });
+        if (a > 40) targets.push({ x, y, alpha: a / 255 });
       }
     }
 
-    const maxParticles = 4200;
+    const maxParticles = 5200;
     const stride = Math.max(1, Math.ceil(targets.length / maxParticles));
     const baseRgb = hexToRgb(PCFG.color);
     const hlRgb = hexToRgb(PCFG.highlight);
@@ -314,10 +326,11 @@ if (techMosaic) {
       const blend = clamp(t.x / Math.max(1, PT.w) + (seed - 0.5) * 0.35, 0, 1);
       const color = rgbCss(mixRgb(baseRgb, hlRgb, blend));
       return {
-        x: reducedMotion ? t.x : t.x + (Math.random() - 0.5) * PCFG.scatter,
-        y: reducedMotion ? t.y : t.y + (Math.random() - 0.5) * PCFG.scatter,
+        // 散开态：全画布均匀随机分布（无矩形边界）
+        x: reducedMotion ? t.x : Math.random() * PT.w,
+        y: reducedMotion ? t.y : Math.random() * PT.h,
         sx: 0, sy: 0, tx: t.x, ty: t.y,
-        size: Math.max(0.6, PCFG.size * (0.75 + t.alpha * 0.45)),
+        size: Math.max(0.8, PCFG.size * (0.75 + t.alpha * 0.45)),
         color, seed, depth, delay: 0
       };
     });
@@ -329,13 +342,12 @@ if (techMosaic) {
   };
   const rgbCss = rgb => `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
 
-  // 立方体悬停 → 更新粒子文字与描述
+  // 立方体悬停 → 名称与描述共同融入粒子特效
   const allSpans = techMosaic.querySelectorAll('.cl span');
   allSpans.forEach((s, idx) => {
     const tech = TECHS[idx % TECHS.length];
     s.addEventListener('mouseenter', () => {
-      if (descEl) descEl.textContent = tech.d;
-      setParticleText(tech.n);
+      setParticleText(tech.n, tech.d);
     });
   });
 
