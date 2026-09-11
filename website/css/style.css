@@ -313,13 +313,11 @@ a { color: inherit; text-decoration: none; }
   gap: 44px; flex-wrap: wrap;
   padding: 56px 0 20px;
 }
-.cube-cluster {
+/* ===== 技术架构 · 等轴测马赛克（uiverse csemzepp 原版风格） ===== */
+.tech-mosaic {
   position: relative;
-  display: flex; flex-direction: column; align-items: center; gap: 30px;
-}
-/* 等轴测立方体群：整体 skewY 倾斜 + 色相循环流转（uiverse csemzepp 风格） */
-.cc-iso {
-  position: relative;
+  width: 640px; height: 380px;
+  margin: 40px auto 0;
   transform: skewY(-20deg);
   animation: cubeHue 5s linear infinite;
 }
@@ -327,55 +325,100 @@ a { color: inherit; text-decoration: none; }
   0% { filter: hue-rotate(0deg); }
   100% { filter: hue-rotate(360deg); }
 }
-/* 三层深度副本：后(z1) / 中(z2) / 前(z3) */
-.cc-cube { position: relative; z-index: 2; }
-.cc-cube.cc-b { z-index: 1; translate: -62px -52px; }
-.cc-cube.cc-f { z-index: 3; translate: 62px 52px; }
-
-/* 3×3 马赛克网格（span 由 JS 生成） */
-.cc-grid { position: relative; width: 200px; height: 168px; }
-.cc-grid span {
+/* 中央 3×3 立方体阵列（JS 生成，与参考一致） */
+.mosaic-center {
   position: absolute; left: 50%; top: 50%;
-  width: 46px; height: 46px;
+  translate: -50% -50%;
+}
+.mosaic-center span {
+  position: absolute; left: 50%; top: 50%;
+  width: 50px; height: 50px;
   translate: calc(-50% + var(--gx)) calc(-50% + var(--gy));
-  background: var(--cc, #dcdcdc);
+  background: #dcdcdc;
   transition: 1.5s;
 }
-/* 左侧面（skewY 45°） */
-.cc-grid span::before {
+.mosaic-center span::before {
   content: "";
-  position: absolute; right: 100%; width: 30px; height: 100%;
-  background: color-mix(in srgb, var(--cc, #dcdcdc) 55%, #000 30%);
+  position: absolute; right: 100%; width: 36px; height: 100%;
+  background: #fff;
   transform-origin: right; transform: skewY(45deg);
   transition: 1.5s;
 }
-/* 顶面（skewX 45°） */
-.cc-grid span::after {
+.mosaic-center span::after {
   content: "";
-  position: absolute; bottom: 100%; left: 0; width: 100%; height: 30px;
-  background: color-mix(in srgb, var(--cc, #dcdcdc) 88%, #fff 30%);
+  position: absolute; bottom: 100%; left: 0; width: 100%; height: 36px;
+  background: #f2f2f2;
   transform-origin: bottom; transform: skewX(45deg);
   transition: 1.5s;
 }
-/* 悬停：单个方块瞬间变红发光（无过渡，参考原版） */
-.cc-grid span:hover {
+
+/* 周围 15 个技术方块（悬停变红显示详情） */
+.tech-mosaic > span.cube {
+  position: absolute; left: 50%; top: 50%;
+  width: 50px; height: 50px;
+  translate: calc(-50% + var(--gx)) calc(-50% + var(--gy));
+  background: var(--cc, #dcdcdc);
+  cursor: pointer;
+  transition: 1.5s;
+}
+.tech-mosaic > span.cube::before {
+  content: "";
+  position: absolute; right: 100%; width: 36px; height: 100%;
+  background: color-mix(in srgb, var(--cc, #dcdcdc) 60%, #000 25%);
+  transform-origin: right; transform: skewY(45deg);
+  transition: 1.5s;
+}
+.tech-mosaic > span.cube::after {
+  content: "";
+  position: absolute; bottom: 100%; left: 0; width: 100%; height: 36px;
+  background: color-mix(in srgb, var(--cc, #dcdcdc) 85%, #fff 35%);
+  transform-origin: bottom; transform: skewX(45deg);
+  transition: 1.5s;
+}
+.tech-mosaic > span.cube:hover,
+.tech-mosaic > span.cube.active {
   transition: 0s;
   background: #ef4149;
-  filter: drop-shadow(0 0 24px #ef4149);
+  filter: drop-shadow(0 0 26px #ef4149);
+  z-index: 30;
 }
-.cc-grid span:hover::before,
-.cc-grid span:hover::after {
+.tech-mosaic > span.cube:hover::before,
+.tech-mosaic > span.cube:hover::after,
+.tech-mosaic > span.cube.active::before,
+.tech-mosaic > span.cube.active::after {
   transition: 0s;
   background: #ef4149;
-}
-@media (prefers-reduced-motion: reduce) {
-  .cc-iso { animation: none; }
-  .cc-grid span, .cc-grid span::before, .cc-grid span::after { transition: none; }
 }
 
-/* 方块下标签 */
-.iso-label { font-size: 15px; font-weight: 700; color: #fff; display: flex; flex-direction: column; align-items: center; gap: 4px; }
-.iso-label small { font-size: 10px; font-weight: 700; letter-spacing: 2px; color: color-mix(in srgb, var(--c) 80%, #ffffff 20%); opacity: .85; }
+/* 方块旁的悬浮详情 */
+.cube-tip {
+  position: absolute; z-index: 40;
+  width: 300px;
+  background: rgba(13, 16, 32, .92);
+  border: 1px solid rgba(239, 65, 73, .5);
+  border-radius: 12px;
+  padding: 14px 16px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .5), 0 0 30px rgba(239, 65, 73, .15);
+  opacity: 0; pointer-events: none;
+  transition: opacity .3s ease;
+  backdrop-filter: blur(8px);
+}
+.cube-tip.on { opacity: 1; }
+.cube-tip b { display: block; font-size: 14.5px; color: #ff8a90; margin-bottom: 6px; }
+.cube-tip p { font-size: 13px; line-height: 1.7; color: rgba(255,255,255,.78); margin: 0; }
+
+.mosaic-legend {
+  text-align: center; font-size: 13px; color: var(--ink-3);
+  margin-top: 10px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tech-mosaic { animation: none; }
+  .tech-mosaic > span.cube, .mosaic-center span { transition: none; }
+}
+/* 窄屏缩放整个马赛克 */
+@media (max-width: 760px) {
+  .tech-mosaic { transform: skewY(-20deg) scale(.62); margin-top: 0; }
+}
 
 /* 悬停详解面板 */
 .iso-desc {

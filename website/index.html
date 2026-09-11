@@ -541,46 +541,15 @@
       <div class="sec-head sec-head-dark reveal">
         <span class="sec-label">ARCHITECTURE</span>
         <h2>技术架构 · 前后端分离的全栈体系</h2>
-        <p>悬停任意方块，查看该层模块的详细作用。</p>
+        <p>居中为 3×3 立方体阵列，四周方块对应各层技术栈——悬停查看技术详情。</p>
       </div>
 
       <div class="iso-stage reveal" id="isoStage">
-        <!-- 终端层 -->
-        <div class="cube-cluster" style="--c:#22d3ee" data-desc="终端层：三端共用统一 REST API 与 WebSocket 实时通道，界面独立迭代、数据同源。Android App 原生体验，React 管理端面向教师，微信小程序轻量触达。" data-title="终端层 · 详细作用">
-          <div class="cc-iso">
-            <div class="cc-cube cc-b"><div class="cc-grid"></div></div>
-            <div class="cc-cube cc-m"><div class="cc-grid"></div></div>
-            <div class="cc-cube cc-f"><div class="cc-grid"></div></div>
-          </div>
-          <div class="iso-label">终端层<small>FRONTEND</small></div>
+        <div class="tech-mosaic" id="techMosaic">
+          <!-- 15 个技术方块由 JS 生成：上排前端 / 中排后端 / 下排底层模型 -->
+          <div class="cube-tip" id="cubeTip"><b id="cubeTipName"></b><p id="cubeTipDesc"></p></div>
         </div>
-        <!-- 服务层 -->
-        <div class="cube-cluster" style="--c:#3b82f6" data-desc="服务层：Controller / Service / Mapper 三层结构，JWT 鉴权、令牌桶限流、Redis 缓存一体化治理，WebSocket 承载专注度实时推送。" data-title="服务层 · 详细作用">
-          <div class="cc-iso">
-            <div class="cc-cube cc-b"><div class="cc-grid"></div></div>
-            <div class="cc-cube cc-m"><div class="cc-grid"></div></div>
-            <div class="cc-cube cc-f"><div class="cc-grid"></div></div>
-          </div>
-          <div class="iso-label">服务层<small>BACKEND</small></div>
-        </div>
-        <!-- 智能层 -->
-        <div class="cube-cluster" style="--c:#8b5cf6" data-desc="智能层：DeepSeek V4 Flash 大模型中台，RAG 按章节检索增强出题，AI 语义判分主观题，LlmService 排队调度 + 令牌桶并发控制。" data-title="智能层 · 详细作用">
-          <div class="cc-iso">
-            <div class="cc-cube cc-b"><div class="cc-grid"></div></div>
-            <div class="cc-cube cc-m"><div class="cc-grid"></div></div>
-            <div class="cc-cube cc-f"><div class="cc-grid"></div></div>
-          </div>
-          <div class="iso-label">智能层<small>AI ENGINE</small></div>
-        </div>
-        <!-- 基础设施 -->
-        <div class="cube-cluster" style="--c:#34c759" data-desc="基础设施：Docker Compose 一键拉起前端、后端、MySQL 与 Nginx 网关；出题结果指纹缓存 15 分钟，百人并发只调一次大模型，成本与延迟双降。" data-title="基础设施 · 详细作用">
-          <div class="cc-iso">
-            <div class="cc-cube cc-b"><div class="cc-grid"></div></div>
-            <div class="cc-cube cc-m"><div class="cc-grid"></div></div>
-            <div class="cc-cube cc-f"><div class="cc-grid"></div></div>
-          </div>
-          <div class="iso-label">基础设施<small>INFRA</small></div>
-        </div>
+        <p class="mosaic-legend">上排 · 前端技术 ｜ 中排 · 后端核心算法与技术 ｜ 下排 · 底层模型技术（悬停方块查看详情）</p>
       </div>
 
       <!-- 悬停详解面板 -->
