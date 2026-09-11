@@ -127,7 +127,6 @@ if (techMosaic) {
     { n: 'Spring Boot', d: '后端采用 Controller / Service / Mapper 三层架构，统一 REST API 规范与全局异常处理，集成 MyBatis-Plus ORM、HikariCP 连接池与声明式事务管理。' },
     { n: 'RAG 检索增强', d: '检索增强生成管线：BGE-M3 将章节内容向量化入库，出题时按已学章节 Top-K 召回最相关教材片段注入 Prompt，从源头约束大模型不超纲。' },
     { n: 'JWT 鉴权 + 限流', d: 'HS256 签名的无状态令牌认证实现接口鉴权，配合令牌桶算法对登录、AI 出题等敏感接口做并发限流，防止恶意请求与资源耗尽。' },
-    { n: 'WebSocket', d: '基于 STOMP over WebSocket 的双向实时通信通道，毫秒级推送专注度指标、聊天消息与系统通知，服务端心跳机制保障长连接稳定性。' },
     { n: 'AI 语义判分', d: '主观题由大模型按「要点覆盖度 + 语义一致性」双维度评分，辅以文本相似度算法兜底；AI 服务不可用时自动降级，保障判分链路可用性。' },
     { n: 'BGE-M3', d: 'BGE-M3（BAAI General Embedding M3），是北京智源人工智能研究院（BAAI）开源的多语言全能文本嵌入（Embedding）模型。支持多语言、多粒度（稠密 + 稀疏 + ColBERT）混合检索，单模型即可覆盖语义检索全场景，本项目中负责章节教材与用户查询的向量化。' },
     { n: 'DeepSeek V4 Flash', d: 'DeepSeek 旗舰级高速推理模型，承担智能出题、错题归因解析与答疑对话三大核心任务，输出 JSON Schema 约束的结构化试题并支持流式响应，大幅降低首字延迟。' },
@@ -162,7 +161,7 @@ if (techMosaic) {
   const panel = document.getElementById('particlePanel');
   const ctx = canvas ? canvas.getContext('2d') : null;
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const PCFG = { size: 2.4, density: 4, color: '#ffffff', highlight: '#8b5cf6', scatter: 150, gather: 1400, stagger: 380, repel: 38, radius: 110, drift: .7, font: 54, weight: 800 };
+  const PCFG = { size: 2.6, density: 4, color: '#ffffff', highlight: '#8b5cf6', scatter: 150, gather: 1400, stagger: 380, repel: 38, radius: 110, drift: .7, font: 72, weight: 800 };
 
   const PT = {
     particles: [], raf: null, build: 0,
