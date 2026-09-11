@@ -165,22 +165,117 @@
         </div>
       </div>
 
-      <!-- App 实机截图预览 -->
+      <!-- App 实机界面预览（CSS 模拟，参考真机截图） -->
       <div class="app-shots reveal">
+        <!-- App 登录 -->
         <figure class="shot-phone">
-          <img src="assets/screens/app-login.png" alt="学生端登录页截图" loading="lazy" />
-          <figcaption>登录</figcaption>
+          <div class="am am-login">
+            <div class="am-status"><span>11:00</span><span>LTE ▮</span></div>
+            <div class="am-body">
+              <b class="am-appname">智学职达APP</b>
+              <span class="am-appsub">DeepSeek V4 Flash 01</span>
+              <label>学号 / 用户名</label>
+              <div class="am-input">请输入学号 / 用户名</div>
+              <label>密码</label>
+              <div class="am-input">请输入密码</div>
+              <div class="am-check"><i></i>记住密码</div>
+              <div class="am-check"><i></i>已阅读并同意<em>服务协议</em>和<em>隐私政策</em></div>
+              <div class="am-btn-off">登 录</div>
+              <span class="am-hint">教师请使用 Web 管理端登录</span>
+            </div>
+          </div>
+          <figcaption>App登录</figcaption>
         </figure>
+
+        <!-- 章节学习 -->
         <figure class="shot-phone">
-          <img src="assets/screens/app-home.png" alt="学生端学习首页截图" loading="lazy" />
-          <figcaption>学习首页</figcaption>
+          <div class="am">
+            <div class="am-status"><span>10:36</span><span>LTE ▮</span></div>
+            <div class="am-nav">‹ 计算机网络基础</div>
+            <div class="am-progress">已完成 <b>3/21</b> 课时</div>
+            <div class="am-scroll">
+              <div class="am-ch">
+                <div class="am-ch-head"><i class="dot done"></i>
+                  <div><span>第 1 章</span><b>计算机网络与体系结构概述</b>
+                  <p>建立对计算机网络基本概念、分类与分层体系结构的整体认识。</p><u>已完成 3/3 课时</u></div>
+                </div>
+                <div class="am-lesson"><em>文</em>计算机网络的定义与分类</div>
+                <div class="am-lesson"><em>文</em>网络体系结构与协议分层</div>
+                <div class="am-lesson"><em>文</em>网络性能指标与参考模型比较</div>
+              </div>
+              <div class="am-ch">
+                <div class="am-ch-head"><i class="dot"></i>
+                  <div><span>第 2 章</span><b>物理层</b>
+                  <p>学习物理层的数据通信基础、传输介质和信道复用技术。</p><u>已完成 0/3 课时</u></div>
+                </div>
+              </div>
+              <div class="am-ch">
+                <div class="am-ch-head"><i class="dot"></i>
+                  <div><span>第 3 章</span><b>数据链路层</b>
+                  <p>掌握数据链路层的成帧、差错控制、介质访问控制技术。</p><u>已完成 0/3 课时</u></div>
+                </div>
+              </div>
+              <div class="am-ch">
+                <div class="am-ch-head"><i class="dot"></i>
+                  <div><span>第 4 章</span><b>网络层</b>
+                  <p>学习 IP 地址、子网划分、路由算法和网络层协议。</p><u>已完成 0/3 课时</u></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <figcaption>章节学习</figcaption>
         </figure>
+
+        <!-- 智能刷题 -->
         <figure class="shot-phone">
-          <img src="assets/screens/app-quiz.png" alt="学生端智能刷题截图" loading="lazy" />
+          <div class="am am-quiz">
+            <div class="am-status"><span>10:41</span><span>LTE ▮</span></div>
+            <b class="am-q-title">专注刷题</b>
+            <span class="am-q-sub">今日专注 03:30 · 上次 01:00</span>
+            <div class="am-q-meta"><span class="am-tag">单选题</span><em>5/15</em></div>
+            <p class="am-question">OSI 参考模型从下到上依次为？</p>
+            <div class="am-opt on">A. 物理层、数据链路层、网络层、传输层、会话层、表示层、应用层</div>
+            <div class="am-opt">B. 应用层、表示层、会话层、传输层、网络层、数据链路层、物理层</div>
+            <div class="am-opt">C. 物理层、网络层、数据链路层、传输层、会话层、表示层、应用层</div>
+            <div class="am-opt">D. 网络接口层、网际层、传输层、应用层</div>
+            <div class="am-submit">长按提交</div>
+            <div class="am-tabbar"><span>课表</span><span class="on">专注</span><span>我的</span></div>
+          </div>
           <figcaption>智能刷题</figcaption>
         </figure>
+
+        <!-- 测评报告 -->
         <figure class="shot-phone">
-          <img src="assets/screens/app-report.png" alt="学生端测评报告截图" loading="lazy" />
+          <div class="am">
+            <div class="am-status"><span>10:47</span><span>LTE ▮</span></div>
+            <div class="am-nav">‹ 测评报告</div>
+            <div class="am-body">
+              <div class="am-rep-card"><span>正确率</span><b>100%</b></div>
+              <div class="am-rep-stats">
+                <div><span>答对题数</span><b>15/15</b></div>
+                <div><span>已答题</span><b>15</b></div>
+                <div><span>未答/不会</span><b>0</b></div>
+                <div><span>用时</span><b>6分2秒</b></div>
+              </div>
+              <div class="am-sec">本次答题详情</div>
+              <div class="am-detail">
+                <span>第1题 带宽单位 <i>正确</i></span>
+                <span>第2题 吞吐量概念 <i>正确</i></span>
+                <span>第3题 时延组成 <i>正确</i></span>
+                <span>第4题 发送时延计算 <i>正确</i></span>
+                <span>第5题 OSI模型 <i>正确</i></span>
+              </div>
+              <div class="am-sec">知识点掌握</div>
+              <div class="am-kp"><span>带宽与吞吐量</span><i><b style="width:100%"></b></i><u>100%</u></div>
+              <div class="am-kp"><span>时延计算</span><i><b style="width:100%"></b></i><u>100%</u></div>
+              <div class="am-kp"><span>OSI 模型分层</span><i><b style="width:100%"></b></i><u>100%</u></div>
+              <div class="am-sec">能力维度分析</div>
+              <div class="am-sw">
+                <div class="adv"><b>优势</b><p>核心概念理解准确，能正确区分带宽、吞吐量、时延等基础概念。</p></div>
+                <div class="weak"><b>薄弱</b><p>Q5 耗时 95s，说明部分基础知识联系理解尚不熟练，可提升。</p></div>
+              </div>
+            </div>
+          </div>
           <figcaption>测评报告</figcaption>
         </figure>
       </div>
@@ -451,30 +546,38 @@
 
       <div class="iso-stage reveal" id="isoStage">
         <!-- 终端层 -->
-        <div class="iso-block" style="--c:#22d3ee;" data-desc="终端层：三端共用统一 REST API 与 WebSocket 实时通道，界面独立迭代、数据同源。Android App 原生体验，React 管理端面向教师，微信小程序轻量触达。">
-          <div class="iso-cube">
-            <span class="f" data-n="01"></span><span class="l"></span><span class="t"></span>
+        <div class="cube-cluster" style="--c:#22d3ee" data-desc="终端层：三端共用统一 REST API 与 WebSocket 实时通道，界面独立迭代、数据同源。Android App 原生体验，React 管理端面向教师，微信小程序轻量触达。" data-title="终端层 · 详细作用">
+          <div class="cc-iso">
+            <div class="cc-cube cc-b"><div class="cc-grid"></div></div>
+            <div class="cc-cube cc-m"><div class="cc-grid"></div></div>
+            <div class="cc-cube cc-f"><div class="cc-grid"></div></div>
           </div>
           <div class="iso-label">终端层<small>FRONTEND</small></div>
         </div>
         <!-- 服务层 -->
-        <div class="iso-block" style="--c:#0a84ff;" data-desc="服务层：Controller / Service / Mapper 三层结构，JWT 鉴权、令牌桶限流、Redis 缓存一体化治理，WebSocket 承载专注度实时推送。">
-          <div class="iso-cube">
-            <span class="f" data-n="02"></span><span class="l"></span><span class="t"></span>
+        <div class="cube-cluster" style="--c:#3b82f6" data-desc="服务层：Controller / Service / Mapper 三层结构，JWT 鉴权、令牌桶限流、Redis 缓存一体化治理，WebSocket 承载专注度实时推送。" data-title="服务层 · 详细作用">
+          <div class="cc-iso">
+            <div class="cc-cube cc-b"><div class="cc-grid"></div></div>
+            <div class="cc-cube cc-m"><div class="cc-grid"></div></div>
+            <div class="cc-cube cc-f"><div class="cc-grid"></div></div>
           </div>
           <div class="iso-label">服务层<small>BACKEND</small></div>
         </div>
         <!-- 智能层 -->
-        <div class="iso-block" style="--c:#8b5cf6;" data-desc="智能层：DeepSeek V4 Flash 大模型中台，RAG 按章节检索增强出题，AI 语义判分主观题，LlmService 排队调度 + 令牌桶并发控制。">
-          <div class="iso-cube">
-            <span class="f" data-n="03"></span><span class="l"></span><span class="t"></span>
+        <div class="cube-cluster" style="--c:#8b5cf6" data-desc="智能层：DeepSeek V4 Flash 大模型中台，RAG 按章节检索增强出题，AI 语义判分主观题，LlmService 排队调度 + 令牌桶并发控制。" data-title="智能层 · 详细作用">
+          <div class="cc-iso">
+            <div class="cc-cube cc-b"><div class="cc-grid"></div></div>
+            <div class="cc-cube cc-m"><div class="cc-grid"></div></div>
+            <div class="cc-cube cc-f"><div class="cc-grid"></div></div>
           </div>
           <div class="iso-label">智能层<small>AI ENGINE</small></div>
         </div>
         <!-- 基础设施 -->
-        <div class="iso-block" style="--c:#34c759;" data-desc="基础设施：Docker Compose 一键拉起前端、后端、MySQL 与 Nginx 网关；出题结果指纹缓存 15 分钟，百人并发只调一次大模型，成本与延迟双降。">
-          <div class="iso-cube">
-            <span class="f" data-n="04"></span><span class="l"></span><span class="t"></span>
+        <div class="cube-cluster" style="--c:#34c759" data-desc="基础设施：Docker Compose 一键拉起前端、后端、MySQL 与 Nginx 网关；出题结果指纹缓存 15 分钟，百人并发只调一次大模型，成本与延迟双降。" data-title="基础设施 · 详细作用">
+          <div class="cc-iso">
+            <div class="cc-cube cc-b"><div class="cc-grid"></div></div>
+            <div class="cc-cube cc-m"><div class="cc-grid"></div></div>
+            <div class="cc-cube cc-f"><div class="cc-grid"></div></div>
           </div>
           <div class="iso-label">基础设施<small>INFRA</small></div>
         </div>

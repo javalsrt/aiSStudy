@@ -113,8 +113,20 @@ const demoObserver = new IntersectionObserver(entries => {
 const demoEl = document.querySelector('.demo');
 if (demoEl) demoObserver.observe(demoEl);
 
-// ===== 等轴测架构方块 · 悬停显示模块详解 =====
-const isoBlocks = document.querySelectorAll('.iso-block');
+// ===== 等轴测立方体群 · 生成 3×3 马赛克 + 悬停显示模块详解 =====
+// （移植自 uiverse csemzepp 立方体阵列：skewY 倾斜 + hue-rotate 色相循环 + 悬停变红）
+document.querySelectorAll('.cc-grid').forEach(grid => {
+  for (let row = 0; row < 3; row++) {
+    for (let col = 0; col < 3; col++) {
+      const s = document.createElement('span');
+      s.style.setProperty('--gx', ((col - 1) * 58) + 'px');
+      s.style.setProperty('--gy', ((row - 1) * 50) + 'px');
+      grid.appendChild(s);
+    }
+  }
+});
+
+const isoBlocks = document.querySelectorAll('.cube-cluster');
 const isoDescText = document.getElementById('isoDescText');
 const isoDescDot = document.querySelector('.iso-desc-dot');
 const isoDescBox = document.getElementById('isoDesc');
@@ -124,7 +136,7 @@ if (isoBlocks.length && isoDescText) {
   isoBlocks.forEach(block => {
     block.addEventListener('mouseenter', () => {
       isoDescText.textContent = block.dataset.desc;
-      isoDescText.setAttribute('data-title', block.querySelector('.iso-label').firstChild.textContent + ' · 详细作用');
+      isoDescText.setAttribute('data-title', block.dataset.title);
       isoDescBox.style.setProperty('--iso-c', getComputedStyle(block).getPropertyValue('--c'));
       if (isoDescDot) {
         isoDescDot.style.background = getComputedStyle(block).getPropertyValue('--c');
