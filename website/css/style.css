@@ -455,6 +455,160 @@ a { color: inherit; text-decoration: none; }
 .shot-tab.on { background: var(--blue); color: #fff; }
 .browser-shot img { display: block; width: 100%; height: auto; }
 
+/* ---- 管理端页面模拟（参考 web-admin-react 真实页面） ---- */
+.shot-page { display: none; min-height: 400px; background: #fafafc; }
+.shot-page.on { display: block; animation: fadeUp .35s ease both; }
+
+/* 数据总览：侧栏 + 主区 */
+.sp-layout { display: grid; grid-template-columns: 150px 1fr; min-height: 400px; }
+.sp-sidebar { background: #fff; border-right: 1px solid var(--line); padding: 16px 10px; display: flex; flex-direction: column; gap: 3px; }
+.sp-logo { font-size: 14px; font-weight: 800; color: var(--ink); padding: 4px 12px 14px; letter-spacing: .5px; }
+.sp-sidebar span { font-size: 12.5px; padding: 8px 13px; border-radius: 8px; color: var(--ink-2); }
+.sp-sidebar .on { background: rgba(91, 88, 255, .09); color: #5b58ff; font-weight: 600; }
+.sp-main { padding: 16px; }
+.sp-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.sp-card { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 13px 15px; }
+.sp-card span { font-size: 11.5px; color: var(--ink-3); display: block; }
+.sp-card b { font-size: 19px; font-weight: 700; color: var(--ink); display: block; margin-top: 3px; }
+.sp-charts { display: grid; grid-template-columns: 1.15fr .85fr; gap: 12px; margin-top: 12px; }
+.sp-panel { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+.sp-panel > span { font-size: 12px; font-weight: 600; color: var(--ink-2); display: block; margin-bottom: 10px; }
+.sp-trend { width: 100%; height: 110px; display: block; }
+.sp-xlabels { display: flex; justify-content: space-between; margin-top: 6px; }
+.sp-xlabels em { font-style: normal; font-size: 10px; color: var(--ink-3); }
+.sp-hbars { display: flex; flex-direction: column; gap: 11px; padding-top: 4px; }
+.sp-hbar { display: flex; align-items: center; gap: 8px; }
+.sp-hbar em { font-style: normal; font-size: 11px; color: var(--ink-2); width: 84px; flex-shrink: 0; }
+.sp-hbar i { display: block; height: 12px; border-radius: 0 6px 6px 0; }
+.sp-hbar u { text-decoration: none; font-size: 10.5px; color: var(--ink-3); margin-left: 2px; }
+
+/* ---- 数据总览 · 管理端配色（浅色 + #5b58ff 主色） ---- */
+.spd {
+  position: relative;
+  display: grid; grid-template-columns: 132px 1fr;
+  min-height: 400px;
+  background: linear-gradient(180deg, #fafbfe, #f4f6fb);
+}
+/* 主色光晕底边 */
+.spd::before {
+  content: ""; position: absolute; bottom: -36px; left: 50%;
+  transform: translateX(-50%);
+  width: 70%; height: 70px;
+  background: rgba(91, 88, 255, .16);
+  filter: blur(60px);
+  pointer-events: none;
+}
+.spd-side { background: #fff; border-right: 1px solid var(--line); padding: 16px 10px; display: flex; flex-direction: column; gap: 3px; }
+.spd-logo { font-size: 13.5px; font-weight: 800; padding: 4px 12px 14px; color: #5b58ff; }
+.spd-side span { font-size: 12.5px; padding: 8px 13px; border-radius: 8px; color: var(--ink-2); transition: all .2s; }
+.spd-side span:hover { color: var(--ink); }
+.spd-side .on { background: rgba(91, 88, 255, .09); color: #5b58ff; font-weight: 600; }
+.spd-main { padding: 18px 20px 16px; position: relative; z-index: 1; }
+
+.spd-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.spd-title { display: flex; align-items: center; gap: 9px; }
+.spd-title-ic { width: 30px; height: 30px; border-radius: 9px; display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, #5b58ff, #8b5cf6); color: #fff;
+  box-shadow: 0 4px 14px rgba(91, 88, 255, .35); }
+.spd-title h3 { font-size: 14px; font-weight: 600; color: var(--ink); }
+.spd-live { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 600;
+  color: #16a34a; background: rgba(34, 197, 94, .1); padding: 4px 10px; border-radius: 999px; }
+.spd-live i { width: 6px; height: 6px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 8px #22c55e; animation: pulse 2s infinite; }
+
+.spd-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.spd-card { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; transition: all .3s ease; }
+.spd-card:hover { border-color: rgba(91, 88, 255, .4); transform: translateY(-2px); box-shadow: 0 8px 22px rgba(91, 88, 255, .12); }
+.spd-card span { font-size: 11px; color: var(--ink-3); display: block; }
+.spd-card b { font-size: 18px; font-weight: 700; color: var(--ink); display: block; margin: 3px 0 2px; }
+.spd-card em { font-style: normal; font-size: 10.5px; font-weight: 600; }
+.spd-card em.up { color: #16a34a; }
+.spd-card em.down { color: #ef4444; }
+
+.spd-charts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+.spd-panel { position: relative; background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; overflow: hidden; }
+.spd-panel > span { font-size: 11.5px; font-weight: 600; color: var(--ink-2); display: block; margin-bottom: 10px; }
+
+/* 双层柱状：底柱轨道 + 实际值 */
+.spd-bars { display: flex; justify-content: space-between; align-items: flex-end; height: 96px; gap: 6px; }
+.spd-bar { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; }
+.spd-bar::before { content: ""; display: block; width: 12px; height: calc(var(--h) - 16px); border-radius: 3px; background: rgba(91, 88, 255, .14); position: relative; }
+.spd-bar i { display: block; width: 12px; margin-top: calc(-1 * (var(--h) - 16px)); border-radius: 3px;
+  background: linear-gradient(180deg, #8b85ff, #5b58ff); }
+.spd-bar em { font-style: normal; font-size: 9.5px; color: var(--ink-3); margin-top: 7px; }
+
+/* 折线图：网格线 + draw 流动动画 */
+.spd-line { position: relative; height: 96px; }
+.spd-gridlines { position: absolute; inset: 0; display: flex; justify-content: space-between; padding: 0 10px; }
+.spd-gridlines i { width: 1px; height: 100%;
+  background: linear-gradient(to top, rgba(29,29,31,0), rgba(29,29,31,.05) 50%, rgba(29,29,31,0)); }
+.spd-line svg { position: relative; width: 100%; height: 100%; transition: transform .5s ease; }
+.spd-panel:hover .spd-line svg { transform: scale(1.06); }
+.spd-draw { stroke-dasharray: 600;
+  animation: spdDraw 6s ease-in-out infinite;
+  filter: drop-shadow(0 0 5px rgba(91, 88, 255, .45)); }
+@keyframes spdDraw {
+  0% { stroke-dashoffset: 600; opacity: .85; }
+  50% { stroke-dashoffset: 0; opacity: 1; }
+  100% { stroke-dashoffset: -600; opacity: .85; }
+}
+
+.spd-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; }
+.spd-foot > span { font-size: 11px; color: var(--ink-3); }
+
+/* 学生管理：表格 */
+.sp-table { width: 100%; border-collapse: collapse; background: #fff; }
+.sp-table th { text-align: left; font-size: 12px; font-weight: 600; color: var(--ink-3); padding: 13px 22px; border-bottom: 1px solid var(--line); }
+.sp-table td { font-size: 13px; color: var(--ink); padding: 12px 22px; border-bottom: 1px solid #f0f0f3; }
+.sp-table tr:last-child td { border-bottom: none; }
+.st { font-style: normal; font-size: 11px; padding: 3px 10px; border-radius: 999px; font-weight: 600; }
+.st.ok { color: #16a34a; background: rgba(34, 197, 94, .1); }
+.st.idle { color: var(--ink-3); background: #f0f0f4; }
+
+/* 学生列表自动滚动（无缝循环） */
+.sp-scroll { height: 402px; overflow: hidden; }
+.sp-scroll .sp-table { animation: spScroll 20s linear infinite; }
+.sp-scroll:hover .sp-table { animation-play-state: paused; }
+@keyframes spScroll {
+  from { transform: translateY(0); }
+  to { transform: translateY(-50%); }
+}
+
+/* 调课表格 */
+.sp-table-wrap { background: #fff; min-height: 402px; }
+.tk { font-style: normal; font-size: 11px; padding: 3px 10px; border-radius: 6px; font-weight: 600; }
+.tk-blue { color: #5b58ff; background: rgba(91, 88, 255, .09); }
+.tk-green { color: #16a34a; background: rgba(34, 197, 94, .1); }
+.tk-orange { color: #ea8a00; background: rgba(245, 158, 11, .12); }
+.st.wait { color: #ea8a00; background: rgba(245, 158, 11, .12); }
+
+/* 六维雷达图 */
+.sp-radar-panel { display: flex; flex-direction: column; }
+.sp-radar { width: 100%; max-width: 280px; margin: 0 auto; display: block; }
+.sp-radar-t { font-size: 9.5px; fill: var(--ink-2); font-weight: 600; }
+.sp-student { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
+.sp-student-head { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.sp-avatar { width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, #5b58ff, #8b5cf6); color: #fff; font-size: 13px; font-weight: 700; flex-shrink: 0; }
+.sp-student-head b { font-size: 13.5px; color: var(--ink); display: block; margin-bottom: 3px; }
+.sp-student-head span { font-size: 11.5px; color: var(--ink-3); }
+.sp-dim-list { display: flex; flex-direction: column; gap: 10px; }
+.sp-dim { display: flex; align-items: center; gap: 10px; }
+.sp-dim span { font-size: 11.5px; color: var(--ink-2); width: 66px; flex-shrink: 0; }
+.sp-dim i { flex: 1; height: 7px; border-radius: 4px; background: #f0f0f4; overflow: hidden; }
+.sp-dim i b { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, #5b58ff, #8b85ff); }
+.sp-dim u { text-decoration: none; font-size: 11.5px; font-weight: 700; color: #5b58ff; width: 24px; text-align: right; }
+
+@media (max-width: 760px) {
+  .sp-layout { grid-template-columns: 1fr; }
+  .sp-sidebar { flex-direction: row; overflow-x: auto; border-right: none; border-bottom: 1px solid var(--line); }
+  .sp-logo { display: none; }
+  .sp-cards, .sp-charts, .sp-course-grid, .sp-stats-wrap { grid-template-columns: 1fr; }
+  .spd { grid-template-columns: 1fr; }
+  .spd-side { flex-direction: row; overflow-x: auto; border-right: none; border-bottom: 1px solid rgba(255,255,255,.06); }
+  .spd-logo { display: none; }
+  .spd-cards, .spd-charts { grid-template-columns: 1fr 1fr; }
+}
+
 .app-shots {
   display: grid; grid-template-columns: repeat(4, 1fr);
   gap: 26px; margin-top: 46px;

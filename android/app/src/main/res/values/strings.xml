@@ -6,7 +6,7 @@
     <string name="password_hint">请输入密码</string>
     <string name="login_btn">登 录</string>
     <string name="login_loading">登录中...</string>
-    <string name="brand_name">学习中</string>
+    <string name="brand_name">智学职达APP</string>
     <string name="brand_desc">deepseek V4 flash OV</string>
     <string name="error_empty">请输入账号和密码</string>
     <string name="error_network">无法连接服务器</string>

@@ -143,15 +143,16 @@ if (isoBlocks.length && isoDescText) {
   });
 }
 
-// ===== 管理端截图预览 · Tab 切换 =====
-const adminShot = document.getElementById('adminShot');
+// ===== 管理端页面预览 · Tab 切换（CSS 模拟真实页面） =====
 const adminShotUrl = document.getElementById('adminShotUrl');
-if (adminShot && adminShotUrl) {
+if (adminShotUrl) {
   document.querySelectorAll('.shot-tab').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.shot-tab').forEach(b => b.classList.remove('on'));
       btn.classList.add('on');
-      adminShot.src = btn.dataset.src;
+      document.querySelectorAll('.shot-page').forEach(p => p.classList.remove('on'));
+      const page = document.getElementById(btn.dataset.page);
+      if (page) page.classList.add('on');
       adminShotUrl.textContent = btn.dataset.url;
     });
   });
@@ -233,8 +234,11 @@ if (orbitStage) {
   if (reducedMotion) {
     layout(angle0);
   } else {
-    orbitStage.addEventListener('mouseenter', () => { paused = true; });
-    orbitStage.addEventListener('mouseleave', () => { paused = false; });
+    // 仅当鼠标停留在卡片内容（图标/文字）上时才暂停公转，靠近轨道不停
+    orbitCards.forEach(c => {
+      c.addEventListener('mouseenter', () => { paused = true; });
+      c.addEventListener('mouseleave', () => { paused = false; });
+    });
     window.addEventListener('resize', () => {
       const el = performance.now();
       layout(angle0 + (el / 1000 / DURATION) * Math.PI * 2);

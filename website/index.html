@@ -252,16 +252,178 @@
       <div class="browser reveal">
         <div class="browser-bar">
           <span class="d"></span><span class="d"></span><span class="d"></span>
-          <span class="browser-url" id="adminShotUrl">zhixuezhida.top:8081 / 数据看板</span>
+          <span class="browser-url" id="adminShotUrl">zhzd.xyz 数据预览</span>
         </div>
         <div class="browser-shot">
           <div class="shot-tabs" role="tablist">
-            <button class="shot-tab on" type="button" data-src="assets/screens/admin-dashboard.png" data-url="zhixuezhida.top:8081 / 数据看板">数据看板</button>
-            <button class="shot-tab" type="button" data-src="assets/screens/admin-students.png" data-url="zhixuezhida.top:8081 / 学生管理">学生管理</button>
-            <button class="shot-tab" type="button" data-src="assets/screens/admin-courses.png" data-url="zhixuezhida.top:8081 / 课程管理">课程管理</button>
-            <button class="shot-tab" type="button" data-src="assets/screens/admin-stats.png" data-url="zhixuezhida.top:8081 / 成绩统计">成绩统计</button>
+            <button class="shot-tab on" type="button" data-page="page-dashboard" data-url="zhzd.xyz 数据预览">数据总览</button>
+            <button class="shot-tab" type="button" data-page="page-students" data-url="zhzd.xyz 学生管理">学生管理</button>
+            <button class="shot-tab" type="button" data-page="page-courses" data-url="zhzd.xyz 课程管理">课程管理</button>
+            <button class="shot-tab" type="button" data-page="page-stats" data-url="zhzd.xyz 学习统计">学习统计</button>
           </div>
-          <img id="adminShot" src="assets/screens/admin-dashboard.png" alt="管理端页面截图预览" loading="lazy" />
+
+          <!-- 数据总览：对应 dashboard.tsx（深色玻璃拟态风格） -->
+          <div class="shot-page on" id="page-dashboard">
+            <div class="spd">
+              <div class="spd-side">
+                <b class="spd-logo">智学职达</b>
+                <span class="on">数据总览</span><span>课程管理</span><span>章节管理</span><span>学习统计</span><span>考试作业</span><span>课程聊天</span>
+              </div>
+              <div class="spd-main">
+                <div class="spd-head">
+                  <div class="spd-title">
+                    <div class="spd-title-ic">
+                      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+                    </div>
+                    <h3>教学数据总览</h3>
+                  </div>
+                  <span class="spd-live"><i></i>Live</span>
+                </div>
+
+                <div class="spd-cards">
+                  <div class="spd-card"><span>学生总数</span><b>2,381</b><em class="up">+12.3%</em></div>
+                  <div class="spd-card"><span>今日在线</span><b>486</b><em class="up">+8.1%</em></div>
+                  <div class="spd-card"><span>平均专注时长</span><b>42 分钟</b><em class="up">+5.6%</em></div>
+                  <div class="spd-card"><span>答题正确率</span><b>87.3%</b><em class="down">-1.2%</em></div>
+                </div>
+
+                <div class="spd-charts">
+                  <div class="spd-panel">
+                    <span>每日学习时长（小时）</span>
+                    <div class="spd-bars">
+                      <div class="spd-bar" style="--h:42%"><i style="height:60%"></i><em>一</em></div>
+                      <div class="spd-bar" style="--h:64%"><i style="height:40%"></i><em>二</em></div>
+                      <div class="spd-bar" style="--h:78%"><i style="height:80%"></i><em>三</em></div>
+                      <div class="spd-bar" style="--h:48%"><i style="height:52%"></i><em>四</em></div>
+                      <div class="spd-bar" style="--h:88%"><i style="height:90%"></i><em>五</em></div>
+                      <div class="spd-bar" style="--h:66%"><i style="height:70%"></i><em>六</em></div>
+                      <div class="spd-bar" style="--h:95%"><i style="height:85%"></i><em>日</em></div>
+                    </div>
+                  </div>
+                  <div class="spd-panel">
+                    <span>正确率趋势</span>
+                    <div class="spd-line">
+                      <div class="spd-gridlines"><i></i><i></i><i></i><i></i><i></i></div>
+                      <svg viewBox="0 0 300 90" preserveAspectRatio="none" aria-hidden="true">
+                        <defs>
+                          <linearGradient id="spdLine" x1="0" y1="0" x2="1" y2="0">
+                            <stop offset="0%" stop-color="#6366f1"/>
+                            <stop offset="50%" stop-color="#a855f7"/>
+                            <stop offset="100%" stop-color="#ec4899"/>
+                          </linearGradient>
+                        </defs>
+                        <path d="M0,70 50,58 100,64 150,38 200,46 250,20 300,28" fill="none" stroke="url(#spdLine)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="spd-draw"/>
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="spd-foot">
+                  <span>统计范围 · 近 7 天</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 学生管理：脱敏 + 自动滚动循环列表 -->
+          <div class="shot-page" id="page-students">
+            <div class="sp-scroll">
+              <table class="sp-table">
+                <thead><tr><th>学生</th><th>学号</th><th>班级</th><th>答题正确率</th><th>状态</th></tr></thead>
+                <tbody>
+                  <tr><td>李**</td><td>2024****01</td><td>计网2401班</td><td>92.4%</td><td><i class="st ok">在线</i></td></tr>
+                  <tr><td>王**</td><td>2024****02</td><td>计网2401班</td><td>88.1%</td><td><i class="st ok">在线</i></td></tr>
+                  <tr><td>陈**</td><td>2024****05</td><td>软工2402班</td><td>85.7%</td><td><i class="st idle">离线</i></td></tr>
+                  <tr><td>黄**</td><td>2024****12</td><td>软工2402班</td><td>79.3%</td><td><i class="st idle">离线</i></td></tr>
+                  <tr><td>吴**</td><td>2024****08</td><td>大数据2401班</td><td>90.2%</td><td><i class="st ok">在线</i></td></tr>
+                  <tr><td>张**</td><td>2024****11</td><td>大数据2401班</td><td>83.6%</td><td><i class="st ok">在线</i></td></tr>
+                  <tr><td>刘**</td><td>2024****09</td><td>人工智能2401班</td><td>86.9%</td><td><i class="st idle">离线</i></td></tr>
+                  <tr><td>赵**</td><td>2024****15</td><td>人工智能2401班</td><td>81.2%</td><td><i class="st ok">在线</i></td></tr>
+                  <!-- 复制一份用于无缝循环 -->
+                  <tr><td>李**</td><td>2024****01</td><td>计网2401班</td><td>92.4%</td><td><i class="st ok">在线</i></td></tr>
+                  <tr><td>王**</td><td>2024****02</td><td>计网2401班</td><td>88.1%</td><td><i class="st ok">在线</i></td></tr>
+                  <tr><td>陈**</td><td>2024****05</td><td>软工2402班</td><td>85.7%</td><td><i class="st idle">离线</i></td></tr>
+                  <tr><td>黄**</td><td>2024****12</td><td>软工2402班</td><td>79.3%</td><td><i class="st idle">离线</i></td></tr>
+                  <tr><td>吴**</td><td>2024****08</td><td>大数据2401班</td><td>90.2%</td><td><i class="st ok">在线</i></td></tr>
+                  <tr><td>张**</td><td>2024****11</td><td>大数据2401班</td><td>83.6%</td><td><i class="st ok">在线</i></td></tr>
+                  <tr><td>刘**</td><td>2024****09</td><td>人工智能2401班</td><td>86.9%</td><td><i class="st idle">离线</i></td></tr>
+                  <tr><td>赵**</td><td>2024****15</td><td>人工智能2401班</td><td>81.2%</td><td><i class="st ok">在线</i></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- 课程管理：调课表格（参考排课管理界面） -->
+          <div class="shot-page" id="page-courses">
+            <div class="sp-table-wrap">
+              <table class="sp-table">
+                <thead><tr><th>调课日期</th><th>节次</th><th>原课程</th><th>调整后</th><th>班级</th><th>类型</th><th>状态</th></tr></thead>
+                <tbody>
+                  <tr><td>09-12</td><td>第 1-2 节</td><td>计算机网络基础</td><td>调至 09-14 第 3-4 节</td><td>计网2401班</td><td><i class="tk tk-blue">调课</i></td><td><i class="st ok">已通过</i></td></tr>
+                  <tr><td>09-15</td><td>第 3-4 节</td><td>Python 程序设计</td><td>调至 09-17 第 1-2 节</td><td>软工2402班</td><td><i class="tk tk-blue">调课</i></td><td><i class="st wait">待审核</i></td></tr>
+                  <tr><td>09-18</td><td>第 5-6 节</td><td>数据结构与算法</td><td>王老师代课</td><td>大数据2401班</td><td><i class="tk tk-green">代课</i></td><td><i class="st ok">已通过</i></td></tr>
+                  <tr><td>09-20</td><td>第 1-2 节</td><td>操作系统原理</td><td>暂停一次</td><td>人工智能2401班</td><td><i class="tk tk-orange">停课</i></td><td><i class="st ok">已通过</i></td></tr>
+                  <tr><td>09-22</td><td>第 3-4 节</td><td>计算机网络基础</td><td>调至 09-25 第 5-6 节</td><td>计网2402班</td><td><i class="tk tk-blue">调课</i></td><td><i class="st wait">待审核</i></td></tr>
+                  <tr><td>09-25</td><td>第 7-8 节</td><td>Python 程序设计</td><td>李老师代课</td><td>信管2401班</td><td><i class="tk tk-green">代课</i></td><td><i class="st ok">已通过</i></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- 学习统计：六维能力雷达图 -->
+          <div class="shot-page" id="page-stats">
+            <div class="sp-stats-wrap">
+              <div class="sp-panel sp-radar-panel">
+                <span>六维能力雷达 · 班级平均</span>
+                <svg viewBox="0 0 200 190" class="sp-radar" aria-hidden="true">
+                  <!-- 网格环 -->
+                  <polygon points="100,25 160.6,60 160.6,130 100,165 39.4,130 39.4,60" fill="none" stroke="#e6e9ef" stroke-width="1"/>
+                  <polygon points="100,42.5 145.5,68.8 145.5,121.3 100,147.5 54.5,121.3 54.5,68.8" fill="none" stroke="#eceef4" stroke-width="1"/>
+                  <polygon points="100,60 130.3,77.5 130.3,112.5 100,130 69.7,112.5 69.7,77.5" fill="none" stroke="#eceef4" stroke-width="1"/>
+                  <polygon points="100,77.5 115.2,86.3 115.2,103.8 100,112.5 84.8,103.8 84.8,86.3" fill="none" stroke="#eceef4" stroke-width="1"/>
+                  <!-- 轴线 -->
+                  <line x1="100" y1="95" x2="100" y2="25" stroke="#eceef4"/>
+                  <line x1="100" y1="95" x2="160.6" y2="60" stroke="#eceef4"/>
+                  <line x1="100" y1="95" x2="160.6" y2="130" stroke="#eceef4"/>
+                  <line x1="100" y1="95" x2="100" y2="165" stroke="#eceef4"/>
+                  <line x1="100" y1="95" x2="39.4" y2="130" stroke="#eceef4"/>
+                  <line x1="100" y1="95" x2="39.4" y2="60" stroke="#eceef4"/>
+                  <!-- 数据面：虚拟平均分 -->
+                  <polygon points="100,37.6 144.8,69.1 153.3,125.8 100,143.3 52.7,122.3 50.9,66.7" fill="rgba(91,88,255,.22)" stroke="#5b58ff" stroke-width="2" stroke-linejoin="round"/>
+                  <circle cx="100" cy="37.6" r="3" fill="#5b58ff"/>
+                  <circle cx="144.8" cy="69.1" r="3" fill="#5b58ff"/>
+                  <circle cx="153.3" cy="125.8" r="3" fill="#5b58ff"/>
+                  <circle cx="100" cy="143.3" r="3" fill="#5b58ff"/>
+                  <circle cx="52.7" cy="122.3" r="3" fill="#5b58ff"/>
+                  <circle cx="50.9" cy="66.7" r="3" fill="#5b58ff"/>
+                  <!-- 维度标签 -->
+                  <text x="100" y="16" text-anchor="middle" class="sp-radar-t">逻辑思维力</text>
+                  <text x="166" y="56" text-anchor="start" class="sp-radar-t">判断决策力</text>
+                  <text x="166" y="138" text-anchor="start" class="sp-radar-t">专注耐力</text>
+                  <text x="100" y="184" text-anchor="middle" class="sp-radar-t">专业学习力</text>
+                  <text x="34" y="138" text-anchor="end" class="sp-radar-t">信息检索力</text>
+                  <text x="34" y="56" text-anchor="end" class="sp-radar-t">自律执行力</text>
+                </svg>
+              </div>
+              <div class="sp-student">
+                <div class="sp-student-head">
+                  <div class="sp-avatar">冯**</div>
+                  <div>
+                    <b>冯** · 计网2401班</b>
+                    <span>学号 2024****08 · 六维平均 7.9 / 10</span>
+                  </div>
+                </div>
+                <div class="sp-dim-list">
+                  <div class="sp-dim"><span>逻辑思维力</span><i><b style="width:82%"></b></i><u>8.2</u></div>
+                  <div class="sp-dim"><span>判断决策力</span><i><b style="width:74%"></b></i><u>7.4</u></div>
+                  <div class="sp-dim"><span>专注耐力</span><i><b style="width:88%"></b></i><u>8.8</u></div>
+                  <div class="sp-dim"><span>专业学习力</span><i><b style="width:69%"></b></i><u>6.9</u></div>
+                  <div class="sp-dim"><span>信息检索力</span><i><b style="width:78%"></b></i><u>7.8</u></div>
+                  <div class="sp-dim"><span>自律执行力</span><i><b style="width:81%"></b></i><u>8.1</u></div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
