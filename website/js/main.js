@@ -156,30 +156,218 @@ if (techMosaic) {
   });
 
   // 悬停详情：视觉顺序（左上 → 右下）循环分配技术条目
-  const tip = document.getElementById('cubeTip');
-  const tipName = document.getElementById('cubeTipName');
-  const tipDesc = document.getElementById('cubeTipDesc');
-  const stage = document.getElementById('isoStage');
+  // —— 右侧粒子文字面板（原生移植 reactbits ParticleText）——
+  const canvas = document.getElementById('particleCanvas');
+  const descEl = document.getElementById('particleDesc');
+  const panel = document.getElementById('particlePanel');
+  const ctx = canvas ? canvas.getContext('2d') : null;
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const PCFG = { size: 2.4, density: 4, color: '#ffffff', highlight: '#8b5cf6', scatter: 150, gather: 1400, stagger: 380, repel: 38, radius: 110, drift: .7, font: 54, weight: 800 };
 
+  const PT = {
+    particles: [], raf: null, build: 0,
+    gathering: false, gatherStart: 0,
+    w: 0, h: 0, dpr: 1,
+    pointer: { active: false, x: 0, y: 0, sx: 0, sy: 0 }
+  };
+
+  const clamp = (v, a, b) => Math.min(Math.max(v, a), b);
+  const easeOutCubic = t => 1 - Math.pow(1 - t, 3);
+  const hexToRgb = hex => {
+    const c = hex.replace('#', '');
+    return { r: parseInt(c.slice(0, 2), 16), g: parseInt(c.slice(2, 4), 16), b: parseInt(c.slice(4, 6), 16) };
+  };
+  const mixRgb = (a, b, t) => ({
+    r: Math.round(a.r + (b.r - a.r) * t),
+    g: Math.round(a.g + (b.g - a.g) * t),
+    b: Math.round(a.b + (b.b - a.b) * t)
+  });
+
+  const startGather = fromScatter => {
+    if (!PT.particles.length) return;
+    PT.gatherStart = performance.now();
+    PT.particles.forEach(p => {
+      if (fromScatter && !reducedMotion) {
+        const ang = p.seed * Math.PI * 2;
+        const dist = PCFG.scatter * (0.35 + p.depth * 0.75);
+        p.x = p.tx + Math.cos(ang) * dist + (p.depth - 0.5) * PCFG.scatter * 0.55;
+        p.y = p.ty + Math.sin(ang) * dist + (p.seed - 0.5) * PCFG.scatter * 0.55;
+      }
+      p.sx = p.x; p.sy = p.y;
+      p.delay = reducedMotion ? 0 : p.seed * PCFG.stagger;
+    });
+    PT.gathering = true;
+    if (PT.raf === null) PT.raf = requestAnimationFrame(render);
+  };
+
+  const render = now => {
+    ctx.clearRect(0, 0, PT.w, PT.h);
+    if (!reducedMotion) {
+      ctx.shadowBlur = PCFG.size * 3;
+      ctx.shadowColor = PCFG.highlight;
+    }
+    PT.pointer.sx += (PT.pointer.x - PT.pointer.sx) * 0.18;
+    PT.pointer.sy += (PT.pointer.y - PT.pointer.sy) * 0.18;
+    let complete = true;
+
+    PT.particles.forEach(p => {
+      let bx = p.tx, by = p.ty, progress = 1;
+      if (PT.gathering) {
+        const local = (now - PT.gatherStart - p.delay) / PCFG.gather;
+        progress = clamp(local, 0, 1);
+        const eased = easeOutCubic(progress);
+        bx = p.sx + (p.tx - p.sx) * eased;
+        by = p.sy + (p.ty - p.sy) * eased;
+        if (progress < 1) complete = false;
+      } else if (!reducedMotion) {
+        const t = now * 0.001;
+        bx += Math.sin(t * 0.9 + p.seed * 10) * PCFG.drift * p.depth;
+        by += Math.cos(t * 0.75 + p.depth * 10) * PCFG.drift * p.depth;
+      }
+      if (PT.pointer.active && !reducedMotion) {
+        const dx = bx - PT.pointer.sx, dy = by - PT.pointer.sy;
+        const dist = Math.hypot(dx, dy);
+        if (dist > 0 && dist < PCFG.radius) {
+          const force = Math.pow(1 - dist / PCFG.radius, 2) * PCFG.repel;
+          bx += (dx / dist) * force;
+          by += (dy / dist) * force;
+        }
+      }
+      const follow = reducedMotion ? 1 : 0.22;
+      p.x += (bx - p.x) * follow;
+      p.y += (by - p.y) * follow;
+
+      ctx.globalAlpha = clamp(0.35 + progress * 0.65, 0, 1);
+      ctx.fillStyle = p.color;
+      if (p.size <= 2.1) {
+        ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+      } else {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size / 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    });
+
+    ctx.globalAlpha = 1;
+    ctx.shadowBlur = 0;
+    if (PT.gathering && complete) PT.gathering = false;
+    PT.raf = requestAnimationFrame(render);
+  };
+
+  // 将文字采样为粒子目标点并触发聚合动画
+  const setParticleText = text => {
+    if (!ctx) return;
+    PT.current = text;
+    const build = ++PT.build;
+    const rect = panel.getBoundingClientRect();
+    PT.w = Math.max(1, Math.floor(rect.width));
+    PT.h = 250;
+    PT.dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = PT.w * PT.dpr;
+    canvas.height = PT.h * PT.dpr;
+    ctx.setTransform(PT.dpr, 0, 0, PT.dpr, 0, 0);
+
+    const family = '"PingFang SC", "Microsoft YaHei", sans-serif';
+    let size = PCFG.font;
+    const off = document.createElement('canvas');
+    const offCtx = off.getContext('2d', { willReadFrequently: true });
+    const fitFont = () => `${PCFG.weight} ${size}px ${family}`;
+    offCtx.font = fitFont();
+    const maxW = PT.w * 0.9;
+    const measured = offCtx.measureText(text).width;
+    if (measured > maxW) {
+      size = Math.max(20, size * (maxW / measured));
+      offCtx.font = fitFont();
+    }
+
+    const left = Math.ceil(offCtx.measureText(text).actualBoundingBoxLeft || 0);
+    const ascent = Math.ceil(size * 0.8);
+    const descent = Math.ceil(size * 0.24);
+    const pad = 14;
+    off.width = Math.ceil(offCtx.measureText(text).width) + pad * 2;
+    off.height = ascent + descent + pad * 2;
+    offCtx.font = fitFont();
+    offCtx.fillStyle = '#fff';
+    offCtx.fillText(text, pad - left, pad + ascent);
+
+    const img = offCtx.getImageData(0, 0, off.width, off.height);
+    const targets = [];
+    const step = PCFG.density;
+    for (let y = 0; y < off.height; y += step) {
+      for (let x = 0; x < off.width; x += step) {
+        const a = img.data[(y * off.width + x) * 4 + 3];
+        if (a > 40) targets.push({
+          x: PT.w / 2 - off.width / 2 + x,
+          y: PT.h / 2 - off.height / 2 + y,
+          alpha: a / 255
+        });
+      }
+    }
+
+    const maxParticles = 4200;
+    const stride = Math.max(1, Math.ceil(targets.length / maxParticles));
+    const baseRgb = hexToRgb(PCFG.color);
+    const hlRgb = hexToRgb(PCFG.highlight);
+
+    PT.particles = targets.filter((_, i) => i % stride === 0).map((t, i) => {
+      const seed = ((i * 9301 + 49297) % 233280) / 233280;
+      const depth = 0.45 + (((i * 233 + 97) % 1000) / 1000) * 0.9;
+      const blend = clamp(t.x / Math.max(1, PT.w) + (seed - 0.5) * 0.35, 0, 1);
+      const color = rgbCss(mixRgb(baseRgb, hlRgb, blend));
+      return {
+        x: reducedMotion ? t.x : t.x + (Math.random() - 0.5) * PCFG.scatter,
+        y: reducedMotion ? t.y : t.y + (Math.random() - 0.5) * PCFG.scatter,
+        sx: 0, sy: 0, tx: t.x, ty: t.y,
+        size: Math.max(0.6, PCFG.size * (0.75 + t.alpha * 0.45)),
+        color, seed, depth, delay: 0
+      };
+    });
+
+    PT.pointer.x = PT.w / 2; PT.pointer.y = PT.h / 2;
+    PT.pointer.sx = PT.pointer.x; PT.pointer.sy = PT.pointer.y;
+    if (build !== PT.build) return;
+    startGather(true);
+  };
+  const rgbCss = rgb => `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
+
+  // 立方体悬停 → 更新粒子文字与描述
   const allSpans = techMosaic.querySelectorAll('.cl span');
   allSpans.forEach((s, idx) => {
     const tech = TECHS[idx % TECHS.length];
     s.addEventListener('mouseenter', () => {
-      if (tip && tipName && tipDesc && stage) {
-        tipName.textContent = tech.n;
-        tipDesc.textContent = tech.d;
-        const stRect = stage.getBoundingClientRect();
-        const sRect = s.getBoundingClientRect();
-        const left = sRect.left - stRect.left + sRect.width / 2 - 150;
-        tip.style.left = Math.max(0, left) + 'px';
-        tip.style.top = Math.max(0, sRect.top - stRect.top - tip.offsetHeight - 14) + 'px';
-        tip.classList.add('on');
-      }
-    });
-    s.addEventListener('mouseleave', () => {
-      if (tip) tip.classList.remove('on');
+      if (descEl) descEl.textContent = tech.d;
+      setParticleText(tech.n);
     });
   });
+
+  // 画布鼠标斥力交互
+  if (canvas) {
+    canvas.addEventListener('pointermove', e => {
+      const r = canvas.getBoundingClientRect();
+      PT.pointer.x = e.clientX - r.left;
+      PT.pointer.y = e.clientY - r.top;
+      PT.pointer.active = true;
+    });
+    canvas.addEventListener('pointerleave', () => { PT.pointer.active = false; });
+  }
+
+  // 尺寸变化重采样（保持当前文字）
+  if (panel && 'ResizeObserver' in window) {
+    let roTimer = null;
+    new ResizeObserver(() => {
+      clearTimeout(roTimer);
+      roTimer = setTimeout(() => setParticleText(PT.current || '智学职达'), 200);
+    }).observe(panel);
+  }
+
+  // 初始文字（等待字体就绪）
+  if (ctx) {
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(() => setParticleText(PT.current || '智学职达'));
+    } else {
+      setParticleText(PT.current || '智学职达');
+    }
+  }
 }
 
 // ===== 管理端页面预览 · Tab 切换（CSS 模拟真实页面） =====
