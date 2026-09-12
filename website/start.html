@@ -10,15 +10,38 @@
     html, body { height: 100%; }
     body {
       background: #F5F5F7;
-      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Segoe UI", "Microsoft YaHei", sans-serif;
+      font-family: "SimSun", "宋体", "Songti SC", serif;
       display: flex; align-items: center; justify-content: center;
     }
+    /* 居中格言 */
+    .quote {
+      max-width: min(640px, 84vw);
+      text-align: center;
+      transform: translateY(-4vh);
+    }
+    .quote .text {
+      font-size: clamp(18px, 3.2vw, 26px);
+      line-height: 2;
+      color: #000;
+      letter-spacing: .08em;
+    }
+    .quote .author {
+      margin-top: 18px;
+      text-align: right;
+      font-size: clamp(14px, 2vw, 17px);
+      color: #000;
+      letter-spacing: .12em;
+    }
+    /* 靠下位置的入口 */
     .start {
-      font-size: clamp(28px, 6vw, 44px);
-      font-weight: 300;
+      position: absolute;
+      left: 0; right: 0;
+      bottom: 16%;
+      text-align: center;
+      font-size: clamp(20px, 3.4vw, 28px);
       letter-spacing: .6em;
-      text-indent: .6em;   /* 抵消最后一个字的字距，保证视觉居中 */
-      color: #1D1D1F;
+      text-indent: .6em;
+      color: #000;
       text-decoration: none;
       cursor: pointer;
       user-select: none;
@@ -26,6 +49,10 @@
   </style>
 </head>
 <body>
-  <a class="start" href="index.html">开始</a>
+  <div class="quote">
+    <div class="text">“职业无贵贱之分，<br>苟有益于人群，皆是无上上品。”</div>
+    <div class="author">—— 黄炎培</div>
+  </div>
+  <a class="start" href="index.html">开 始</a>
 </body>
 </html>
