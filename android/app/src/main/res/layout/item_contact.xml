@@ -1,19 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 联系人行（模仿 loader 行）：方形封面头像 + 姓名/学号 + 右侧音浪动画 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="horizontal"
     android:gravity="center_vertical"
-    android:paddingVertical="10dp">
+    android:minHeight="56dp"
+    android:background="@drawable/bg_contact_row"
+    android:paddingStart="12dp"
+    android:paddingEnd="12dp"
+    android:paddingVertical="8dp">
 
+    <!-- 方形封面头像（模仿 albumcover） -->
     <TextView
         android:id="@+id/tv_avatar"
         android:layout_width="40dp"
         android:layout_height="40dp"
-        android:background="@drawable/bg_avatar_circle"
+        android:background="@drawable/bg_contact_cover"
         android:gravity="center"
         android:text="张"
-        android:textColor="@color/white"
+        android:textColor="#1D1D1F"
         android:textSize="16sp"
         android:fontFamily="sans-serif-medium" />
 
@@ -29,8 +35,9 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="姓名"
-            android:textColor="@color/ink"
-            android:textSize="15sp" />
+            android:textColor="#1D1D1F"
+            android:textSize="15sp"
+            android:fontFamily="sans-serif-medium" />
 
         <TextView
             android:id="@+id/tv_sub"
@@ -38,8 +45,8 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="2dp"
             android:text="副标题"
-            android:textColor="@color/ink_subtle"
-            android:textSize="12sp" />
+            android:textColor="#6B7280"
+            android:textSize="10sp" />
     </LinearLayout>
 
 </LinearLayout>

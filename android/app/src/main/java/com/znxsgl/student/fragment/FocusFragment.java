@@ -74,35 +74,6 @@ public class FocusFragment extends Fragment {
     private int quizPollAttempt; // 异步出题轮询次数（上限 90 次 ≈ 3 分钟）
 
     private final List<Object> panelData = new ArrayList<>();
-    // 课程图片映射
-    private static final int[] DEFAULT_COVERS = {
-        R.drawable.quiz_cover_programming, R.drawable.quiz_cover_datastruct,
-        R.drawable.quiz_cover_network, R.drawable.quiz_cover_database,
-        R.drawable.quiz_cover_politics, R.drawable.quiz_cover_humanities,
-        R.drawable.quiz_cover_wrong, R.drawable.quiz_cover_review
-    };
-
-    private int getCoverRes(String courseName) {
-        if (courseName == null) return DEFAULT_COVERS[0];
-        String n = courseName.toLowerCase();
-        if (n.contains("python") || n.contains("java") || n.contains("程序") || n.contains("网站") || n.contains("微课") || n.contains("多媒体") || n.contains("小程序"))
-            return R.drawable.quiz_cover_programming;
-        if (n.contains("数据") || n.contains("结构") || n.contains("算法"))
-            return R.drawable.quiz_cover_datastruct;
-        if (n.contains("网络") || n.contains("通信"))
-            return R.drawable.quiz_cover_network;
-        if (n.contains("数据库") || n.contains("sql") || n.contains("mysql"))
-            return R.drawable.quiz_cover_database;
-        if (n.contains("思政") || n.contains("马克思") || n.contains("毛概") || n.contains("近代史") || n.contains("形势"))
-            return R.drawable.quiz_cover_politics;
-        if (n.contains("人文") || n.contains("英语") || n.contains("心理") || n.contains("口语") || n.contains("书写") || n.contains("班主任"))
-            return R.drawable.quiz_cover_humanities;
-        if (n.contains("错题"))
-            return R.drawable.quiz_cover_wrong;
-        if (n.contains("复习"))
-            return R.drawable.quiz_cover_review;
-        return DEFAULT_COVERS[Math.abs(courseName.hashCode()) % DEFAULT_COVERS.length];
-    }
 
     private final Runnable tick = () -> { seconds++; if (tvTimerCorner != null) tvTimerCorner.setText(formatDuration(seconds)); handler.postDelayed(this.tick, 1000); };
 
@@ -118,14 +89,9 @@ public class FocusFragment extends Fragment {
             if (backBtn != null) backBtn.setVisibility(View.GONE);
 
             tvTimerCorner = view.findViewById(R.id.tv_timer_corner);
-            tvToday = view.findViewById(R.id.tv_today);
-            tvLast = view.findViewById(R.id.tv_last);
             rvQuizPanels = view.findViewById(R.id.rv_quiz_panels);
             llQuizArea = view.findViewById(R.id.ll_quiz_area);
             viewPagerQuiz = view.findViewById(R.id.viewpager_quiz);
-
-            View llInfo = view.findViewById(R.id.ll_info);
-            if (llInfo != null) llInfo.setVisibility(View.GONE);
 
             // 长按提交按钮
             View btnDone = view.findViewById(R.id.btn_quiz_done);
@@ -168,12 +134,17 @@ public class FocusFragment extends Fragment {
             loadTodayTotal();
             showLastSession();
         } catch (Exception e) {
-            Toast.makeText(getContext(), "初始化异常", Toast.LENGTH_LONG).show();
+            Toast.makeText(RetrofitClient.safeContext(getContext()), "初始化异常", Toast.LENGTH_LONG).show();
         }
         return view;
     }
 
     // ===== 课程加载 =====
+
+    /** 活动类课表条目：无章节不可刷题，学习页卡片中过滤（课表页仍正常展示） */
+    private static boolean isActivityName(String name) {
+        return "自习".equals(name) || "班会".equals(name) || "大扫除".equals(name);
+    }
 
     private void loadStudentCourses(View view) {
         ApiService api = RetrofitClient.getInstance().create(ApiService.class);
@@ -184,11 +155,12 @@ public class FocusFragment extends Fragment {
                 if (resp.isSuccessful() && resp.body() != null) {
                     for (StudentCourse c : resp.body()) {
                         if (c.getCourseName() == null) continue;
+                        // 活动类条目（自习/班会/大扫除）只在课表展示，不作为可刷题课程卡片
+                        if (isActivityName(c.getCourseName())) continue;
                         panelData.add(c);
                     }
                 }
-                panelData.add("错题解析");
-                panelData.add("复习加强");
+                // 暂时下线「错题解析」「复习加强」入口卡片
                 handler.post(() -> buildPanels());
             }
             @Override public void onFailure(Call<List<StudentCourse>> call, Throwable t) {
@@ -197,7 +169,7 @@ public class FocusFragment extends Fragment {
                         "多媒体课件设计与开发","微课制作","高级网站技术",
                         "中国近现代史纲要","教师口语","教师书写技能",
                         "班主任工作技能训练","计算机综合实训","安全教育（六）",
-                        "形势与政策","错题解析","复习加强"};
+                        "形势与政策"};
                 for (String d : def) panelData.add(d);
                 handler.post(() -> buildPanels());
             }
@@ -232,19 +204,41 @@ public class FocusFragment extends Fragment {
                 } else {
                     name = (String) item;
                 }
-                h.ivCover.setImageResource(getCoverRes(name));
                 h.tvName.setText(name);
-                View llHalves = h.itemView.findViewById(R.id.ll_halves);
+                String sub;
                 if (isCourse) {
-                    llHalves.setVisibility(View.VISIBLE);
-                    final long cid = courseId;
-                    h.itemView.findViewById(R.id.leftHalf).setOnClickListener(v -> showStartConfirm(name, cid));
-                    h.itemView.findViewById(R.id.rightHalf).setOnClickListener(v -> startActivity(
-                            new Intent(getContext(), ChapterLearnActivity.class)
-                                    .putExtra("courseId", cid).putExtra("courseName", name)));
-                    h.itemView.setOnClickListener(null);
+                    StudentCourse c = (StudentCourse) item;
+                    sub = (c.getTeacherName() != null && !c.getTeacherName().isEmpty())
+                            ? c.getTeacherName() : "章节练习 · 巩固提升";
+                } else if ("复习加强".equals(name)) {
+                    sub = "重点知识巩固提升";
                 } else {
-                    llHalves.setVisibility(View.GONE);
+                    sub = "错题回顾 · 查漏补缺";
+                }
+                h.tvSub.setText(sub);
+                h.tvBig.setText(name.isEmpty() ? "学" : String.valueOf(name.charAt(0)));
+                if (isCourse) {
+                    final long cid = courseId;
+                    boolean hasChapters = ((StudentCourse) item).isHasChapters();
+                    // 课程还没有章节内容时，「章节」「开始」入口一并隐藏（不可刷题也不可学习）
+                    h.btnChapter.setVisibility(hasChapters ? View.VISIBLE : View.GONE);
+                    h.btnAction.setVisibility(hasChapters ? View.VISIBLE : View.GONE);
+                    h.btnAction.setText("开始");
+                    if (hasChapters) {
+                        // 点击卡片主体或「章节」按钮 → 章节学习；点击「开始」按钮 → 开始刷题
+                        View.OnClickListener toChapter = v -> startActivity(
+                                new Intent(getContext(), ChapterLearnActivity.class)
+                                        .putExtra("courseId", cid).putExtra("courseName", name));
+                        h.itemView.setOnClickListener(toChapter);
+                        h.btnChapter.setOnClickListener(toChapter);
+                        h.btnAction.setOnClickListener(v -> showStartConfirm(name, cid));
+                    } else {
+                        h.itemView.setOnClickListener(null);
+                    }
+                } else {
+                    h.btnChapter.setVisibility(View.GONE);
+                    h.btnAction.setVisibility(View.VISIBLE);
+                    h.btnAction.setText("复习加强".equals(name) ? "进入复习" : "去解析");
                     h.itemView.setOnClickListener(v -> {
                         if ("复习加强".equals(name)) {
                             startActivity(new Intent(getContext(), com.znxsgl.student.ReviewActivity.class));
@@ -252,6 +246,7 @@ public class FocusFragment extends Fragment {
                             showWrongAnalysis();
                         }
                     });
+                    h.btnAction.setOnClickListener(v -> h.itemView.performClick());
                 }
             }
             @Override public int getItemCount() { return panelData.size(); }
@@ -260,10 +255,13 @@ public class FocusFragment extends Fragment {
     }
 
     static class PanelVH extends RecyclerView.ViewHolder {
-        ImageView ivCover; TextView tvName;
+        TextView tvName, tvSub, tvBig, btnChapter, btnAction;
         PanelVH(View v) { super(v);
-            ivCover = v.findViewById(R.id.iv_cover);
             tvName = v.findViewById(R.id.tv_name);
+            tvSub = v.findViewById(R.id.tv_sub);
+            tvBig = v.findViewById(R.id.tv_big);
+            btnChapter = v.findViewById(R.id.btn_chapter);
+            btnAction = v.findViewById(R.id.btn_action);
         }
     }
 
@@ -289,7 +287,7 @@ public class FocusFragment extends Fragment {
                         final boolean ok = canQuiz;
                         handler.post(() -> {
                             if (!ok) {
-                                Toast.makeText(getContext(), "请先学习章节内容再答题", Toast.LENGTH_SHORT).show();
+                                Toast.makeText(RetrofitClient.safeContext(getContext()), "请先学习章节内容再答题", Toast.LENGTH_SHORT).show();
                                 return;
                             }
                             new com.znxsgl.student.dialog.ConfirmCardDialog(getContext(),
@@ -332,12 +330,12 @@ public class FocusFragment extends Fragment {
                     pollQuizResult(String.valueOf(r.body().get("taskId")), loading);
                 } else {
                     loading.dismiss();
-                    handler.post(() -> Toast.makeText(getContext(), "出题启动失败", Toast.LENGTH_SHORT).show());
+                    handler.post(() -> Toast.makeText(RetrofitClient.safeContext(getContext()), "出题启动失败", Toast.LENGTH_SHORT).show());
                 }
             }
             @Override public void onFailure(Call<Map<String, Object>> c, Throwable t) {
                 loading.dismiss();
-                handler.post(() -> Toast.makeText(getContext(), "网络错误", Toast.LENGTH_SHORT).show());
+                handler.post(() -> Toast.makeText(RetrofitClient.safeContext(getContext()), "网络错误", Toast.LENGTH_SHORT).show());
             }
         });
     }
@@ -358,13 +356,13 @@ public class FocusFragment extends Fragment {
                         quizPollAttempt = 0;
                         loading.dismiss();
                         String err = body.get("error") != null ? body.get("error").toString() : "出题失败，请稍后重试";
-                        handler.post(() -> Toast.makeText(getContext(), err, Toast.LENGTH_SHORT).show());
+                        handler.post(() -> Toast.makeText(RetrofitClient.safeContext(getContext()), err, Toast.LENGTH_SHORT).show());
                     } else {
                         // pending：继续轮询
                         if (++quizPollAttempt > 90) {
                             quizPollAttempt = 0;
                             loading.dismiss();
-                            handler.post(() -> Toast.makeText(getContext(), "出题超时，请重试", Toast.LENGTH_SHORT).show());
+                            handler.post(() -> Toast.makeText(RetrofitClient.safeContext(getContext()), "出题超时，请重试", Toast.LENGTH_SHORT).show());
                             return;
                         }
                         handler.postDelayed(() -> pollQuizResult(taskId, loading), 2000);
@@ -372,7 +370,7 @@ public class FocusFragment extends Fragment {
                 } else {
                     quizPollAttempt = 0;
                     loading.dismiss();
-                    handler.post(() -> Toast.makeText(getContext(), "查询出题状态失败", Toast.LENGTH_SHORT).show());
+                    handler.post(() -> Toast.makeText(RetrofitClient.safeContext(getContext()), "查询出题状态失败", Toast.LENGTH_SHORT).show());
                 }
             }
             @Override public void onFailure(Call<Map<String, Object>> c, Throwable t) {
@@ -380,7 +378,7 @@ public class FocusFragment extends Fragment {
                 if (++quizPollAttempt > 90) {
                     quizPollAttempt = 0;
                     loading.dismiss();
-                    handler.post(() -> Toast.makeText(getContext(), "网络错误，请重试", Toast.LENGTH_SHORT).show());
+                    handler.post(() -> Toast.makeText(RetrofitClient.safeContext(getContext()), "网络错误，请重试", Toast.LENGTH_SHORT).show());
                     return;
                 }
                 handler.postDelayed(() -> pollQuizResult(taskId, loading), 2000);
@@ -477,7 +475,7 @@ public class FocusFragment extends Fragment {
                     if (r.isSuccessful() && r.body() != null) {
                         startQuizResult(r.body(), total);
                     } else {
-                        Toast.makeText(getContext(),"测评完成",Toast.LENGTH_SHORT).show();
+                        Toast.makeText(RetrofitClient.safeContext(getContext()),"测评完成",Toast.LENGTH_SHORT).show();
                     }
                 });
             }
@@ -489,7 +487,7 @@ public class FocusFragment extends Fragment {
                     llQuizArea.setVisibility(View.GONE);
                     if (rvQuizPanels != null) rvQuizPanels.setVisibility(View.VISIBLE);
                     quizActive = false;
-                    Toast.makeText(getContext(),"提交失败：" + t.getMessage(), Toast.LENGTH_SHORT).show();
+                    Toast.makeText(RetrofitClient.safeContext(getContext()),"提交失败：" + t.getMessage(), Toast.LENGTH_SHORT).show();
                 });
             }
         });
@@ -586,7 +584,7 @@ public class FocusFragment extends Fragment {
                 if (resp.isSuccessful() && resp.body() != null) {
                     Map<String, Object> data = resp.body();
                     if (data.containsKey("error")) {
-                        Toast.makeText(getContext(), data.get("error").toString(), Toast.LENGTH_LONG).show();
+                        Toast.makeText(RetrofitClient.safeContext(getContext()), data.get("error").toString(), Toast.LENGTH_LONG).show();
                         return;
                     }
 
@@ -621,21 +619,21 @@ public class FocusFragment extends Fragment {
                     }
 
                     if (bySubj.isEmpty()) {
-                        Toast.makeText(getContext(), fromCache ? "" : "暂无错题数据", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(RetrofitClient.safeContext(getContext()), fromCache ? "" : "暂无错题数据", Toast.LENGTH_SHORT).show();
                         return;
                     }
 
                     // 首次分析才提示，缓存直接展示
                     if (!fromCache) {
-                        Toast.makeText(getContext(), "错题分析完成！", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(RetrofitClient.safeContext(getContext()), "错题分析完成！", Toast.LENGTH_SHORT).show();
                     }
                     showAnalysisDialog(bySubj);
                 } else {
-                    Toast.makeText(getContext(), "暂无错题数据", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(RetrofitClient.safeContext(getContext()), "暂无错题数据", Toast.LENGTH_SHORT).show();
                 }
             }
             @Override public void onFailure(Call<Map<String, Object>> call, Throwable t) {
-                Toast.makeText(getContext(), "网络错误", Toast.LENGTH_SHORT).show();
+                Toast.makeText(RetrofitClient.safeContext(getContext()), "网络错误", Toast.LENGTH_SHORT).show();
             }
         });
     }
@@ -975,7 +973,6 @@ public class FocusFragment extends Fragment {
         if (running) return;
         running=true;
         if (seconds==0) startTime = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss",Locale.getDefault()).format(new Date());
-        View v=getView(); if(v!=null){View li=v.findViewById(R.id.ll_info);if(li!=null)li.setVisibility(View.VISIBLE);}
         handler.post(tick); updateStatus("focusing");
     }
     private void stopAndSave() {

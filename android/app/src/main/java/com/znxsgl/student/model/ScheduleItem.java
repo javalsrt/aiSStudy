@@ -46,7 +46,14 @@ public class ScheduleItem {
     public String getClassroom() { return classroom; }
 
     /**
-     * 判断该课是否匹配指定时段
+     * 判断该课是否覆盖指定节次（优先按节次定位，适配任意作息）
+     */
+    public boolean matchesNode(int node) {
+        return startNode > 0 && node >= startNode && node < startNode + Math.max(step, 1);
+    }
+
+    /**
+     * 判断该课是否匹配指定时段（时间交集，节次缺失时兜底）
      * @param slotStartTime 如 "08:30"
      * @param slotEndTime 如 "09:55"
      */

@@ -46,7 +46,9 @@ import {
   resetPassword,
   deleteUser,
   getClasses,
+  createClass,
   importStudents,
+  importTeachers,
   getTeacherCourses,
 } from '@/api/staff'
 import { Users, School, ChevronLeft, UserCheck, UserX, BookOpen } from 'lucide-react'
@@ -132,6 +134,8 @@ export function StaffPage() {
     disabled: number
     majors: { name: string; count: number }[]
     classes: { id: number; name: string; major: string; count: number }[]
+    // 教师角色：院系 → 教师名单（点击院系卡片下钻展示）
+    deptMembers?: { dept: string; realName: string; username: string; status: number }[]
   } | null>(null)
   const [pageNum, setPageNum] = useState(1)
   const pageSize = PAGE_SIZE
@@ -182,6 +186,11 @@ export function StaffPage() {
   // Import
   const importInputRef = useRef<HTMLInputElement>(null)
   const [importing, setImporting] = useState(false)
+  // 新增班级
+  const [classDialogOpen, setClassDialogOpen] = useState(false)
+  const [classSaving, setClassSaving] = useState(false)
+  const [classError, setClassError] = useState('')
+  const [classForm, setClassForm] = useState({ className: '', major: '', grade: '', department: '' })
   const [importResult, setImportResult] = useState<{
     success: boolean
     message: string
@@ -467,7 +476,8 @@ export function StaffPage() {
     setActionError('')
     clearImportResult()
     try {
-      const res: any = await importStudents(file)
+      // 按当前标签导入对应角色名单
+      const res: any = await (currentRole === ROLE_TEACHER ? importTeachers(file) : importStudents(file))
       // 后端返回 { total, imported, skipped, errors, message }
       const success = res.imported > 0
       saveImportResult({
@@ -488,6 +498,10 @@ export function StaffPage() {
           setActiveTab('students')
           setPageNum(1)
         }
+        // 同步刷新概览统计（院系/专业分布卡片），避免显示导入前的旧数据
+        getUserOverview({ role: currentRole })
+          .then((d) => setOverview(d))
+          .catch(() => {})
       }
     } catch (err: any) {
       const msg =
@@ -497,6 +511,51 @@ export function StaffPage() {
       saveImportResult({ success: false, message: msg })
     } finally {
       setImporting(false)
+    }
+  }
+
+  // ===== 新增班级 =====
+  const openClassDialog = () => {
+    setClassForm({ className: '', major: '', grade: '', department: '' })
+    setClassError('')
+    setClassDialogOpen(true)
+  }
+
+  const updateClassField = (key: keyof typeof classForm, value: string) => {
+    setClassForm((prev) => ({ ...prev, [key]: value }))
+  }
+
+  const submitClass = async () => {
+    if (!classForm.className.trim()) {
+      setClassError('请输入班级名称')
+      return
+    }
+    if (!classForm.grade.trim()) {
+      setClassError('请输入年级（如 2026级），单双周作息自动适配依赖此字段')
+      return
+    }
+    setClassSaving(true)
+    setClassError('')
+    try {
+      await createClass({
+        className: classForm.className.trim(),
+        major: classForm.major.trim() || undefined,
+        grade: classForm.grade.trim(),
+        department: classForm.department.trim() || undefined,
+      })
+      const data = await getClasses()
+      setClasses(data || [])
+      setClassDialogOpen(false)
+      saveImportResult({
+        success: true,
+        message: `班级「${classForm.className.trim()}」创建成功，现在可以导入该班级的学生了`,
+      })
+    } catch (err: any) {
+      setClassError(
+        err.response?.data?.error || err.response?.data?.message || '创建失败，请重试',
+      )
+    } finally {
+      setClassSaving(false)
     }
   }
 
@@ -591,11 +650,14 @@ export function StaffPage() {
     setForm((prev) => ({ ...prev, [key]: value }))
   }
 
-  // 下载人员批量导入模板（Excel 格式，含填写说明）
+  // 下载人员批量导入模板（按当前标签下载学生/教师模板，Excel 格式，含填写说明）
   const downloadTemplate = () => {
+    const isTeacher = activeTab === 'teachers'
     const link = document.createElement('a')
-    link.href = '/template/student-import-template.xlsx'
-    link.download = '人员批量导入模板.xlsx'
+    link.href = isTeacher
+      ? '/template/teacher-import-template.xlsx'
+      : '/template/student-import-template.xlsx'
+    link.download = isTeacher ? '教师批量导入模板.xlsx' : '人员批量导入模板.xlsx'
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
@@ -628,7 +690,30 @@ export function StaffPage() {
             管理教师和学生账号信息
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* 角色标签（原列表上方的标签页上移至此） */}
+          <div className="flex items-center rounded-full border border-neutral-200 bg-white p-1 mr-1">
+            <button
+              onClick={() => handleTabChange('teachers')}
+              className={`h-8 px-4 rounded-full text-sm font-medium transition-colors ${
+                activeTab === 'teachers'
+                  ? 'bg-primary-600 text-white'
+                  : 'text-neutral-600 hover:text-neutral-900'
+              }`}
+            >
+              教师管理{activeTab === 'teachers' && total > 0 ? ` (${total})` : ''}
+            </button>
+            <button
+              onClick={() => handleTabChange('students')}
+              className={`h-8 px-4 rounded-full text-sm font-medium transition-colors ${
+                activeTab === 'students'
+                  ? 'bg-primary-600 text-white'
+                  : 'text-neutral-600 hover:text-neutral-900'
+              }`}
+            >
+              学生管理{activeTab === 'students' && total > 0 ? ` (${total})` : ''}
+            </button>
+          </div>
           <input
             ref={importInputRef}
             type="file"
@@ -636,27 +721,31 @@ export function StaffPage() {
             className="hidden"
             onChange={handleImportFile}
           />
-          <Button
-            variant="outline"
-            className="gap-2"
-            onClick={downloadTemplate}
-          >
+          <Button variant="outline" className="gap-2" onClick={downloadTemplate}>
             <Download className="w-4 h-4" />
-            人员批量导入模板
+            {activeTab === 'teachers' ? '教师批量导入模板' : '学生批量导入模板'}
           </Button>
           <Button
             variant="outline"
             className="gap-2"
             onClick={() => importInputRef.current?.click()}
             disabled={importing}
-            title="请使用标准模板上传 .xlsx/.xls 文件，仅支持导入学生名单，不要上传课程表、课表或其他非人员名单文件。"
+            title={
+              currentRole === ROLE_TEACHER
+                ? '上传教师名单 Excel（表头：账号 | 姓名 | 密码 | 手机号 | 邮箱 | 院系），院系不存在时自动创建'
+                : '请使用标准模板上传 .xlsx/.xls 文件，仅支持导入学生名单，不要上传课程表、课表或其他非人员名单文件。'
+            }
           >
             {importing ? (
               <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
               <Upload className="w-4 h-4" />
             )}
-            {importing ? '导入中...' : '批量导入'}
+            {importing ? '导入中...' : `批量导入${tabLabel}`}
+          </Button>
+          <Button variant="outline" className="gap-2" onClick={openClassDialog}>
+            <School className="w-4 h-4" />
+            新增班级
           </Button>
           <Button variant="default" className="gap-2" onClick={openCreateSheet}>
             <Plus className="w-4 h-4" />
@@ -718,7 +807,8 @@ export function StaffPage() {
                     </button>
                     <span className="text-neutral-300">/</span>
                     <span className="text-sm font-medium text-neutral-900">
-                      {selectedMajor}（班级分布）
+                      {selectedMajor}
+                      {activeTab === 'teachers' ? '（教师名单）' : '（班级分布）'}
                     </span>
                   </>
                 ) : (
@@ -767,6 +857,43 @@ export function StaffPage() {
                   </div>
                 )}
               </div>
+            ) : activeTab === 'teachers' ? (
+              // 教师：院系下钻显示该院系教师名单
+              <div className="space-y-2">
+                {(overview.deptMembers || [])
+                  .filter((m) => m.dept === selectedMajor)
+                  .map((m, i) => (
+                    <div
+                      key={`${m.username}-${i}`}
+                      className="flex items-center justify-between px-4 py-2.5 rounded-lg border border-neutral-200 bg-neutral-50"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white text-xs font-medium">
+                          {(m.realName || '?').slice(0, 1)}
+                        </div>
+                        <div>
+                          <div className="text-sm font-medium text-neutral-900">{m.realName}</div>
+                          <div className="text-xs text-neutral-400">账号：{m.username}</div>
+                        </div>
+                      </div>
+                      <span
+                        className={`text-xs px-2 py-0.5 rounded-full ${
+                          m.status === 1
+                            ? 'bg-success/10 text-success'
+                            : 'bg-neutral-100 text-neutral-400'
+                        }`}
+                      >
+                        {m.status === 1 ? '启用' : '禁用'}
+                      </span>
+                    </div>
+                  ))}
+                {(overview.deptMembers || []).filter((m) => m.dept === selectedMajor).length ===
+                  0 && (
+                  <div className="text-sm text-neutral-400 py-4 text-center">
+                    该院系下暂无教师
+                  </div>
+                )}
+              </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
                 {overview.classes
@@ -797,53 +924,40 @@ export function StaffPage() {
       )}
 
       <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <TabsList>
-          <TabsTrigger value="teachers">
-            教师管理{activeTab === 'teachers' ? ` (${total})` : ''}
-          </TabsTrigger>
-          <TabsTrigger value="students">
-            学生管理{activeTab === 'students' ? ` (${total})` : ''}
-          </TabsTrigger>
-        </TabsList>
 
         {importResult && (
-            <div
-              className={`mt-4 p-4 rounded-lg border ${
-                importResult.success
-                  ? 'bg-success/5 border-success/30 text-success'
-                  : 'bg-warning/5 border-warning/30 text-warning'
-              }`}
-            >
-              <div className="flex items-start gap-3">
-                <CheckCircle2 className="w-5 h-5 mt-0.5 flex-shrink-0" />
+            <div className="mt-4 rounded-lg border border-neutral-200 bg-white">
+              <div className="flex items-start justify-between gap-3 p-4">
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium text-sm">{importResult.message}</p>
-                  {importResult.errors && importResult.errors.length > 0 && (
-                    <details className="mt-2">
-                      <summary className="text-xs cursor-pointer hover:opacity-80">
-                        {importResult.errors.length} 条数据异常，点击查看详情
-                      </summary>
-                      <div className="mt-2 max-h-48 overflow-y-auto space-y-1">
-                        {importResult.errors.map((err, i) => (
-                          <div key={i} className="text-xs bg-white/50 rounded px-2 py-1">
-                            <span className="font-medium">第{err.row}行</span>
-                            {' · '}
-                            {err.realName || err.studentNo}
-                            {' · '}
-                            <span className="text-danger">{err.errors.join('；')}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </details>
-                  )}
+                  <p className="font-medium text-sm text-neutral-900">导入记录</p>
+                  <p className="text-sm text-neutral-600 mt-1">{importResult.message}</p>
                 </div>
                 <button
-                  className="text-xs opacity-60 hover:opacity-100 flex-shrink-0"
+                  className="text-xs text-neutral-400 hover:text-neutral-700 flex-shrink-0"
                   onClick={clearImportResult}
                 >
                   关闭
                 </button>
               </div>
+              {importResult.errors && importResult.errors.length > 0 && (
+                <div className="border-t border-neutral-100 p-4 pt-3 max-h-64 overflow-y-auto space-y-1">
+                  <p className="text-xs font-medium text-neutral-500 mb-1">
+                    异常明细（{importResult.errors.length} 条）
+                  </p>
+                  {importResult.errors.map((err, i) => (
+                    <div
+                      key={i}
+                      className="text-xs bg-neutral-50 rounded px-3 py-2 flex items-center gap-2"
+                    >
+                      <span className="text-neutral-400">第{err.row}行</span>
+                      <span className="font-medium text-neutral-700">
+                        {err.realName || err.studentNo}
+                      </span>
+                      <span className="text-danger">{err.errors.join('；')}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -1329,6 +1443,65 @@ export function StaffPage() {
           </SheetFooter>
         </SheetContent>
       </Sheet>
+
+      {/* 新增班级 */}
+      <Dialog open={classDialogOpen} onOpenChange={setClassDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>新增班级</DialogTitle>
+            <DialogDescription>
+              创建后即可在学生批量导入中按班级名称匹配。年级（如 2026级）用于单双周作息自动适配。
+            </DialogDescription>
+          </DialogHeader>
+          {classError && (
+            <div className="bg-danger/10 text-danger text-sm px-4 py-3 rounded-xl">{classError}</div>
+          )}
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>班级名称 *</Label>
+              <Input
+                placeholder="如：机电263班"
+                value={classForm.className}
+                onChange={(e) => updateClassField('className', e.target.value)}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>年级 *</Label>
+                <Input
+                  placeholder="如：2026级"
+                  value={classForm.grade}
+                  onChange={(e) => updateClassField('grade', e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>专业</Label>
+                <Input
+                  placeholder="如：机电一体化"
+                  value={classForm.major}
+                  onChange={(e) => updateClassField('major', e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>学院 / 部门</Label>
+              <Input
+                placeholder="如：智能制造学院"
+                value={classForm.department}
+                onChange={(e) => updateClassField('department', e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setClassDialogOpen(false)}>
+              取消
+            </Button>
+            <Button onClick={submitClass} disabled={classSaving}>
+              {classSaving ? '创建中...' : '创建班级'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete confirmation */}
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>

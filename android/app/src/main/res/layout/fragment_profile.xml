@@ -119,7 +119,7 @@
             </LinearLayout>
         </LinearLayout>
 
-        <!-- 收藏题目入口 -->
+        <!-- 收藏题目入口（暂时下线，恢复时删除 visibility 一行即可） -->
         <LinearLayout
             android:id="@+id/ll_bookmarks"
             android:layout_width="match_parent"
@@ -132,7 +132,8 @@
             android:paddingHorizontal="16dp"
             android:paddingVertical="16dp"
             android:clickable="true"
-            android:focusable="true">
+            android:focusable="true"
+            android:visibility="gone">
 
             <TextView
                 android:layout_width="0dp"

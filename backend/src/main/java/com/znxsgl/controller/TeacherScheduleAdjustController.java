@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.znxsgl.entity.*;
 import com.znxsgl.mapper.*;
+import com.znxsgl.service.BellTimeService;
 import com.znxsgl.service.ScheduleConflictChecker;
 import com.znxsgl.service.ScheduleNotifyService;
 import com.znxsgl.service.SemesterService;
@@ -65,6 +66,36 @@ public class TeacherScheduleAdjustController {
     private final Map<String, Long> recentNotifyOps = new java.util.concurrent.ConcurrentHashMap<>();
     private static final long NOTIFY_OP_TTL_MS = 5 * 60 * 1000;
 
+    private final BellTimeService bellTimeService;
+
+    /** 自动适配作息：按班级年级 + 目标周奇偶解析节次段起止，无配置回退内置 NODE_TIMES */
+    private LocalTime[] bellTimes(Long classId, Integer targetWeek, int startNode, int step) {
+        try {
+            LocalTime[] r = bellTimeService.nodeRangeByWeek(resolveGrade(classId), targetWeek, startNode, step);
+            if (r != null) return r;
+        } catch (Exception e) {
+            System.out.println("=== 调课作息自动适配失败，回退默认表: " + e.getMessage());
+        }
+        LocalTime[] first = NODE_TIMES.get(startNode);
+        LocalTime[] last = NODE_TIMES.get(startNode + Math.max(step, 1) - 1);
+        if (first == null) first = last;
+        if (last == null) last = first;
+        if (first == null || last == null) return new LocalTime[]{LocalTime.of(8, 10), LocalTime.of(8, 50)};
+        return new LocalTime[]{first[0], last[1]};
+    }
+
+    /** 班级年级（如 2026级），解析失败返回 null */
+    private String resolveGrade(Long classId) {
+        try {
+            List<Map<String, Object>> rows = jdbc.queryForList(
+                    "SELECT grade FROM class_info WHERE id = ? LIMIT 1", classId);
+            if (!rows.isEmpty() && rows.get(0).get("grade") != null) {
+                return rows.get(0).get("grade").toString();
+            }
+        } catch (Exception ignore) { }
+        return null;
+    }
+
     /** 节次时间表（艺术学部/汽车学部作息，与 AutoScheduleService 保持一致） */
     private static final Map<Integer, LocalTime[]> NODE_TIMES = new LinkedHashMap<>();
     static {
@@ -88,7 +119,9 @@ public class TeacherScheduleAdjustController {
                                             SemesterService semesterService,
                                             ScheduleNotifyService notifyService,
                                             TeachingTaskMapper teachingTaskMapper,
-                                            JdbcTemplate jdbc) {
+                                            JdbcTemplate jdbc,
+                                            BellTimeService bellTimeService) {
+        this.bellTimeService = bellTimeService;
         this.scheduleMapper = scheduleMapper;
         this.scheduleLockMapper = scheduleLockMapper;
         this.teacherMapper = teacherMapper;
@@ -170,8 +203,9 @@ public class TeacherScheduleAdjustController {
                         opt.put("dayName", dayName(day));
                         opt.put("startNode", startNode);
                         opt.put("step", step);
-                        opt.put("startTime", NODE_TIMES.get(startNode)[0].toString());
-                        opt.put("endTime", NODE_TIMES.get(startNode + step - 1)[1].toString());
+                        LocalTime[] bt = bellTimes(getClassIdBySchedule(schedule), targetWeek, startNode, step);
+                        opt.put("startTime", bt[0].toString());
+                        opt.put("endTime", bt[1].toString());
                         opt.put("classroom", room.getName());
                         opt.put("classroomType", room.getType());
                         options.add(opt);
@@ -306,9 +340,10 @@ public class TeacherScheduleAdjustController {
             return ResponseEntity.badRequest().body(Map.of("error", "未找到该班级学生的课表记录，调课失败"));
         }
 
-        // 更新所有相关记录
-        LocalTime newStartTime = NODE_TIMES.get(startNode)[0];
-        LocalTime newEndTime = NODE_TIMES.get(startNode + step - 1)[1];
+        // 更新所有相关记录（自动适配目标周的单双周作息）
+        LocalTime[] newTimes = bellTimes(classId, targetWeek, startNode, step);
+        LocalTime newStartTime = newTimes[0];
+        LocalTime newEndTime = newTimes[1];
 
         System.out.println("=== 调课准备更新记录: scheduleId=" + scheduleId + ", 班级=" + classId
                 + ", 关联记录数=" + allSchedules.size() + ", 目标周=" + targetWeek

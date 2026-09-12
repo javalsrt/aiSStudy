@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">学习中</string>
+    <string name="app_name">智学职达</string>
     <string name="login_title" />
     <string name="login_subtitle" />
     <string name="username_hint">请输入学号 / 用户名</string>

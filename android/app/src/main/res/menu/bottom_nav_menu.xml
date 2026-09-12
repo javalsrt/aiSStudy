@@ -5,7 +5,7 @@
         android:title="课表" />
     <item android:id="@+id/nav_focus"
         android:icon="@drawable/ic_focus"
-        android:title="专注" />
+        android:title="学习" />
     <item android:id="@+id/nav_profile"
         android:icon="@drawable/ic_profile"
         android:title="我的" />

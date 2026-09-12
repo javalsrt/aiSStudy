@@ -35,7 +35,7 @@
             android:textColor="@color/primary"
             android:fontFamily="sans-serif-medium" />
 
-        <!-- 用户卡片 -->
+        <!-- 用户卡片（模仿 card-client：描边卡片 + 圆环头像 + 姓名 + 分隔线） -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -43,33 +43,49 @@
             android:gravity="center"
             android:layout_marginTop="56dp"
             android:layout_marginBottom="40dp"
-            android:background="@drawable/bg_input"
-            android:padding="24dp">
+            android:background="@drawable/bg_quick_login_card"
+            android:elevation="6dp"
+            android:paddingTop="28dp"
+            android:paddingBottom="28dp"
+            android:paddingStart="20dp"
+            android:paddingEnd="20dp">
 
-            <ImageView
-                android:layout_width="64dp"
-                android:layout_height="64dp"
-                android:src="@drawable/ic_launcher_foreground"
-                android:background="@drawable/bg_circle_primary"
-                android:scaleType="centerCrop"
-                android:contentDescription="@string/brand_name" />
+            <!-- 头像：姓名首字 + 圆环 -->
+            <TextView
+                android:id="@+id/tv_avatar"
+                android:layout_width="76dp"
+                android:layout_height="76dp"
+                android:background="@drawable/bg_quick_login_avatar"
+                android:gravity="center"
+                android:text="学"
+                android:textSize="26sp"
+                android:textColor="#FFFFFF"
+                android:fontFamily="sans-serif-medium" />
 
+            <!-- 姓名 -->
             <TextView
                 android:id="@+id/tv_username"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="14dp"
+                android:layout_marginTop="18dp"
                 android:textSize="18sp"
-                android:textColor="@color/text_primary"
+                android:textColor="#1D1D1F"
                 android:fontFamily="sans-serif-medium" />
+
+            <!-- 分隔线（对应 social-media:before） -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="2dp"
+                android:layout_marginTop="20dp"
+                android:layout_marginBottom="14dp"
+                android:background="#E5E7EB" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
                 android:text="点击一键登录进入学习"
                 android:textSize="13sp"
-                android:textColor="@color/text_secondary"
+                android:textColor="#6B7280"
                 android:fontFamily="sans-serif" />
         </LinearLayout>
 

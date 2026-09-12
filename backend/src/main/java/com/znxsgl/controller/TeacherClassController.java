@@ -1,5 +1,6 @@
 package com.znxsgl.controller;
 
+import com.znxsgl.service.BellTimeService;
 import com.znxsgl.service.SemesterService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -25,12 +26,14 @@ public class TeacherClassController {
     private final JdbcTemplate jdbc;
     private final PasswordEncoder passwordEncoder;
     private final SemesterService semesterService;
+    private final BellTimeService bellTimeService;
 
     public TeacherClassController(JdbcTemplate jdbc, PasswordEncoder passwordEncoder,
-                                   SemesterService semesterService) {
+                                   SemesterService semesterService, BellTimeService bellTimeService) {
         this.jdbc = jdbc;
         this.passwordEncoder = passwordEncoder;
         this.semesterService = semesterService;
+        this.bellTimeService = bellTimeService;
     }
 
     /** 列出教师管理的所有班级 */
@@ -164,8 +167,8 @@ public class TeacherClassController {
 
             for (Long sid : studentIds) {
                 // 根据节次推算时间
-                LocalTime st = nodeToTime(startNode);
-                LocalTime et = nodeToTime(startNode + step);
+                LocalTime st = nodeToTime(classId, startNode);
+                LocalTime et = nodeToTime(classId, startNode + step);
                 jdbc.update("INSERT INTO schedule (user_id, course_id, course_name, day_of_week, " +
                         "start_node, step, start_time, end_time, classroom, semester, weeks, status) " +
                         "VALUES (?,?,?,?,?,?,?,?,?,?,?,1)",
@@ -412,8 +415,25 @@ public class TeacherClassController {
                 .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
     }
 
-    /** 节次转时间（学校官方作息表） */
-    private LocalTime nodeToTime(int node) {
+    /** 班级年级（如 2026级），解析失败返回 null */
+    private String resolveGrade(Long classId) {
+        try {
+            List<Map<String, Object>> rows = jdbc.queryForList(
+                    "SELECT grade FROM class_info WHERE id = ? LIMIT 1", classId);
+            if (!rows.isEmpty() && rows.get(0).get("grade") != null) {
+                return rows.get(0).get("grade").toString();
+            }
+        } catch (Exception ignore) { }
+        return null;
+    }
+
+    /** 节次转时间：优先按班级年级作息表自动适配（导入覆盖整学期，取通用表），无配置回退内置表 */
+    private LocalTime nodeToTime(Long classId, int node) {
+        try {
+            String grade = resolveGrade(classId);
+            LocalTime t = bellTimeService.nodeStartTime(grade, null, node);
+            if (t != null) return t;
+        } catch (Exception ignore) { }
         return switch (node) {
             case 1 -> LocalTime.of(8, 30);
             case 2 -> LocalTime.of(9, 15);

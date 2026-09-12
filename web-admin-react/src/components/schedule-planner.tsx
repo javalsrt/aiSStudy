@@ -18,17 +18,17 @@ import {
   type ScheduleSlot,
 } from '@/api/courses'
 import { getSemesterList } from '@/api/semester'
+import { getBellTimes } from '@/api/bell'
 import { useDialog } from '@/hooks/use-dialog'
 import type { Semester } from '@/types'
 
 // 星期名称（周一至周日，节假日补课可排周日）
 const DAY_NAMES = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
 
-// 小节列表（1-8节，艺术学部/汽车学部作息）
-const NODE_LIST = Array.from({ length: 8 }, (_, i) => i + 1)
+// 兜底小节列表与时间段（后端无任何作息配置时才使用；正常情况从 /api/bell/today 动态获取）
+const FALLBACK_NODE_LIST = Array.from({ length: 8 }, (_, i) => i + 1)
 
-// 每个小节对应的时间段（艺术学部/汽车学部作息）
-const NODE_TIMES: Record<number, { start: string; end: string }> = {
+const FALLBACK_NODE_TIMES: Record<number, { start: string; end: string }> = {
   1: { start: '08:10', end: '08:50' },
   2: { start: '09:00', end: '09:40' },
   3: { start: '09:50', end: '10:30' },
@@ -120,6 +120,10 @@ export function SchedulePlanner({
   onSuccess,
 }: SchedulePlannerProps) {
   const { alert, confirm, DialogComponent } = useDialog()
+  // 动态作息（按班级年级+周次从服务端解析；失败回退兜底配置）
+  const [nodeList, setNodeList] = useState<number[]>(FALLBACK_NODE_LIST)
+  const [nodeTimes, setNodeTimes] =
+    useState<Record<number, { start: string; end: string }>>(FALLBACK_NODE_TIMES)
   const [semesterInfo, setSemesterInfo] = useState<Semester | null>(null)
   const [weekCount, setWeekCount] = useState(DEFAULT_WEEK_COUNT)
   const currentWeek = useMemo(
@@ -341,6 +345,28 @@ export function SchedulePlanner({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedWeek, open, classId])
 
+  // 动态获取作息表（按班级年级 + 选中周的单双周自动解析），失败时保留兜底配置
+  useEffect(() => {
+    if (!open || !classId) return
+    let cancelled = false
+    getBellTimes({ classId, week: selectedWeek })
+      .then((info) => {
+        if (cancelled || !info?.periods?.length) return
+        const times: Record<number, { start: string; end: string }> = {}
+        for (const p of info.periods) {
+          times[p.node] = { start: p.startTime, end: p.endTime }
+        }
+        setNodeTimes(times)
+        setNodeList(info.periods.map((p) => p.node).sort((a, b) => a - b))
+      })
+      .catch(() => {
+        /* 保持兜底作息 */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open, classId, selectedWeek])
+
   // 获取单元格状态：优先新选 -> 本课程已有记录 -> 其他课程占用 -> 空闲
   const getCellState = (dayOfWeek: number, node: number): CellState => {
     const key = cellKey(selectedWeek, dayOfWeek, node)
@@ -358,8 +384,8 @@ export function SchedulePlanner({
           course_id: 0,
           course_name: courseName,
           day_of_week: existing.dayOfWeek,
-          start_time: NODE_TIMES[existing.node]?.start || '',
-          end_time: NODE_TIMES[existing.node]?.end || '',
+          start_time: nodeTimes[existing.node]?.start || '',
+          end_time: nodeTimes[existing.node]?.end || '',
           start_node: existing.node,
           step: 1,
           classroom: existing.classroom,
@@ -516,8 +542,8 @@ export function SchedulePlanner({
       dayOfWeek: cell.dayOfWeek,
       startNode: cell.node,
       step: 1,
-      startTime: NODE_TIMES[cell.node].start,
-      endTime: NODE_TIMES[cell.node].end,
+      startTime: nodeTimes[cell.node]?.start || '',
+      endTime: nodeTimes[cell.node]?.end || '',
       credit: 1,
       classroom: cell.classroom,
       semester: semester || '',
@@ -808,12 +834,12 @@ export function SchedulePlanner({
               </tr>
             </thead>
             <tbody>
-              {NODE_LIST.map((node) => (
+              {nodeList.map((node) => (
                 <tr key={node}>
                   <td className="border border-neutral-200 bg-neutral-50 p-1 text-center align-middle">
                     <div className="text-xs font-semibold">第{node}节</div>
                     <div className="text-[11px] text-neutral-500 mt-0.5">
-                      {NODE_TIMES[node].start}-{NODE_TIMES[node].end}
+                      {nodeTimes[node]?.start}-{nodeTimes[node]?.end}
                     </div>
                   </td>
                   {Array.from({ length: 7 }, (_, i) => i + 1).map((day) => {

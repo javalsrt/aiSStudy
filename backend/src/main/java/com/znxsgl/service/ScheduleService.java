@@ -483,6 +483,19 @@ public class ScheduleService {
             classId, classId, classId);
 
         List<StudentCourseDTO> result = new ArrayList<>();
+
+        // 预加载各课程已上架的章节数（用于“章节”入口显隐）
+        Map<Long, Integer> chapterCountMap = new HashMap<>();
+        try {
+            for (Map<String, Object> r : jdbc.queryForList(
+                    "SELECT course_id, COUNT(*) AS cnt FROM course_chapter " +
+                    "WHERE deleted = 0 AND status = 1 GROUP BY course_id")) {
+                chapterCountMap.put(((Number) r.get("course_id")).longValue(), ((Number) r.get("cnt")).intValue());
+            }
+        } catch (Exception e) {
+            log.warn("查询课程章节数失败", e);
+        }
+
         for (Map<String, Object> row : rows) {
             StudentCourseDTO dto = new StudentCourseDTO();
             dto.setCourseId(((Number) row.get("id")).longValue());
@@ -491,6 +504,7 @@ public class ScheduleService {
             dto.setSemester((String) row.get("semester"));
             dto.setCourseType((String) row.get("course_type"));
             dto.setDescription((String) row.get("description"));
+            dto.setHasChapters(chapterCountMap.getOrDefault(dto.getCourseId(), 0) > 0);
 
             // 检查课程是否在线（本班级有 status=1 且 day_of_week>0 即在线）
             int activeCount = jdbc.queryForObject(

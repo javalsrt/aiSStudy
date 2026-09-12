@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 模仿 card-client：白底 + 浅灰描边 + 大圆角（灰白配色） -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="#FFFFFF" />
+    <corners android:radius="20dp" />
+    <stroke android:width="3dp" android:color="#E5E7EB" />
+</shape>

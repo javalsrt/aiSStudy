@@ -8,6 +8,7 @@ import com.znxsgl.mapper.CourseImportRecordMapper;
 import com.znxsgl.mapper.CourseMapper;
 import com.znxsgl.mapper.ScheduleMapper;
 import com.znxsgl.mapper.UserMapper;
+import com.znxsgl.service.BellTimeService;
 import com.znxsgl.service.LlmService;
 import com.znxsgl.service.ScheduleImportTeacherMatcher;
 import com.znxsgl.service.ScheduleNotifyService;
@@ -38,6 +39,7 @@ import java.util.*;
 @PreAuthorize("hasRole('TEACHER') or hasRole('ADMIN')")
 public class ScheduleImportController {
 
+    private final BellTimeService bellTimeService;
     private final LlmService llmService;
     private final JdbcTemplate jdbc;
     private final ScheduleMapper scheduleMapper;
@@ -75,7 +77,9 @@ public class ScheduleImportController {
                                      SemesterService semesterService,
                                      ScheduleImportTeacherMatcher teacherMatcher,
                                      TransactionTemplate transactionTemplate,
-                                     CourseImportRecordMapper importRecordMapper) {
+                                     CourseImportRecordMapper importRecordMapper,
+                                     BellTimeService bellTimeService) {
+        this.bellTimeService = bellTimeService;
         this.llmService = llmService;
         this.jdbc = jdbc;
         this.scheduleMapper = scheduleMapper;
@@ -628,8 +632,15 @@ public class ScheduleImportController {
         return 18;
     }
 
-    /** 获取小节对应的时间段（艺术学部/汽车学部作息） */
+    /** 获取小节对应的时间段：优先读作息配置表（通用表），无配置回退内置表 */
     private String[] getNodeTimeRange(int node) {
+        try {
+            LocalTime st = bellTimeService.nodeStartTime(null, null, node);
+            LocalTime et = bellTimeService.nodeEndTime(null, null, node);
+            if (st != null && et != null) {
+                return new String[]{st.toString(), et.toString()};
+            }
+        } catch (Exception ignore) { }
         switch (node) {
             case 1: return new String[]{"08:10", "08:50"};
             case 2: return new String[]{"09:00", "09:40"};
@@ -1847,8 +1858,15 @@ public class ScheduleImportController {
         return t;
     }
 
-    /** 节次 → 起止分钟（与学校作息一致），超范围返回 null */
+    /** 节次 → 起止分钟：优先作息配置表（通用表），无配置回退内置表；超范围返回 null */
     private int[] nodeTimes(int startNode, int step) {
+        try {
+            LocalTime st = bellTimeService.nodeStartTime(null, null, startNode);
+            LocalTime et = bellTimeService.nodeEndTime(null, null, startNode + Math.max(step, 1) - 1);
+            if (st != null && et != null) {
+                return new int[]{st.getHour() * 60 + st.getMinute(), et.getHour() * 60 + et.getMinute()};
+            }
+        } catch (Exception ignore) { }
         if (startNode < 1 || startNode > 12 || step < 1 || startNode + step - 1 > 12) return null;
         // 每节起始分钟：1=08:10, 2=09:00, 3=10:00, 4=10:50, 5=14:00, 6=14:50, 7=15:40, 8=16:30, 9=19:00, 10=19:50, 11=20:40, 12=21:30
         int[] starts = {0, 490, 540, 600, 650, 840, 890, 940, 990, 1140, 1190, 1240, 1290};

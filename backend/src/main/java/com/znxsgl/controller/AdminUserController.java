@@ -265,6 +265,39 @@ public class AdminUserController {
         result.put("disabled", disabled);
         result.put("majors", majorList);
         result.put("classes", classList);
+
+        // 教师角色：返回各院系教师名单（前端点击院系卡片下钻展示对应教师）
+        if (role != null && role == 2) {
+            // teacher + 院系
+            List<Map<String, Object>> teachers = jdbc.queryForList(
+                    "SELECT t.real_name AS realName, t.teacher_no AS teacherNo, t.status AS status, " +
+                    "COALESCE(d.dept_name, '未设置院系') AS dept " +
+                    "FROM teacher t LEFT JOIN department d ON d.id = t.dept_id " +
+                    "ORDER BY d.dept_name, t.real_name");
+            // 用户索引：账号 → 用户；姓名 → 用户（工号与账号不一致时按姓名兜底匹配）
+            Map<String, User> userByUsername = new HashMap<>();
+            Map<String, User> userByName = new HashMap<>();
+            for (User u : users) {
+                if (u.getUsername() != null) userByUsername.put(u.getUsername(), u);
+                if (u.getRealName() != null) userByName.put(u.getRealName(), u);
+            }
+            List<Map<String, Object>> deptMembers = new ArrayList<>();
+            for (Map<String, Object> t : teachers) {
+                String teacherNo = t.get("teacherNo") == null ? "" : t.get("teacherNo").toString();
+                String realName = t.get("realName") == null ? "" : t.get("realName").toString();
+                User u = userByUsername.get(teacherNo);
+                if (u == null) u = userByName.get(realName);
+                Map<String, Object> m = new LinkedHashMap<>();
+                m.put("dept", t.get("dept"));
+                m.put("realName", realName);
+                // 账号/状态优先取用户表，关联不上回退 teacher 表
+                m.put("username", u != null && u.getUsername() != null ? u.getUsername() : teacherNo);
+                Object st = (u != null && u.getStatus() != null) ? u.getStatus() : t.get("status");
+                m.put("status", st == null ? 0 : ((Number) st).intValue());
+                deptMembers.add(m);
+            }
+            result.put("deptMembers", deptMembers);
+        }
         return ResponseEntity.ok(result);
     }
 
@@ -320,6 +353,7 @@ public class AdminUserController {
         user.setGrade(grade);
         user.setStatus(1);
         userMapper.insert(user);
+        assignSysRole(user.getId(), role);
 
         // 如果是教师，同步到 teacher 表
         if (role == 2) {
@@ -385,6 +419,10 @@ public class AdminUserController {
         if (role != null) user.setRole(role);
 
         userMapper.updateById(user);
+        // 角色变更时同步 RBAC 角色绑定
+        if (role != null && role != oldRole) {
+            assignSysRole(user.getId(), role);
+        }
 
         // 处理 teacher 表同步
         if (user.getRole() == 2) {
@@ -649,6 +687,7 @@ public class AdminUserController {
                 user.setGrade(grade.isEmpty() ? null : grade);
                 user.setStatus(1);
                 userMapper.insert(user);
+                assignSysRole(user.getId(), 1);
 
                 existingUsernames.add(username);
                 imported++;
@@ -661,6 +700,151 @@ public class AdminUserController {
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of(
                     "error", "解析Excel失败：" + e.getMessage()));
+        }
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("total", total);
+        result.put("imported", imported);
+        result.put("skipped", skipped);
+        result.put("errors", errors);
+        result.put("message", String.format("导入完成：共%d条，成功%d条，跳过%d条", total, imported, skipped));
+        return ResponseEntity.ok(result);
+    }
+
+    // ============================================================
+    //  批量导入教师
+    // ============================================================
+
+    /**
+     * 批量导入教师（Excel上传）
+     * Excel格式：账号 | 姓名 | 密码 | 手机号 | 邮箱 | 院系
+     * 密码为空时默认 123456；院系不存在时自动创建
+     */
+    @PostMapping("/import-teachers")
+    public ResponseEntity<Map<String, Object>> importTeachers(@RequestParam("file") MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "请上传文件"));
+        }
+        String filename = file.getOriginalFilename();
+        if (filename == null || !(filename.toLowerCase().endsWith(".xlsx") || filename.toLowerCase().endsWith(".xls"))) {
+            return ResponseEntity.badRequest().body(Map.of("error", "仅支持 .xlsx / .xls 格式"));
+        }
+        if (file.getSize() > 10 * 1024 * 1024) {
+            return ResponseEntity.badRequest().body(Map.of("error", "文件大小不能超过 10MB"));
+        }
+
+        int total = 0, imported = 0, skipped = 0;
+        List<Map<String, Object>> errors = new ArrayList<>();
+        String defaultPassword = "123456";
+
+        // 预加载已有用户名
+        Set<String> existingUsernames = new HashSet<>();
+        for (User u : userMapper.selectList(new LambdaQueryWrapper<User>().select(User::getUsername))) {
+            existingUsernames.add(u.getUsername());
+        }
+        // 预加载院系（名称 → id）
+        Map<String, Long> deptNameToId = new HashMap<>();
+        for (Map<String, Object> row : jdbc.queryForList("SELECT id, dept_name FROM department")) {
+            Object name = row.get("dept_name");
+            if (name != null) deptNameToId.put(name.toString().trim(), ((Number) row.get("id")).longValue());
+        }
+
+        try (InputStream is = file.getInputStream();
+             Workbook workbook = WorkbookFactory.create(is)) {
+            Sheet sheet = workbook.getSheetAt(0);
+            DataFormatter formatter = new DataFormatter();
+
+            Row headerRow = sheet.getRow(0);
+            if (headerRow == null) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Excel 缺少表头，请使用标准模板"));
+            }
+            boolean hasAccount = false, hasRealName = false;
+            for (Cell cell : headerRow) {
+                String val = formatter.formatCellValue(cell).trim();
+                if (val.contains("账号")) hasAccount = true;
+                if (val.contains("姓名")) hasRealName = true;
+            }
+            if (!hasAccount || !hasRealName) {
+                return ResponseEntity.badRequest().body(Map.of("error", "表头必须包含「账号」和「姓名」列"));
+            }
+
+            for (int r = 1; r <= sheet.getLastRowNum(); r++) {
+                Row row = sheet.getRow(r);
+                if (row == null) continue;
+                boolean allEmpty = true;
+                for (int c = 0; c < 6; c++) {
+                    Cell cell = row.getCell(c, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK);
+                    if (!formatter.formatCellValue(cell).trim().isEmpty()) { allEmpty = false; break; }
+                }
+                if (allEmpty) continue;
+
+                total++;
+                List<String> rowData = new ArrayList<>();
+                for (int c = 0; c < 6; c++) {
+                    rowData.add(formatter.formatCellValue(row.getCell(c, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK)).trim());
+                }
+                String username = rowData.get(0);
+                String realName = rowData.get(1);
+                String password = rowData.get(2);
+                String phone = rowData.get(3);
+                String email = rowData.get(4);
+                String deptName = rowData.get(5);
+
+                List<String> rowErrors = new ArrayList<>();
+                if (username.isEmpty()) rowErrors.add("账号为空");
+                if (realName.isEmpty()) rowErrors.add("姓名为空");
+                if (!username.isEmpty() && existingUsernames.contains(username)) {
+                    rowErrors.add("账号「" + username + "」已存在");
+                }
+                if (!rowErrors.isEmpty()) {
+                    skipped++;
+                    Map<String, Object> err = new LinkedHashMap<>();
+                    err.put("row", r + 1);
+                    err.put("studentNo", username);
+                    err.put("realName", realName);
+                    err.put("errors", rowErrors);
+                    errors.add(err);
+                    continue;
+                }
+
+                User user = new User();
+                user.setUsername(username);
+                user.setPasswordHash(passwordEncoder.encode(password.isEmpty() ? defaultPassword : password));
+                user.setRealName(realName);
+                user.setRole(2);
+                user.setEmail(email.isEmpty() ? null : email);
+                user.setPhone(phone.isEmpty() ? null : phone);
+                user.setStatus(1);
+                userMapper.insert(user);
+
+                Teacher teacher = new Teacher();
+                teacher.setTeacherNo(username);
+                teacher.setRealName(realName);
+                teacher.setEmail(email.isEmpty() ? null : email);
+                teacher.setPhone(phone.isEmpty() ? null : phone);
+                teacher.setStatus(1);
+                if (!deptName.isEmpty()) {
+                    Long deptId = deptNameToId.get(deptName);
+                    if (deptId == null) {
+                        // 院系不存在则自动创建，保证院系分布可见
+                        jdbc.update("INSERT INTO department (dept_name, dept_type) VALUES (?, '教学单位')", deptName);
+                        deptId = jdbc.queryForObject("SELECT id FROM department WHERE dept_name = ? LIMIT 1", Long.class, deptName);
+                        if (deptId != null) deptNameToId.put(deptName, deptId);
+                    }
+                    teacher.setDeptId(deptId);
+                }
+                teacherMapper.insert(teacher);
+                assignSysRole(user.getId(), 2);
+
+                existingUsernames.add(username);
+                imported++;
+            }
+
+            if (total == 0) {
+                return ResponseEntity.badRequest().body(Map.of("error", "未检测到有效数据行，请检查文件内容"));
+            }
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", "解析Excel失败：" + e.getMessage()));
         }
 
         Map<String, Object> result = new LinkedHashMap<>();
@@ -754,5 +938,21 @@ public class AdminUserController {
 
         List<Map<String, Object>> rows = jdbc.queryForList(sql, params.toArray());
         return ResponseEntity.ok(rows);
+    }
+
+    /**
+     * 绑定 RBAC 角色（登录时 roles/permissions 由此关联表驱动）。
+     * user.role: 1=学生 2=教师 3=管理员；sys_role.id: 1=admin 2=teacher 3=student，
+     * 恰好倒序，故 sys_role_id = 4 - user.role。
+     */
+    private void assignSysRole(Long userId, Integer userRole) {
+        if (userId == null || userRole == null) return;
+        int sysRoleId = 4 - userRole;
+        if (sysRoleId < 1 || sysRoleId > 3) return;
+        try {
+            jdbc.update("INSERT IGNORE INTO sys_user_role (user_id, role_id) VALUES (?, ?)", userId, sysRoleId);
+        } catch (Exception ignored) {
+            // 角色绑定失败不影响用户创建
+        }
     }
 }

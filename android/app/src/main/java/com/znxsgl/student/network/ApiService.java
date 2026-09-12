@@ -42,6 +42,12 @@ public interface ApiService {
     Call<List<Map<String, Object>>> getStudentSemesters(
             @Header("Authorization") String token);
 
+    /** 作息表（服务端按 登录用户年级+周次单双周 自动解析），week 为空按今天 */
+    @GET("/api/bell/today")
+    Call<Map<String, Object>> getBellToday(
+            @Header("Authorization") String token,
+            @Query("week") Integer week);
+
     /**
      * 学生：查看通讯录（同班同学 + 教我的老师）
      */

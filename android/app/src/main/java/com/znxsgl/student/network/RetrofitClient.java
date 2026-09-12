@@ -58,6 +58,14 @@ public class RetrofitClient {
         appContext = context.getApplicationContext();
     }
 
+    /**
+     * 获取可用 Context：优先使用传入的 context；当传入为 null（如 Fragment 已销毁后
+     * 异步回调中调用 getContext()）时，降级为 Application 上下文，避免 Toast 等组件 NPE。
+     */
+    public static Context safeContext(Context context) {
+        return context != null ? context : appContext;
+    }
+
     public static Retrofit getInstance() {
         if (instance == null) {
             HttpLoggingInterceptor logging = new HttpLoggingInterceptor();

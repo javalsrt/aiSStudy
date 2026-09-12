@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 模仿 user-picture：圆形头像 + 4dp 浅灰圆环 -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 外圈：浅灰圆环 -->
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="#E5E7EB" />
+        </shape>
+    </item>
+    <!-- 内圈：深灰头像底 -->
+    <item
+        android:left="4dp"
+        android:top="4dp"
+        android:right="4dp"
+        android:bottom="4dp">
+        <shape android:shape="oval">
+            <solid android:color="#1D1D1F" />
+        </shape>
+    </item>
+</layer-list>

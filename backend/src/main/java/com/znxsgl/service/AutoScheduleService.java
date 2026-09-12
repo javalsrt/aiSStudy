@@ -53,6 +53,7 @@ public class AutoScheduleService {
     private final SemesterMapper semesterMapper;
     private final ScheduleConflictChecker conflictChecker;
     private final JdbcTemplate jdbc;
+    private final BellTimeService bellTimeService;
 
     /** 艺术学部/汽车学部作息时间表（节次 → 起止时间） */
     private static final Map<Integer, LocalTime[]> NODE_TIMES = new LinkedHashMap<>();
@@ -67,6 +68,34 @@ public class AutoScheduleService {
         NODE_TIMES.put(8, new LocalTime[]{LocalTime.of(20, 20), LocalTime.of(21, 0)});
     }
 
+    /** 自动适配作息：按班级年级 + 今日单双周解析节次段时间，无配置回退内置 NODE_TIMES */
+    private LocalTime[] blockTimes(Long classId, int startNode, int step) {
+        try {
+            LocalTime[] r = bellTimeService.nodeRange(resolveGrade(classId), java.time.LocalDate.now(), startNode, step);
+            if (r != null) return r;
+        } catch (Exception e) {
+            System.out.println("=== 作息自动适配失败，回退默认表: " + e.getMessage());
+        }
+        LocalTime[] first = NODE_TIMES.get(startNode);
+        LocalTime[] last = NODE_TIMES.get(startNode + Math.max(step, 1) - 1);
+        if (first == null) first = last;
+        if (last == null) last = first;
+        if (first == null || last == null) return new LocalTime[]{LocalTime.of(8, 10), LocalTime.of(8, 50)};
+        return new LocalTime[]{first[0], last[1]};
+    }
+
+    /** 班级年级（如 2026级），解析失败返回 null（按默认作息处理） */
+    private String resolveGrade(Long classId) {
+        try {
+            List<Map<String, Object>> rows = jdbc.queryForList(
+                    "SELECT grade FROM class_info WHERE id = ? LIMIT 1", classId);
+            if (!rows.isEmpty() && rows.get(0).get("grade") != null) {
+                return rows.get(0).get("grade").toString();
+            }
+        } catch (Exception ignore) { }
+        return null;
+    }
+
     public AutoScheduleService(TeachingTaskMapper teachingTaskMapper,
                                 ClassroomMapper classroomMapper,
                                 ScheduleMapper scheduleMapper,
@@ -74,7 +103,8 @@ public class AutoScheduleService {
                                 UserMapper userMapper,
                                 SemesterMapper semesterMapper,
                                 ScheduleConflictChecker conflictChecker,
-                                JdbcTemplate jdbc) {
+                                JdbcTemplate jdbc,
+                                BellTimeService bellTimeService) {
         this.teachingTaskMapper = teachingTaskMapper;
         this.classroomMapper = classroomMapper;
         this.scheduleMapper = scheduleMapper;
@@ -83,6 +113,7 @@ public class AutoScheduleService {
         this.semesterMapper = semesterMapper;
         this.conflictChecker = conflictChecker;
         this.jdbc = jdbc;
+        this.bellTimeService = bellTimeService;
     }
 
     /**
@@ -384,8 +415,10 @@ public class AutoScheduleService {
     private void writeScheduleBlock(TeachingTask task, TimeSlot slot, Classroom room,
                                      Map<Long, List<Long>> studentsByClass, int totalWeeks) {
         List<Long> studentIds = studentsByClass.getOrDefault(task.getClassId(), Collections.emptyList());
-        LocalTime startTime = NODE_TIMES.get(slot.startNode)[0];
-        LocalTime endTime = NODE_TIMES.get(slot.startNode + slot.step - 1)[1];
+        // 自动适配作息：按班级年级 + 当日单双周解析节次时间，无配置时回退内置默认表
+        LocalTime[] range = blockTimes(task.getClassId(), slot.startNode, slot.step);
+        LocalTime startTime = range[0];
+        LocalTime endTime = range[1];
 
         for (int week = 1; week <= totalWeeks; week++) {
             String weekJson = "[" + week + "]";

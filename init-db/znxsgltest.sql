@@ -26785,3 +26785,53 @@ CREATE TABLE `wrong_analysis_cache`  (
 INSERT INTO `wrong_analysis_cache` VALUES (1455, '188', '{\"wrongCount\":30,\"bySubject\":[{\"subject\":\"计算机网络基础\",\"count\":30,\"items\":[{\"question\":\"带宽的单位是（ ）。\",\"answerId\":356,\"knowledge\":\"带宽表示通信线路的传输能力，单位是比特每秒（bps），而不是比特。\",\"errorReason\":\"混淆了“数据量单位（比特）”与“传输速率单位（比特每秒）”。\",\"improve\":\"明确带宽定义：单位时间内能传输的最大比特数，重点记忆“比特每秒”作为速率单位。\"},{\"question\":\"时延由发送时延、传播时延、处理时延和（ ）四部分组成。\",\"answerId\":357,\"knowledge\":\"网络时延包括发送时延、传播时延、处理时延和排队时延。\",\"errorReason\":\"将“传输时延”误认为组成部分，实际上没有“传输时延”这一标准术语。\",\"improve\":\"背诵时延四部分的名称及各自含义，特别注意“发送”“传播”“处理”“排队”的准确表达。\"},{\"question\":\"TCP/IP模型将网络结构划分为（ ）层。\",\"answerId\":362,\"knowledge\":\"TCP/IP参考模型分为四层：网络接口层、网际层、传输层和应用层。\",\"errorReason\":\"与OSI七层模型混淆，误选7层。\",\"improve\":\"对比记忆OSI七层和TCP/IP四层，明确TCP/IP是四层模型。\"},{\"question\":\"TCP/IP模型将网络结构划分为七层。\",\"answerId\":365,\"knowledge\":\"TCP/IP模型是四层，OSI模型是七层。\",\"errorReason\":\"对两个模型分层数量记忆混乱。\",\"improve\":\"强化记忆：TCP/IP四层，OSI七层，可通过口诀或列表对比。\"},{\"question\":\"请简述带宽与吞吐量的区别。\",\"answerId\":366,\"knowledge\":\"带宽是理论最大传输速率，吞吐量是实际有效传输速率。\",\"errorReason\":\"将带宽理解为流量大小，吞吐理解为发送接收效率，概念错误。\",\"improve\":\"理解带宽是链路容量、是理想值；吞吐量受多种因素影响，是实际值。\"},{\"question\":\"请列举时延的四个组成部分。\",\"answerId\":367,\"knowledge\":\"时延由发送时延、传播时延、处理时延和排队时延组成。\",\"errorReason\":\"对时延组成未掌握，直接放弃。\",\"improve\":\"结合数据包传输过程理解各部分时延产生位置，反复练习默写。\"},{\"question\":\"OSI模型与TCP/IP模型在分层数量上有何不同？两者的核心思想有何共同点？\",\"answerId\":368,\"knowledge\":\"OSI七层，TCP/IP四层，两者都采用分层和协议栈思想。\",\"errorReason\":\"回答“应用成不一样”表述不清，未抓住核心问题。\",\"improve\":\"学习分层模型时同时比较两者异同，理解分层思想的本质是模块化。\"},{\"question\":\"发送时延等于数据长度除以____。\",\"answerId\":369,\"knowledge\":\"发送时延 = 数据长度 / 带宽（发送速率）。\",\"errorReason\":\"不会此公式，对时延计算缺乏理解。\",\"improve\":\"记住时延计算基本公式，并区分各时延与哪些因素有关。\"},{\"question\":\"TCP/IP模型将网络结构划分为网络接口层、网际层、____层和应用层四层。\",\"answerId\":370,\"knowledge\":\"TCP/IP四层包括网络接口层、网际层、传输层和应用层。\",\"errorReason\":\"不知道中间层名称，基础记忆缺失。\",\"improve\":\"按顺序记忆四层名称，可结合常见协议（TCP在传输层、IP在网际层）辅助。\"},{\"question\":\"带宽的单位是？\",\"answerId\":371,\"knowledge\":\"带宽单位是比特每秒（bps），不是字节每秒。\",\"errorReason\":\"单位混淆，选择了字节每秒。\",\"improve\":\"注意区分bit与Byte，带宽常用单位是bit/s。\"},{\"question\":\"时延由哪四部分组成？\",\"answerId\":373,\"knowledge\":\"时延四部分为发送时延、传播时延、处理时延、排队时延。\",\"errorReason\":\"选项中把“传输时延”“接收时延”混入，概念不清导致选错。\",\"improve\":\"掌握标准术语，避免自造名词，可通过教材表格强化记忆。\"},{\"question\":\"TCP/IP参考模型分为几层？\",\"answerId\":375,\"knowledge\":\"TCP/IP参考模型分为四层。\",\"errorReason\":\"误认为五层，可能受其他教材影响或与OSI实际使用分层混淆。\",\"improve\":\"以教材为准，明确TCP/IP四层，考试中快速判断。\"},{\"question\":\"校园网通常属于哪种计算机网络类型？\",\"answerId\":376,\"knowledge\":\"按覆盖范围分类，校园网属于局域网（LAN）。\",\"errorReason\":\"误选广域网，网络覆盖范围分类不清晰。\",\"improve\":\"区分个人区域网、局域网、城域网、广域网的覆盖范围，校园网范围小。\"},{\"question\":\"OSI模型比TCP/IP模型更简洁，协议实现更直接。\",\"answerId\":379,\"knowledge\":\"TCP/IP模型协议更简洁、更实用，OSI模型复杂、理论性强。\",\"errorReason\":\"认为OSI更简洁，实际是TCP/IP更简洁。\",\"improve\":\"对比两者优缺点，理解TCP/IP模型设计更简洁务实。\"},{\"question\":\"请简述带宽与吞吐量的区别。\",\"answerId\":381,\"knowledge\":\"带宽是理论最大传输速率，吞吐量是实际有效传输速率。\",\"errorReason\":\"将带宽理解为流量大小，吞吐理解为发送接收效率，概念错误。\",\"improve\":\"理解带宽是链路容量、是理想值；吞吐量受多种因素影响，是实际值。\"},{\"question\":\"请写出OSI参考模型从下到上的七层名称。\",\"answerId\":382,\"knowledge\":\"OSI从下到上：物理层、数据链路层、网络层、传输层、会话层、表示层、应用层。\",\"errorReason\":\"顺序混乱，漏写表示层，且将数据链路层和网络层顺序颠倒。\",\"improve\":\"背诵口诀（如“物数网传会表应”），并理解各层功能以辅助记忆。\"},{\"question\":\"请解释协议的三要素。\",\"answerId\":383,\"knowledge\":\"协议三要素：语法、语义、时序（同步）。\",\"errorReason\":\"未掌握协议基本概念，直接跳过。\",\"improve\":\"学习协议组成的标准定义，结合具体协议（如HTTP）理解三要素含义。\"},{\"question\":\"带宽的单位是____。\",\"answerId\":384,\"knowledge\":\"带宽单位是比特每秒（bps）。\",\"errorReason\":\"写“kb”不完整且缩写不准确，未使用标准单位。\",\"improve\":\"精确记忆单位名称和英文缩写，如bps或bit/s。\"},{\"question\":\"TCP/IP参考模型分为网络接口层、网际层、传输层和____四层。\",\"answerId\":385,\"knowledge\":\"TCP/IP四层最后一层是应用层。\",\"errorReason\":\"对TCP/IP层名称记忆不完整。\",\"improve\":\"按从上到下/从下到上反复背诵，熟练掌握各层顺序。\"},{\"question\":\"带宽的单位是？\",\"answerId\":401,\"knowledge\":\"带宽单位是比特每秒（bps），不是字节每秒。\",\"errorReason\":\"单位混淆，选择了字节每秒。\",\"improve\":\"注意区分bit与Byte，带宽常用单位是bit/s。\"},{\"question\":\"以下关于吞吐量的描述正确的是？\",\"answerId\":402,\"knowledge\":\"吞吐量是实际测得的有效传输速率，是实际值。\",\"errorReason\":\"将吞吐量与链路理论最大传输能力（带宽）混淆。\",\"improve\":\"对比记忆：带宽理论，吞吐实际；吞吐受网络拥塞、设备性能影响。\"},{\"question\":\"按覆盖范围分类，校园网通常属于？\",\"answerId\":406,\"knowledge\":\"校园网覆盖范围小，属于局域网。\",\"errorReason\":\"误选个人区域网，对各类网络覆盖范围不清晰。\",\"improve\":\"通过范围大小排序：PAN<LAN<MAN<WAN，校园网属于LAN。\"},{\"question\":\"发送时延等于数据长度除以带宽，传播时延等于链路长度除以信号传播速率。\",\"answerId\":409,\"knowledge\":\"发送时延=数据长度/带宽，传播时延=链路长度/信号传播速率。\",\"errorReason\":\"虽然公式正确但判断为错误，可能是审题粗心或对公式不熟悉。\",\"improve\":\"仔细审题，确认公式所描述的关系，做题时回忆公式再判断。\"},{\"question\":\"请简述带宽与吞吐量的区别，并说明为什么链路带宽为 100 Mbps 时实际吞吐量可能只有 80 Mbps。\",\"answerId\":411,\"knowledge\":\"带宽是理论最大值，吞吐量受拥塞、设备性能等影响会小于带宽。\",\"errorReason\":\"完全不会，缺乏理论知识联系实际的能力。\",\"improve\":\"理解“实际<理论”这一常见现象，并学习影响吞吐量的因素。\"},{\"question\":\"请说出网络边缘与网络核心分别包括哪些设备，并说明各自的作用。\",\"answerId\":412,\"knowledge\":\"网络边缘包括主机、服务器、终端等，产生/使用数据；网络核心包括路由器和交换机，负责数据转发。\",\"errorReason\":\"未掌握网络边缘与核心的基本构成和功能。\",\"improve\":\"建立两分法概念：边缘使用数据，核心传输数据。\"},{\"question\":\"请按从下到上的顺序写出 OSI 参考模型的七层，并简述其中物理层、数据链路层、网络层的主要功能。\",\"answerId\":413,\"knowledge\":\"OSI七层顺序及物理层传比特、数据链路层可靠传输、网络层路由选择。\",\"errorReason\":\"完全不会，对分层及底层功能缺乏基本认知。\",\"improve\":\"逐层理解，重点掌握前三层，将顺序和功能结合记忆。\"},{\"question\":\"计算机网络是指将分布在不同地理位置的计算机系统通过通信设备和线路连接起来，由______管理，实现资源共享和信息传递的系统。\",\"answerId\":414,\"knowledge\":\"计算机网络由网络操作系统管理。\",\"errorReason\":\"未掌握计算机网络的定义要素。\",\"improve\":\"背诵定义关键词，注意“网络操作系统”是管理核心。\"},{\"question\":\"传播时延等于______除以信号传播速率。\",\"answerId\":415,\"knowledge\":\"传播时延 = 链路长度 / 信号传播速率。\",\"errorReason\":\"不知道公式中的分子是链路长度。\",\"improve\":\"记住传播时延与链路长度成正比，与传播速度成反比。\"},{\"question\":\"带宽的单位是什么？\",\"answerId\":416,\"knowledge\":\"带宽单位是比特每秒（bps），不是包每秒。\",\"errorReason\":\"混淆传输速率单位，误选包每秒。\",\"improve\":\"明确网络速率通用单位是bit/s，数据单元在物理层是比特。\"},{\"question\":\"下列哪一项是实际测得的有效传输速率？\",\"answerId\":417,\"knowledge\":\"实际有效传输速率是吞吐量。\",\"errorReason\":\"误选往返时间，对吞吐量定义不熟悉。\",\"improve\":\"熟记吞吐量的定义和特点，注意与其他网络性能指标区分。\"}]}],\"studentName\":\"冯明\",\"summary\":\"冯明在计算机网络基础学习中存在概念混淆、记忆不牢和知识点体系不完整的问题。部分基础概念如带宽、TCP/IP层次理解有误，简答题和填空题暴露了知识掌握深度不足，需加强系统复习和练习。\",\"cached\":false,\"truncated\":true}', '2026-09-08 18:57:59');
 
 SET FOREIGN_KEY_CHECKS = 1;
+
+-- ----------------------------
+-- 作息时间表配置化（自动适配单双周），与 scripts/bell_schedule_init.sql 一致
+-- ----------------------------
+CREATE TABLE IF NOT EXISTS bell_schedule (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  semester VARCHAR(20) NOT NULL DEFAULT '' COMMENT '学期，空=通用',
+  grade VARCHAR(20) NOT NULL DEFAULT '' COMMENT '年级（如 2026级），空=默认作息',
+  week_parity TINYINT NOT NULL DEFAULT 0 COMMENT '0=通用(不分单双周) 1=单周(奇数周) 2=双周(偶数周)',
+  node INT NOT NULL COMMENT '节次，从 1 开始',
+  start_time TIME NOT NULL COMMENT '上课时间',
+  end_time TIME NOT NULL COMMENT '下课时间',
+  UNIQUE KEY uk_bell (semester, grade, week_parity, node)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='作息时间表（节次起止时间）';
+
+CREATE TABLE IF NOT EXISTS grade_week_parity (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  grade VARCHAR(20) NOT NULL UNIQUE COMMENT '年级，如 2026级',
+  odd_week_parity TINYINT NOT NULL DEFAULT 1 COMMENT '奇数周套用的作息：1=单周表 2=双周表',
+  remark VARCHAR(100) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='年级单双周作息映射';
+
+INSERT IGNORE INTO bell_schedule (semester, grade, week_parity, node, start_time, end_time) VALUES
+('', '', 0, 1, '08:10', '08:50'),
+('', '', 0, 2, '09:00', '09:40'),
+('', '', 0, 3, '09:50', '10:30'),
+('', '', 0, 4, '10:40', '11:20'),
+('', '', 0, 5, '15:10', '15:50'),
+('', '', 0, 6, '16:00', '16:40'),
+('', '', 0, 7, '19:50', '20:10'),
+('', '', 0, 8, '20:20', '21:00'),
+('', '', 1, 1, '08:40', '09:20'),
+('', '', 1, 2, '09:30', '10:10'),
+('', '', 1, 3, '10:20', '11:00'),
+('', '', 1, 4, '11:10', '11:50'),
+('', '', 1, 5, '14:20', '15:00'),
+('', '', 1, 6, '15:10', '15:50'),
+('', '', 1, 7, '16:00', '16:30'),
+('', '', 2, 1, '09:00', '09:40'),
+('', '', 2, 2, '09:50', '10:30'),
+('', '', 2, 3, '10:40', '11:20'),
+('', '', 2, 4, '11:30', '12:10'),
+('', '', 2, 5, '14:20', '15:00'),
+('', '', 2, 6, '15:10', '15:50'),
+('', '', 2, 7, '16:00', '16:30');
+
+INSERT IGNORE INTO grade_week_parity (grade, odd_week_parity, remark) VALUES
+('2026级', 1, '2026级：奇数周=单周作息，偶数周=双周作息'),
+('2025级', 2, '2025级：奇数周=双周作息，偶数周=单周作息'),
+('2024级', 1, '2024级：奇数周=单周作息，偶数周=双周作息');

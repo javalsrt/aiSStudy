@@ -11,23 +11,48 @@
         android:layout_height="0dp"
         android:layout_weight="1" />
 
-    <!-- 底部导航栏：选中胶囊高亮，无需玻璃背景 -->
+    <!-- 底部导航栏：模仿分段按钮样式（白底圆角边框 + 三等分分割线） -->
     <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+        android:layout_height="wrap_content"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:paddingTop="6dp"
+        android:paddingBottom="10dp">
 
         <com.google.android.material.bottomnavigation.BottomNavigationView
             android:id="@+id/bottom_nav"
             android:layout_width="match_parent"
-            android:layout_height="68dp"
-            android:background="@android:color/transparent"
-            app:itemBackground="@drawable/bg_nav_item_selected"
+            android:layout_height="60dp"
+            android:background="@drawable/bg_nav_bar"
+            android:elevation="0dp"
+            app:itemActiveIndicatorStyle="@style/NavIndicatorTransparent"
+            app:itemBackground="@android:color/transparent"
             app:itemIconSize="22dp"
             app:itemTextColor="@color/selector_nav_text"
             app:itemIconTint="@color/selector_nav_icon"
             app:itemRippleColor="@android:color/transparent"
             app:labelVisibilityMode="labeled"
             app:menu="@menu/bottom_nav_menu" />
+
+        <!-- 三等分分割线（对应 divide-x）：三个菜单项等宽，分割线精确落在 1/3 与 2/3 处 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="60dp"
+            android:orientation="horizontal"
+            android:clickable="false"
+            android:focusable="false">
+
+            <View android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" />
+            <View android:layout_width="1dp" android:layout_height="match_parent"
+                android:layout_marginTop="15dp" android:layout_marginBottom="15dp"
+                android:background="#E5E7EB" />
+            <View android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" />
+            <View android:layout_width="1dp" android:layout_height="match_parent"
+                android:layout_marginTop="15dp" android:layout_marginBottom="15dp"
+                android:background="#E5E7EB" />
+            <View android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" />
+        </LinearLayout>
 
     </FrameLayout>
 

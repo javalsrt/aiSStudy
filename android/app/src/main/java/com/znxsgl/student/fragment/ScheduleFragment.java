@@ -32,6 +32,7 @@ import com.znxsgl.student.network.RetrofitClient;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
@@ -66,10 +67,13 @@ public class ScheduleFragment extends Fragment {
     private String semesterStartDate = null; // yyyy-MM-dd
     private boolean semestersLoaded = false;
 
+    // 动态作息（来自 /api/bell/today，服务端按 年级+周次单双周 自动解析；失败回退内置默认）
+    private int[] slotNodes = {1, 2, 3, 4, 5, 6, 7, 8};
+    private String[][] slots = null; // {label, start, end}，null 时用 SLOTS
+
     // ========== 常量 ==========
-    // 艺术学部/汽车学部作息：每天8节课，周一至周日均显示
+    // 默认作息兜底（后端无任何作息配置时才使用）
     private static final String[] DAY_NAMES = {"周一", "周二", "周三", "周四", "周五", "周六", "周日"};
-    private static final int[] SLOT_WEIGHTS = {1, 1, 1, 1, 1, 1, 1, 1};
 
     private static final String[][] SLOTS = {
         {"第1节", "08:10", "08:50"},
@@ -81,6 +85,16 @@ public class ScheduleFragment extends Fragment {
         {"第7节", "19:50", "20:10"},
         {"第8节", "20:20", "21:00"},
     };
+
+    /** 当前生效的节次轴（动态优先，兜底内置） */
+    private String[][] effectiveSlots() {
+        return slots != null ? slots : SLOTS;
+    }
+
+    /** 当前节次轴对应的小节号 */
+    private int nodeAt(int slotIndex) {
+        return slotIndex < slotNodes.length ? slotNodes[slotIndex] : slotIndex + 1;
+    }
 
     private static final int[] COURSE_COLORS = {
         0xFFE8F0FE, // 浅蓝
@@ -298,7 +312,7 @@ public class ScheduleFragment extends Fragment {
                     buildWeekSelector();
                     buildHeader();
                     fetchSchedule(currentWeek);
-                    Toast.makeText(getContext(), "学期加载失败", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(RetrofitClient.safeContext(getContext()), "学期加载失败", Toast.LENGTH_SHORT).show();
                 });
             }
         });
@@ -323,6 +337,48 @@ public class ScheduleFragment extends Fragment {
         String token = prefs.getString("token", "");
 
         ApiService api = RetrofitClient.getInstance().create(ApiService.class);
+        // 先取作息（按当前周单双周解析），再取课表，保证节次轴与课程一致
+        api.getBellToday("Bearer " + token, week).enqueue(new Callback<Map<String, Object>>() {
+            @Override
+            public void onResponse(Call<Map<String, Object>> call, Response<Map<String, Object>> resp) {
+                parseBellPeriods(resp.body());
+                fetchScheduleInner(week, content, direction, width, token, api);
+            }
+            @Override
+            public void onFailure(Call<Map<String, Object>> call, Throwable t) {
+                fetchScheduleInner(week, content, direction, width, token, api);
+            }
+        });
+    }
+
+    /** 解析作息接口的 periods，动态生成节次轴 */
+    private void parseBellPeriods(Map<String, Object> body) {
+        try {
+            Object p = body == null ? null : body.get("periods");
+            if (!(p instanceof List) || ((List<?>) p).isEmpty()) return;
+            List<?> list = (List<?>) p;
+            int[] nodes = new int[list.size()];
+            String[][] arr = new String[list.size()][3];
+            int idx = 0;
+            for (Object o : list) {
+                if (!(o instanceof Map)) continue;
+                Map<?, ?> m = (Map<?, ?>) o;
+                int node = m.get("node") instanceof Number ? ((Number) m.get("node")).intValue() : idx + 1;
+                Object st = m.get("startTime"), et = m.get("endTime");
+                if (st == null || et == null) continue;
+                nodes[idx] = node;
+                arr[idx] = new String[]{"第" + node + "节", st.toString(), et.toString()};
+                idx++;
+            }
+            if (idx == 0) return;
+            slotNodes = Arrays.copyOfRange(nodes, 0, idx);
+            slots = Arrays.copyOfRange(arr, 0, idx);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void fetchScheduleInner(int week, View content, int direction, int width,
+                                    String token, ApiService api) {
         api.getStudentSchedule("Bearer " + token, week, currentSemester).enqueue(new Callback<List<ScheduleItem>>() {
             @Override
             public void onResponse(Call<List<ScheduleItem>> call, Response<List<ScheduleItem>> resp) {
@@ -349,7 +405,7 @@ public class ScheduleFragment extends Fragment {
             public void onFailure(Call<List<ScheduleItem>> call, Throwable t) {
                 apiScheduleData = new ArrayList<>();
                 mainHandler.post(() -> {
-                    Toast.makeText(getContext(), "无法连接服务器", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(RetrofitClient.safeContext(getContext()), "无法连接服务器", Toast.LENGTH_SHORT).show();
                     buildScheduleGrid();
                     if (content != null) {
                         content.animate().translationX(0).alpha(1f).setDuration(150)
@@ -538,38 +594,51 @@ public class ScheduleFragment extends Fragment {
     // ========== 课表网格 ==========
     private void buildScheduleGrid() {
         gridBody.removeAllViews();
+        String[][] arr = effectiveSlots();
 
-        // 上午 (slot 0-3)
-        for (int s = 0; s < 4; s++) {
+        String prevEnd = null;
+        for (int s = 0; s < arr.length; s++) {
+            // 相邻节次间隔 ≥ 40 分钟时自动插入休息分隔条（适配任意学校的作息）
+            if (prevEnd != null) {
+                String breakText = breakLabel(prevEnd, arr[s][1]);
+                if (breakText != null) {
+                    gridBody.addView(buildBreakRow(breakText));
+                    gridBody.addView(createHairline());
+                }
+            }
             gridBody.addView(buildSlotRow(s));
             gridBody.addView(createHairline());
+            prevEnd = arr[s][2];
         }
-        // 午休分隔
-        gridBody.addView(buildBreakRow(" 午餐·午休 11:20 — 15:10 "));
-        gridBody.addView(createHairline());
-        // 下午 (slot 4-5)
-        for (int s = 4; s < 6; s++) {
-            gridBody.addView(buildSlotRow(s));
-            gridBody.addView(createHairline());
-        }
-        // 晚餐分隔
-        gridBody.addView(buildBreakRow(" 晚餐·晚休 16:40 — 19:50 "));
-        gridBody.addView(createHairline());
-        // 晚上 (slot 6-7)
-        for (int s = 6; s < 8; s++) {
-            gridBody.addView(buildSlotRow(s));
-            gridBody.addView(createHairline());
+    }
+
+    /** 根据两节之间的间隔推断休息文案（替代写死的午休/晚休时间） */
+    private String breakLabel(String prevEnd, String nextStart) {
+        int gap = minuteOf(nextStart) - minuteOf(prevEnd);
+        if (gap < 40) return null;
+        int nextHour = minuteOf(nextStart) / 60;
+        if (gap >= 120 && nextHour < 15) return " 午餐·午休 " + prevEnd + " — " + nextStart + " ";
+        if (gap >= 120) return " 晚餐·晚休 " + prevEnd + " — " + nextStart + " ";
+        return " 大课间 " + prevEnd + " — " + nextStart + " ";
+    }
+
+    private int minuteOf(String hhmm) {
+        try {
+            String[] parts = hhmm.split(":");
+            return Integer.parseInt(parts[0]) * 60 + Integer.parseInt(parts[1]);
+        } catch (Exception e) {
+            return 0;
         }
     }
 
     private LinearLayout buildSlotRow(int slotIndex) {
-        String start = SLOTS[slotIndex][1];
-        String end = SLOTS[slotIndex][2];
-        int weight = SLOT_WEIGHTS[slotIndex];
+        String[][] arr = effectiveSlots();
+        String start = arr[slotIndex][1];
+        String end = arr[slotIndex][2];
 
         LinearLayout row = new LinearLayout(getContext());
         LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 0, weight);
+                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1);
         rp.setMargins(0, dp(2), 0, dp(2));
         row.setLayoutParams(rp); row.setOrientation(LinearLayout.HORIZONTAL);
 
@@ -621,11 +690,15 @@ public class ScheduleFragment extends Fragment {
             cell.setBackground(todayBg);
         }
 
-        // 查找匹配的课程
+        // 查找匹配的课程：优先按节次定位（适配任意作息），节次缺失时按时间交集兜底
+        int node = nodeAt(slotIndex);
         String courseName = null;
         String classroom = null;
         for (ScheduleItem item : apiScheduleData) {
-            if (item.getDayOfWeek() == dayOfWeek && item.matchesTimeSlot(slotStart, slotEnd)) {
+            if (item.getDayOfWeek() != dayOfWeek) continue;
+            boolean hit = item.matchesNode(node)
+                    || (item.getStartNode() <= 0 && item.matchesTimeSlot(slotStart, slotEnd));
+            if (hit) {
                 courseName = item.getCourseName();
                 classroom = item.getClassroom();
                 break;
@@ -770,7 +843,7 @@ public class ScheduleFragment extends Fragment {
     // ========== 学期选择弹窗 ==========
     private void showSemesterPicker() {
         if (semesterList == null || semesterList.isEmpty()) {
-            Toast.makeText(getContext(), "暂无可选学期", Toast.LENGTH_SHORT).show();
+            Toast.makeText(RetrofitClient.safeContext(getContext()), "暂无可选学期", Toast.LENGTH_SHORT).show();
             return;
         }
         String[] names = new String[semesterList.size()];

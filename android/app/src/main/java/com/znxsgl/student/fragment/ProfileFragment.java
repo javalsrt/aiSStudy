@@ -272,7 +272,7 @@ public class ProfileFragment extends Fragment implements WebSocketManager.OnChat
                 .setMessage("为课程生成专属 AI 封面图，让课程卡片更直观。")
                 .setPositiveButton("选择课程", (d, w) -> {
                     // TODO: 接入 AI 图标生成能力
-                    Toast.makeText(getContext(), "课程图标生成功能开发中...", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(RetrofitClient.safeContext(getContext()), "课程图标生成功能开发中...", Toast.LENGTH_SHORT).show();
                 })
                 .setNegativeButton("取消", null)
                 .show();
@@ -280,16 +280,18 @@ public class ProfileFragment extends Fragment implements WebSocketManager.OnChat
 
     /** 退出登录 */
     private void doLogout() {
-        // 保留记住密码的账号信息，退出后进入一键登录页
+        // 保留记住密码的账号信息与姓名，退出后进入一键登录页
         String savedUsername = prefs.getString("saved_username", "");
         String savedPassword = prefs.getString("saved_password", "");
         boolean remember = prefs.getBoolean("remember", false);
+        String realName = prefs.getString("realName", "");
 
         prefs.edit().clear().apply();
         SharedPreferences.Editor editor = prefs.edit();
         editor.putBoolean("remember", remember)
                 .putString("saved_username", savedUsername)
-                .putString("saved_password", savedPassword);
+                .putString("saved_password", savedPassword)
+                .putString("realName", realName);
         editor.apply();
 
         com.znxsgl.student.network.WebSocketManager.getInstance().disconnect();
@@ -318,7 +320,7 @@ public class ProfileFragment extends Fragment implements WebSocketManager.OnChat
                         pd.dismiss();
                         if (!isAdded()) return;
                         if (!r.isSuccessful() || r.body() == null || r.body().isEmpty()) {
-                            Toast.makeText(getContext(), "暂无收藏", Toast.LENGTH_SHORT).show();
+                            Toast.makeText(RetrofitClient.safeContext(getContext()), "暂无收藏", Toast.LENGTH_SHORT).show();
                             return;
                         }
 
@@ -417,7 +419,7 @@ public class ProfileFragment extends Fragment implements WebSocketManager.OnChat
                         pd.dismiss();
                         if (!isAdded()) return;
                         if (!r.isSuccessful() || r.body() == null) {
-                            Toast.makeText(getContext(), "加载失败", Toast.LENGTH_SHORT).show();
+                            Toast.makeText(RetrofitClient.safeContext(getContext()), "加载失败", Toast.LENGTH_SHORT).show();
                             return;
                         }
                         openContactsDialog(r.body());
@@ -425,7 +427,7 @@ public class ProfileFragment extends Fragment implements WebSocketManager.OnChat
                     @Override public void onFailure(Call<Map<String, Object>> c, Throwable t) {
                         pd.dismiss();
                         if (!isAdded()) return;
-                        Toast.makeText(getContext(), "加载失败: " + t.getMessage(), Toast.LENGTH_SHORT).show();
+                        Toast.makeText(RetrofitClient.safeContext(getContext()), "加载失败: " + t.getMessage(), Toast.LENGTH_SHORT).show();
                     }
                 });
     }
@@ -520,7 +522,7 @@ public class ProfileFragment extends Fragment implements WebSocketManager.OnChat
             @Override
             public void onFailure(Call<List<StudentCourse>> call, Throwable t) {
                 mainHandler.post(() ->
-                    Toast.makeText(getContext(), "加载失败: " + t.getMessage(), Toast.LENGTH_LONG).show());
+                    Toast.makeText(RetrofitClient.safeContext(getContext()), "加载失败: " + t.getMessage(), Toast.LENGTH_LONG).show());
             }
         });
     }
@@ -813,6 +815,6 @@ public class ProfileFragment extends Fragment implements WebSocketManager.OnChat
         loadCourses();
         // 可选：显示Toast提示
         mainHandler.post(() ->
-            Toast.makeText(getContext(), courseName + " 新消息: " + content, Toast.LENGTH_SHORT).show());
+            Toast.makeText(RetrofitClient.safeContext(getContext()), courseName + " 新消息: " + content, Toast.LENGTH_SHORT).show());
     }
 }

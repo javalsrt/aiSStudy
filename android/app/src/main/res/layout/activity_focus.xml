@@ -5,7 +5,7 @@
     android:background="@color/canvas"
     android:orientation="vertical">
 
-    <!-- 顶部栏 -->
+    <!-- 顶部栏（已隐藏：不显示标题与专注统计） -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -14,7 +14,8 @@
         android:paddingTop="12dp"
         android:paddingBottom="8dp"
         android:paddingStart="4dp"
-        android:paddingEnd="16dp">
+        android:paddingEnd="16dp"
+        android:visibility="gone">
 
         <TextView android:id="@+id/btn_back"
             android:layout_width="wrap_content" android:layout_height="wrap_content"
@@ -42,24 +43,6 @@
                 android:fontFamily="sans-serif-medium" />
         </LinearLayout>
     </LinearLayout>
-
-    <LinearLayout android:id="@+id/ll_info"
-        android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:orientation="horizontal" android:gravity="center"
-        android:paddingStart="52dp" android:paddingEnd="16dp" android:paddingBottom="10dp"
-        android:visibility="gone">
-        <TextView android:id="@+id/tv_today" android:layout_width="wrap_content"
-            android:layout_height="wrap_content" android:text="今日专注 0 分钟"
-            android:textSize="12sp" android:textColor="@color/ink_subtle" />
-        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-            android:text=" · " android:textSize="12sp" android:textColor="@color/ink_tertiary" />
-        <TextView android:id="@+id/tv_last" android:layout_width="wrap_content"
-            android:layout_height="wrap_content" android:text="上次 0 分钟"
-            android:textSize="12sp" android:textColor="@color/ink_subtle" />
-    </LinearLayout>
-
-    <View android:layout_width="match_parent" android:layout_height="1dp"
-        android:background="@color/hairline" />
 
     <!-- 切换容器 -->
     <FrameLayout android:layout_width="match_parent" android:layout_height="match_parent">

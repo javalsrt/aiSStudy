@@ -42,7 +42,7 @@ public class QuickLoginActivity extends AppCompatActivity {
     private static final String KEY_SAVED_USERNAME = "saved_username";
     private static final String KEY_SAVED_PASSWORD = "saved_password";
 
-    private TextView tvBrandName, tvBrandDesc, tvUsername, tvAgree, tvSwitchAccount;
+    private TextView tvBrandName, tvBrandDesc, tvUsername, tvAvatar, tvAgree, tvSwitchAccount;
     private Button btnQuickLogin;
     private ProgressBar progressBar;
     private CheckBox cbAgree;
@@ -75,6 +75,13 @@ public class QuickLoginActivity extends AppCompatActivity {
         tvBrandName = findViewById(R.id.tv_brand_name);
         tvBrandDesc = findViewById(R.id.tv_brand_desc);
         tvUsername = findViewById(R.id.tv_username);
+        tvAvatar = findViewById(R.id.tv_avatar);
+
+        // 显示姓名（无则回退为账号），头像显示姓名首字
+        String realName = prefs.getString("realName", "");
+        String displayName = TextUtils.isEmpty(realName) ? savedUsername : realName;
+        tvUsername.setText(displayName);
+        tvAvatar.setText(displayName.isEmpty() ? "学" : String.valueOf(displayName.charAt(0)));
         tvAgree = findViewById(R.id.tv_agree);
         tvSwitchAccount = findViewById(R.id.tv_switch_account);
         btnQuickLogin = findViewById(R.id.btn_quick_login);

@@ -37,6 +37,7 @@ public class LoginActivity extends AppCompatActivity {
     private static final String KEY_REMEMBER = "remember";
     private static final String KEY_SAVED_USERNAME = "saved_username";
     private static final String KEY_SAVED_PASSWORD = "saved_password";
+    private static final String KEY_FIRST_LAUNCH = "first_launch_done";
 
     private EditText etUsername, etPassword;
     private Button btnLogin;
@@ -55,6 +56,11 @@ public class LoginActivity extends AppCompatActivity {
         RetrofitClient.init(this);
 
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+
+        // 首次启动强制登录：清除本地数据（防止被系统备份还原出的旧登录态直接跳过登录）
+        if (!prefs.getBoolean(KEY_FIRST_LAUNCH, false)) {
+            prefs.edit().clear().putBoolean(KEY_FIRST_LAUNCH, true).apply();
+        }
 
         // 已登录直接进主页
         String token = prefs.getString("token", null);

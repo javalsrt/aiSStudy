@@ -13,7 +13,7 @@ import android.widget.TextView;
  */
 public class ShinyTextAnimation {
 
-    private static final long DEFAULT_DURATION = 2200L;
+    private static final long DEFAULT_DURATION = 5000L;
 
     /**
      * 为 TextView 应用扫光动画。

@@ -32,6 +32,7 @@ public class StudentCourse {
 
     @SerializedName("hasSchedule")
     private boolean hasSchedule;
+    private boolean hasChapters;
 
     @SerializedName("scheduleInfo")
     private String scheduleInfo;
@@ -63,6 +64,8 @@ public class StudentCourse {
     public void setPublished(boolean v) { this.published = v; }
     public boolean isHasSchedule() { return hasSchedule; }
     public void setHasSchedule(boolean v) { this.hasSchedule = v; }
+    public boolean isHasChapters() { return hasChapters; }
+    public void setHasChapters(boolean v) { this.hasChapters = v; }
     public String getScheduleInfo() { return scheduleInfo; }
     public void setScheduleInfo(String v) { this.scheduleInfo = v; }
     public int getUnreadCount() { return unreadCount; }

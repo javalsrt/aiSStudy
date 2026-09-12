@@ -49,6 +49,19 @@ export const getClasses = () => {
   return request.get<any, ClassInfo[]>('/admin/user/classes')
 }
 
+// 创建班级（管理员复用教师端通用创建接口）
+export const createClass = (data: {
+  className: string
+  major?: string
+  grade?: string
+  department?: string
+}) => {
+  return request.post<any, { classId: number; className: string; msg: string }>(
+    '/teacher/class/create',
+    data,
+  )
+}
+
 // 人员概览统计
 export const getUserOverview = (params: { role: number; status?: number }) => {
   return request.get<any, {
@@ -65,6 +78,15 @@ export const importStudents = (file: File) => {
   const formData = new FormData()
   formData.append('file', file)
   return request.post('/admin/user/import-students', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+}
+
+// 教师批量导入（Excel：账号 | 姓名 | 密码 | 手机号 | 邮箱 | 院系）
+export const importTeachers = (file: File) => {
+  const formData = new FormData()
+  formData.append('file', file)
+  return request.post('/admin/user/import-teachers', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   })
 }
