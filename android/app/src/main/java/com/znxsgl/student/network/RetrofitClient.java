@@ -20,9 +20,8 @@ import java.util.concurrent.TimeUnit;
 
 public class RetrofitClient {
 
-    // 模拟器调试用 10.0.2.2（自动映射到宿主机 localhost，IP 变化不受影响）
-    // 真机调试切到电脑当前局域网 IP：http://192.168.10.8:8080（DHCP 重新分配后需同步修改）
-    // 部署到服务器时改为公网地址，如 http://8.166.118.19:8080
+    // 本地调试：模拟器 10.0.2.2（自动映射到宿主机 localhost）
+    // 真机调试切到电脑局域网 IP；线上部署用 http://8.163.105.116:8081
     public static String getBaseUrl() {
         return "http://10.0.2.2:8080";
     }

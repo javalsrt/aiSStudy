@@ -470,7 +470,7 @@ a { color: inherit; text-decoration: none; }
   .hero-actions, .hero-stats { justify-content: center; }
   .hero-phone { margin-top: 48px; }
   .grid-3, .grid-4 { grid-template-columns: repeat(2, 1fr); }
-  .demo { grid-template-columns: 1fr; }
+  .demo { grid-template-columns: 1fr; max-width: 800px; margin: 0 auto; }
   .browser-body { grid-template-columns: 1fr; }
   .bd-side { flex-direction: row; overflow-x: auto; border-right: none; border-bottom: 1px solid var(--line); }
   .bd-cards { grid-template-columns: repeat(2, 1fr); }
@@ -666,6 +666,7 @@ a { color: inherit; text-decoration: none; }
 .app-shots {
   display: grid; grid-template-columns: repeat(4, 1fr);
   gap: 26px; margin-top: 46px;
+  align-items: start;
 }
 .shot-phone {
   margin: 0; background: #fff;
@@ -778,6 +779,9 @@ a { color: inherit; text-decoration: none; }
 }
 @media (max-width: 760px) {
   .app-shots { grid-template-columns: 1fr; }
+  /* 移动端：机身占列宽 3/4 居中，屏幕内容等比缩小 */
+  .shot-phone { width: 75%; margin: 0 auto; display: flex; flex-direction: column; align-items: center; }
+  .shot-phone .am { zoom: .85; width: 100%; }
 }
 @media (max-width: 520px) {
   .app-shots { gap: 14px; }
@@ -1023,10 +1027,15 @@ a { color: inherit; text-decoration: none; }
 .orbit-card p { font-size: 13px; line-height: 1.55; color: var(--ink-2); margin: 0; }
 /* 窄屏回退：取消公转，改回普通网格 */
 @media (max-width: 900px) {
-  /* 手机端：轨道旋转 90°（椭圆竖向），保留公转动画，卡片由 JS 缩放 */
+  /* 手机端：轨道旋转 90°（椭圆竖向），保留公转动画，卡片由 JS 缩放
+     内部字号/图标放大，抵消缩放后保证可读性 */
   .orbit-stage { height: 640px; }
   .orbit-path, .orbit-hint { display: none; }
   .orbit-card { width: 210px; }
+  .orbit-card .oc-icon { width: 58px; height: 58px; border-radius: 16px; margin-bottom: 12px; }
+  .orbit-card .oc-icon svg { width: 32px; height: 32px; }
+  .orbit-card h3 { font-size: 24px; margin-bottom: 8px; }
+  .orbit-card p { font-size: 17px; line-height: 1.5; }
 }
 
 /* ===== 「学练测评管」True Focus 逐词聚焦（移植自 reactbits TrueFocus） ===== */

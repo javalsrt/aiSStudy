@@ -176,7 +176,8 @@ public class QuizController {
             }
             if (questions.isEmpty()) {
                 task.status = "error";
-                task.error = "题目生成失败，请稍后重试";
+                String fail = com.znxsgl.service.LlmService.getLastFailure();
+                task.error = "题目生成失败，请稍后重试" + (fail == null || fail.isEmpty() ? "" : "（" + fail + "）");
                 return;
             }
 

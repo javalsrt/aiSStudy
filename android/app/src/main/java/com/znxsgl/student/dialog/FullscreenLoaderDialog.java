@@ -140,8 +140,18 @@ public class FullscreenLoaderDialog extends Dialog {
             window.setLayout(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT);
             window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
             window.addFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS);
-            window.setStatusBarColor(Color.TRANSPARENT);
-            window.setNavigationBarColor(Color.TRANSPARENT);
+            // 状态栏/导航栏底色与毛玻璃遮罩同色：即使系统隐藏状态栏失效（部分 MIUI 等），
+            // 顶部也不会露出 Activity 的白色状态栏
+            window.setStatusBarColor(Color.parseColor("#B3000000"));
+            window.setNavigationBarColor(Color.parseColor("#B3000000"));
+            // 暗色底需要浅色系统图标
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                // inset controller 在下方统一处理
+            } else {
+                window.getDecorView().setSystemUiVisibility(
+                        window.getDecorView().getSystemUiVisibility()
+                                & ~View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
+            }
 
             // 延伸到状态栏/导航栏下方，避免顶部底部出现黑白条
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -194,6 +204,27 @@ public class FullscreenLoaderDialog extends Dialog {
         webView.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null);
 
         setContentView(webView);
+
+        // 双保险：部分 ROM（MIUI 等）不允许 Dialog 窗口覆盖状态栏区域，
+        // 此时状态栏露出的是宿主 Activity 的底色——这里把宿主状态栏也同步切暗，
+        // 关闭时恢复为页面底色，避免顶部出现白色断带
+        android.app.Activity owner = getOwnerActivity();
+        if (owner == null && getContext() instanceof android.app.Activity) {
+            owner = (android.app.Activity) getContext();
+        }
+        if (owner != null) {
+            Window aw = owner.getWindow();
+            aw.setStatusBarColor(Color.parseColor("#B3000000"));
+            aw.setNavigationBarColor(Color.parseColor("#B3000000"));
+            androidx.core.view.WindowCompat.getInsetsController(aw, aw.getDecorView())
+                    .setAppearanceLightStatusBars(false);
+            setOnDismissListener(d -> {
+                aw.setStatusBarColor(0xFFF2F2F7);
+                aw.setNavigationBarColor(0xFFF2F2F7);
+                androidx.core.view.WindowCompat.getInsetsController(aw, aw.getDecorView())
+                        .setAppearanceLightStatusBars(true);
+            });
+        }
 
         setCancelable(false);
         setCanceledOnTouchOutside(false);

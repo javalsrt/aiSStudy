@@ -45,6 +45,12 @@ public class LlmService {
     // 按用户限流：每分钟最多 10 次 AI 调用，防止单个用户滥用
     private final ConcurrentHashMap<Long, RateLimiter> userRateLimiters = new ConcurrentHashMap<>();
 
+    /** 最近一次调用失败的具体原因（供出题等异步任务向用户透出真实错误，如余额不足/Key无效） */
+    private static volatile String lastFailure = "";
+
+    public static String getLastFailure() { return lastFailure; }
+    private static void setLastFailure(String reason) { lastFailure = reason == null ? "" : reason; }
+
     /**
      * 同步调用 AI，返回完整回复文本（全局限流）
      */
@@ -132,7 +138,12 @@ public class LlmService {
                 String bodyStr = response.body().string();
 
                 if (response.code() != 200) {
-                    System.out.println("=== LLM 错误[" + response.code() + "]: " + bodyStr.substring(0, Math.min(300, bodyStr.length())));
+                    String brief = bodyStr.substring(0, Math.min(300, bodyStr.length()));
+                    System.out.println("=== LLM 错误[" + response.code() + "]: " + brief);
+                    if (response.code() == 402) setLastFailure("AI 账户余额不足");
+                    else if (response.code() == 401) setLastFailure("AI API Key 无效");
+                    else if (response.code() == 429) setLastFailure("AI 调用限流");
+                    else setLastFailure("AI 接口错误 " + response.code());
                     return null;
                 }
 
@@ -153,14 +164,17 @@ public class LlmService {
                 }
 
                 System.out.println("=== LLM 未识别的响应格式: " + bodyStr.substring(0, Math.min(200, bodyStr.length())));
+                setLastFailure("AI 响应格式异常");
                 return null;
             }
         } catch (SocketTimeoutException e) {
             System.out.println("=== LLM 调用超时 [userId=" + userId + "]: " + e.getMessage());
+            setLastFailure("AI 接口调用超时");
             throw new RuntimeException("AI接口调用超时，请稍后重试", e);
         } catch (Exception e) {
             System.out.println("=== LLM 异常 [userId=" + userId + "]: " + e.getMessage());
             e.printStackTrace();
+            setLastFailure("AI 连接失败: " + e.getMessage());
         }
         return null;
     }

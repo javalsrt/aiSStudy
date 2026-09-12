@@ -528,7 +528,7 @@ if (orbitStage) {
     const W = rect.width, H = rect.height;
     if (!W) return;
     const narrow = W <= 900;
-    const s = narrow ? 0.55 : 1;                 // 手机卡片整体缩小
+    const s = narrow ? 0.65 : 1;                 // 手机卡片整体缩小（内部字号已放大补偿）
     const halfW = CARD_HALF_W * s;
     const rx = narrow
       ? Math.max(40, W / 2 - halfW - 10)         // 竖向椭圆：横向半径变小

@@ -218,15 +218,24 @@ public class QuizResultActivity extends AppCompatActivity {
             int score = 0;
             Object v = e.getValue();
             if (v instanceof Number) score = ((Number) v).intValue();
+            if (score > 10) score = score / 10; // 兼容百分制返回，统一按 10 分制展示
+            int pct = Math.max(0, Math.min(10, score));
             View row = LayoutInflater.from(this).inflate(R.layout.item_score_bar, container, false);
             ((TextView) row.findViewById(R.id.tv_score_name)).setText(e.getKey());
             TextView tvBar = row.findViewById(R.id.tv_score_bar);
             TextView tvValue = row.findViewById(R.id.tv_score_value);
-            tvValue.setText(String.valueOf(score));
-            // 动态宽度
+            tvValue.setText(String.valueOf(pct));
+            // 按 10 分制计算进度条占比：bar weight = pct，轨道空白 weight = 10 - pct
             LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) tvBar.getLayoutParams();
-            lp.weight = Math.max(1, score);
+            lp.weight = Math.max(0.2f, pct);
             tvBar.setLayoutParams(lp);
+            LinearLayout track = (LinearLayout) tvBar.getParent();
+            if (track.getChildCount() > 1) {
+                View gap = track.getChildAt(1);
+                LinearLayout.LayoutParams gp = (LinearLayout.LayoutParams) gap.getLayoutParams();
+                gp.weight = 10 - pct;
+                gap.setLayoutParams(gp);
+            }
             container.addView(row);
         }
     }
