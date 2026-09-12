@@ -6,6 +6,9 @@ WORKDIR /app
 COPY backend/pom.xml .
 COPY backend/src ./src
 
+# 配置阿里云 Maven 镜像（国内服务器依赖下载加速）
+RUN mkdir -p /root/.m2 && printf '<?xml version="1.0" encoding="UTF-8"?>\n<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0">\n  <mirrors>\n    <mirror>\n      <id>aliyun</id>\n      <mirrorOf>central</mirrorOf>\n      <url>https://maven.aliyun.com/repository/public</url>\n    </mirror>\n  </mirrors>\n</settings>\n' > /root/.m2/settings.xml
+
 # 编译打包 (跳过测试)
 RUN mvn clean package -DskipTests -q
 
