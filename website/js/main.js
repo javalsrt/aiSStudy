@@ -1,5 +1,18 @@
 /* ============ 智学职达官网 · 交互 ============ */
 
+// ===== 「开始」/「立即体验」→ 管理端登录页 =====
+// 本地开发（localhost）→ Vite 管理端 :5174；线上部署 → Docker Nginx :8081
+(() => {
+  const host = window.location.hostname;
+  if (!host) return;  // file:// 直接打开时跳过，保留锚点行为
+  const port = (host === 'localhost' || host === '127.0.0.1') ? '5174' : '8081';
+  const adminLoginUrl = 'http://' + host + ':' + port + '/login';
+  ['navCtaLink', 'startLink'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.href = adminLoginUrl;
+  });
+})();
+
 // ===== 导航滚动态 =====
 const nav = document.getElementById('nav');
 const onScroll = () => {
@@ -306,8 +319,8 @@ if (techMosaic) {
       offCtx.font = nameFont(nameSize);
     }
 
-    // 描述：先按 32px 换行，行数超高清晰度优先逐级缩小字号
-    let descSize = 32;
+    // 描述：宽画布 32px / 窄画布(手机) 26px 起排，行数超高清晰度优先逐级缩小字号
+    let descSize = PT.w < 480 ? 26 : 32;
     const wrapDesc = s => {
       const charsPerLine = Math.max(8, Math.floor((PT.w * 0.94) / s));
       const ls = [];

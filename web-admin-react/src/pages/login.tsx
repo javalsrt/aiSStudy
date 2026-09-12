@@ -155,7 +155,8 @@ export function LoginPage() {
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     className="pl-12 h-12"
-                    autoComplete="username"
+                    autoComplete="off"
+                    name="account"
                   />
                 </div>
               </div>
@@ -173,7 +174,8 @@ export function LoginPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="pl-12 pr-12 h-12"
-                    autoComplete="current-password"
+                    autoComplete="new-password"
+                    name="access-key"
                   />
                   <button
                     type="button"

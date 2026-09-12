@@ -1,9 +1,28 @@
+# ===== Docker 构建上下文裁剪（服务器只需后端+管理端+官网三件套）=====
+# 这些目录不参与任何镜像构建，排除后构建更快、上下文更小
+
+# 客户端源码（本地构建 APK / 微信开发者工具上传，不进服务器镜像）
+android/
+miniapp/
+
+# AI 向量服务：仅 --profile ai 时需要；
+# 如需启用本地 Embedding 服务，删除下面这一行
+embedding-service/
+
+# 文档与本地脚本
+docs/
+scripts/
+*.md
+
+# Git 与本地依赖/构建产物
+.git/
+.gitignore
+web-admin-react/node_modules/
+web-admin-react/dist/
 backend/target/
 backend/.idea/
 backend/*.iml
-.git
-.gitignore
 testtxt/
-*.png
-*.jpg
 *.log
+
+# 注意：不要排除 *.png / *.jpg —— website/assets/ 下的官网图片需要进入镜像
