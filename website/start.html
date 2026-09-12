@@ -9,56 +9,23 @@
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { height: 100%; }
     body {
-      background: #0b0d17;
+      background: #F5F5F7;
       font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Segoe UI", "Microsoft YaHei", sans-serif;
       display: flex; align-items: center; justify-content: center;
-      overflow: hidden;
-    }
-    /* 中央微光，营造聚焦感 */
-    .glow {
-      position: absolute; width: 480px; height: 480px; border-radius: 50%;
-      background: radial-gradient(circle, rgba(94,106,210,.22) 0%, transparent 70%);
-      animation: breathe 4s ease-in-out infinite;
-    }
-    @keyframes breathe {
-      0%, 100% { opacity: .6; transform: scale(1); }
-      50% { opacity: 1; transform: scale(1.15); }
     }
     .start {
-      position: relative;
       font-size: clamp(28px, 6vw, 44px);
       font-weight: 300;
       letter-spacing: .6em;
       text-indent: .6em;   /* 抵消最后一个字的字距，保证视觉居中 */
-      color: #fff;
+      color: #1D1D1F;
       text-decoration: none;
       cursor: pointer;
-      opacity: 0;
-      animation: fadeUp 1.2s ease .3s forwards;
-      transition: opacity .3s ease, text-shadow .3s ease;
       user-select: none;
-    }
-    .start:hover {
-      text-shadow: 0 0 24px rgba(139,92,246,.8), 0 0 48px rgba(139,92,246,.4);
-    }
-    @keyframes fadeUp {
-      from { opacity: 0; transform: translateY(16px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-    /* 底部提示 */
-    .tip {
-      position: absolute; bottom: 40px; left: 0; right: 0;
-      text-align: center;
-      font-size: 12px; letter-spacing: .3em; text-indent: .3em;
-      color: rgba(255,255,255,.25);
-      opacity: 0;
-      animation: fadeUp 1.2s ease 1s forwards;
     }
   </style>
 </head>
 <body>
-  <div class="glow"></div>
   <a class="start" href="index.html">开始</a>
-  <div class="tip">智学职达 · AI POWERED LEARNING</div>
 </body>
 </html>
