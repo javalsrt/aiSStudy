@@ -776,8 +776,11 @@ a { color: inherit; text-decoration: none; }
 @media (max-width: 960px) {
   .app-shots { grid-template-columns: repeat(2, 1fr); }
 }
+@media (max-width: 760px) {
+  .app-shots { grid-template-columns: 1fr; }
+}
 @media (max-width: 520px) {
-  .app-shots { grid-template-columns: repeat(2, 1fr); gap: 14px; }
+  .app-shots { gap: 14px; }
 }
 
 /* ===== 「开始」按钮（原样移植自 uiverse Galaxy Button） ===== */
@@ -1020,12 +1023,10 @@ a { color: inherit; text-decoration: none; }
 .orbit-card p { font-size: 13px; line-height: 1.55; color: var(--ink-2); margin: 0; }
 /* 窄屏回退：取消公转，改回普通网格 */
 @media (max-width: 900px) {
-  .orbit-stage { height: auto; display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+  /* 手机端：轨道旋转 90°（椭圆竖向），保留公转动画，卡片由 JS 缩放 */
+  .orbit-stage { height: 640px; }
   .orbit-path, .orbit-hint { display: none; }
-  .orbit-card { position: static; width: auto; transform: none !important; }
-}
-@media (max-width: 560px) {
-  .orbit-stage { grid-template-columns: 1fr; }
+  .orbit-card { width: 210px; }
 }
 
 /* ===== 「学练测评管」True Focus 逐词聚焦（移植自 reactbits TrueFocus） ===== */
@@ -1053,4 +1054,51 @@ a { color: inherit; text-decoration: none; }
 @media (prefers-reduced-motion: reduce) {
   .focus-word { filter: blur(0); }
   .focus-frame { transition: none; }
+}
+
+/* ===== 白色胶囊脉冲按钮（Hero「开始 / App」） ===== */
+/* 注：为避免与站点通用 .btn 冲突，类名定为 .pill-btn，样式还原参考效果 */
+.pill-btn {
+  position: relative;
+  font-size: 17px;
+  text-decoration: none;
+  padding: 1em 2.5em;
+  display: inline-block;
+  cursor: pointer;
+  border-radius: 6em;
+  transition: all 0.2s;
+  border: none;
+  font-family: inherit;
+  font-weight: 500;
+  color: black;
+  background-color: white;
+}
+
+.pill-btn:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+}
+
+.pill-btn:active {
+  transform: translateY(-1px);
+  box-shadow: 0 5px 10px rgba(0, 0, 0, 0.2);
+}
+
+.pill-btn::after {
+  content: "";
+  display: inline-block;
+  height: 100%;
+  width: 100%;
+  border-radius: 100px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: -1;
+  transition: all 0.4s;
+  background-color: #fff;
+}
+
+.pill-btn:hover::after {
+  transform: scaleX(1.4) scaleY(1.6);
+  opacity: 0;
 }

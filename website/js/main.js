@@ -522,11 +522,20 @@ if (orbitStage) {
   const isNarrow = () => window.innerWidth <= 900;
 
   // 椭圆摆位：以舞台中心为锚点，calc(-50% + x) 定位，杜绝宽度测量误差
+  // 手机端(≤900px)：等效于把桌面横向椭圆旋转 90°——横向半径压缩、纵向拉长，卡片缩小保持直立
   const layout = (theta) => {
-    const W = orbitStage.getBoundingClientRect().width;
+    const rect = orbitStage.getBoundingClientRect();
+    const W = rect.width, H = rect.height;
     if (!W) return;
-    const rx = W / 2 - CARD_HALF_W - 16;
-    const ry = 165;
+    const narrow = W <= 900;
+    const s = narrow ? 0.55 : 1;                 // 手机卡片整体缩小
+    const halfW = CARD_HALF_W * s;
+    const rx = narrow
+      ? Math.max(40, W / 2 - halfW - 10)         // 竖向椭圆：横向半径变小
+      : W / 2 - CARD_HALF_W - 16;
+    const ry = narrow
+      ? Math.max(150, H / 2 - halfW - 24)        // 纵向半径拉长
+      : 165;
     orbitCards.forEach((card, i) => {
       const t = theta + (i * Math.PI * 2) / orbitCards.length;
       const x = Math.cos(t) * rx;
@@ -536,7 +545,7 @@ if (orbitStage) {
       const yr = x * Math.sin(TILT) + y * Math.cos(TILT);
       // y>0 为近处（放大/不透明），y<0 为远处（缩小/半透明）
       const depth = (Math.sin(t) + 1) / 2;
-      const scale = 0.82 + depth * 0.24;
+      const scale = (0.82 + depth * 0.24) * s;
       card.style.transform =
         `translate(calc(-50% + ${xr.toFixed(1)}px), calc(-50% + ${yr.toFixed(1)}px)) scale(${scale.toFixed(3)})`;
       card.style.opacity = (0.5 + depth * 0.5).toFixed(2);
@@ -566,12 +575,9 @@ if (orbitStage) {
       if (last === null) last = ts;
       const dt = Math.min(ts - last, 100);
       last = ts;
-      if (!isNarrow()) {
-        if (!paused) elapsed += dt;
-        layout(angle0 + (elapsed / 1000 / DURATION) * Math.PI * 2);
-      } else {
-        clearOrbit();
-      }
+      // 手机端同样公转（竖向椭圆），仅暂停逻辑一致
+      if (!paused) elapsed += dt;
+      layout(angle0 + (elapsed / 1000 / DURATION) * Math.PI * 2);
       requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
