@@ -446,7 +446,15 @@ a { color: inherit; text-decoration: none; }
 
 /* ===== CTA & Footer ===== */
 .cta { position: relative; padding: 120px 0; text-align: center; background: var(--bg-dark); color: #fff; overflow: hidden; }
-.cta h2 { font-size: clamp(28px, 4vw, 44px); font-weight: 700; letter-spacing: -.5px; }
+.cta h2 {
+  font-family: "SimSun", "宋体", "Songti SC", "STSong", serif;
+  font-size: clamp(26px, 3.6vw, 40px);
+  font-weight: 600;
+  max-width: 15em; margin: 0 auto;     /* 限制行宽，两端对齐后两行左右边缘平整 */
+  text-align: justify; text-align-last: justify;
+  line-height: 1.6;
+}
+.cta h2 + h2 { margin-top: 14px; }
 .cta p { margin: 16px 0 8px; color: rgba(255,255,255,.6); font-size: 16px; }
 .cta .hero-actions { justify-content: center; margin-top: 28px; }
 

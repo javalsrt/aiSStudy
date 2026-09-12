@@ -49,9 +49,10 @@ venv/
 Thumbs.db
 .DS_Store
 
-# ===== 本地环境配置(含数据库密码) =====
+# ===== 本地环境配置(含数据库密码/密钥) =====
 application-local.yml
 application-dev.yml
+.env
 
 # ===== 运行时上传文件(不入库) =====
 backend/uploads/
