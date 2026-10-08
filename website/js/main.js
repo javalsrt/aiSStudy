@@ -174,6 +174,10 @@ if (techMosaic) {
   const ctx = canvas ? canvas.getContext('2d') : null;
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const PCFG = { size: 1.5, density: 2, color: '#ffffff', highlight: '#8b5cf6', scatter: 150, gather: 1400, stagger: 380, repel: 38, radius: 110, drift: .7, font: 120, weight: 800 };
+  // 性能·设备自适应：低端核/移动端加大采样步长并压低粒子上限（粒子数 ≈ 文字面积/步长²）
+  const LOW_END = (navigator.hardwareConcurrency || 4) <= 4 || /Mobi|Android|iPhone/i.test(navigator.userAgent);
+  if (LOW_END) PCFG.density = 3;
+  const MAX_PARTICLES = LOW_END ? 10000 : 24000;
 
   const PT = {
     particles: [], raf: null, build: 0,
@@ -221,6 +225,13 @@ if (techMosaic) {
   };
 
   const render = now => {
+    // 性能·静止期降帧：无聚合动画且鼠标未交互时按 ~30fps 渲染。
+    // 必须放在 clearRect 之前（跳过的帧不清屏，否则会闪黑），且直接读 PT.gathering
+    // （render 内的 const gathering 声明在后，提前访问会进入暂时性死区抛错）。
+    const staticMode = !PT.gathering && !(PT.pointer.active && !reducedMotion) && !reducedMotion;
+    if (staticMode && now - (PT.lastDraw || 0) < 31) { PT.raf = requestAnimationFrame(render); return; }
+    PT.lastDraw = now;
+
     const ps = PT.particles, n = ps.length;
     ctx.clearRect(0, 0, PT.w, PT.h);
 
@@ -365,7 +376,7 @@ if (techMosaic) {
       }
     }
 
-    const maxParticles = 24000;
+    const maxParticles = MAX_PARTICLES;
     const stride = Math.max(1, Math.ceil(targets.length / maxParticles));
 
     PT.particles = targets.filter((_, i) => i % stride === 0).map((t, i) => {
@@ -523,9 +534,16 @@ if (orbitStage) {
 
   // 椭圆摆位：以舞台中心为锚点，calc(-50% + x) 定位，杜绝宽度测量误差
   // 手机端(≤900px)：等效于把桌面横向椭圆旋转 90°——横向半径压缩、纵向拉长，卡片缩小保持直立
-  const layout = (theta) => {
+  // 性能：舞台尺寸只在 resize 时测量缓存，不再每帧 getBoundingClientRect 强制同步布局
+  let stageW = 0, stageH = 0;
+  const measureStage = () => {
     const rect = orbitStage.getBoundingClientRect();
-    const W = rect.width, H = rect.height;
+    stageW = rect.width; stageH = rect.height;
+  };
+  measureStage();
+
+  const layout = (theta) => {
+    const W = stageW, H = stageH;
     if (!W) return;
     const narrow = W <= 900;
     const s = narrow ? 0.65 : 1;                 // 手机卡片整体缩小（内部字号已放大补偿）
@@ -566,11 +584,14 @@ if (orbitStage) {
       c.addEventListener('mouseleave', () => { paused = false; });
     });
     window.addEventListener('resize', () => {
-      const el = performance.now();
-      layout(angle0 + (el / 1000 / DURATION) * Math.PI * 2);
+      measureStage();
+      layout(angle0 + (elapsed / 1000 / DURATION) * Math.PI * 2);
     });
     let last = null;
     let elapsed = 0;
+    // 性能：滚出视口即停止公转循环（事件驱动恢复），不再页面全程空转 rAF
+    let orbitVisible = true;
+    let orbitRaf = null;
     const tick = (ts) => {
       if (last === null) last = ts;
       const dt = Math.min(ts - last, 100);
@@ -578,8 +599,47 @@ if (orbitStage) {
       // 手机端同样公转（竖向椭圆），仅暂停逻辑一致
       if (!paused) elapsed += dt;
       layout(angle0 + (elapsed / 1000 / DURATION) * Math.PI * 2);
-      requestAnimationFrame(tick);
+      if (!orbitVisible) { orbitRaf = null; return; }
+      orbitRaf = requestAnimationFrame(tick);
     };
-    requestAnimationFrame(tick);
+    if ('IntersectionObserver' in window) {
+      new IntersectionObserver(entries => {
+        entries.forEach(e => {
+          orbitVisible = e.isIntersecting;
+          if (orbitVisible && orbitRaf === null) orbitRaf = requestAnimationFrame(tick);
+        });
+      }, { threshold: 0 }).observe(orbitStage);
+    }
+    orbitRaf = requestAnimationFrame(tick);
   }
+
+// ===== 全局帧率监测 · 低性能自动降级（自适应质量算法） =====
+// 每 2s 统计平均帧率：连续 2 次 <40fps → <html> 加 .low-perf（停重绘型动画保帧率）；
+// 需连续 3 次 >55fps 才解除（迟滞设计，避免动画启停来回震荡）。
+(() => {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  let frames = 0, last = performance.now(), lowStreak = 0, highStreak = 0;
+  const check = (now) => {
+    frames++;
+    if (now - last >= 2000) {
+      const fps = (frames * 1000) / (now - last);
+      frames = 0; last = now;
+      if (document.hidden) { requestAnimationFrame(check); return; }
+      if (fps < 40) {
+        lowStreak++; highStreak = 0;
+        if (lowStreak >= 2) document.documentElement.classList.add('low-perf');
+      } else if (fps > 55) {
+        highStreak++;
+        if (highStreak >= 3) {
+          document.documentElement.classList.remove('low-perf');
+          lowStreak = 0; highStreak = 0;
+        }
+      } else {
+        lowStreak = 0; highStreak = 0;
+      }
+    }
+    requestAnimationFrame(check);
+  };
+  requestAnimationFrame(check);
+})();
 }

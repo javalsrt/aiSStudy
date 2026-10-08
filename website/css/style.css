@@ -53,10 +53,11 @@ a { color: inherit; text-decoration: none; }
 /* ===== Hero ===== */
 .hero { position: relative; min-height: 100vh; display: flex; align-items: center; background: var(--bg-dark); color: #fff; overflow: hidden; padding: 120px 0 80px; }
 .hero-bg { position: absolute; inset: 0; pointer-events: none; }
-.glow { position: absolute; border-radius: 50%; filter: blur(90px); }
-.glow-1 { width: 640px; height: 640px; background: rgba(94, 106, 210, .4); top: -180px; right: -80px; animation: glowFloat 16s ease-in-out infinite; }
-.glow-2 { width: 480px; height: 480px; background: rgba(34, 211, 238, .16); bottom: -140px; left: -120px; animation: glowFloat 20s ease-in-out infinite reverse; }
-.glow-3 { width: 380px; height: 380px; background: rgba(16, 185, 129, .2); top: 40%; left: 42%; animation: glowFloat 24s ease-in-out infinite; }
+/* 性能：用预模糊的 radial-gradient 替代 filter: blur(90px)（省去大面积实时模糊） */
+.glow { position: absolute; border-radius: 50%; }
+.glow-1 { width: 640px; height: 640px; background: radial-gradient(closest-side, rgba(94, 106, 210, .4), transparent 72%); top: -180px; right: -80px; animation: glowFloat 16s ease-in-out infinite; }
+.glow-2 { width: 480px; height: 480px; background: radial-gradient(closest-side, rgba(34, 211, 238, .16), transparent 72%); bottom: -140px; left: -120px; animation: glowFloat 20s ease-in-out infinite reverse; }
+.glow-3 { width: 380px; height: 380px; background: radial-gradient(closest-side, rgba(16, 185, 129, .2), transparent 72%); top: 40%; left: 42%; animation: glowFloat 24s ease-in-out infinite; }
 @keyframes glowFloat {
   0%, 100% { transform: translate(0, 0); }
   50% { transform: translate(26px, -20px); }
@@ -64,13 +65,15 @@ a { color: inherit; text-decoration: none; }
 @media (prefers-reduced-motion: reduce) {
   .glow-1, .glow-2, .glow-3 { animation: none; }
 }
-.glow-4 { width: 560px; height: 560px; background: rgba(94, 106, 210, .28); top: -160px; left: -140px; }
-.glow-5 { width: 460px; height: 460px; background: rgba(34, 211, 238, .14); bottom: -160px; right: -100px; }
+.glow-4 { width: 560px; height: 560px; background: radial-gradient(closest-side, rgba(94, 106, 210, .28), transparent 72%); top: -160px; left: -140px; }
+.glow-5 { width: 460px; height: 460px; background: radial-gradient(closest-side, rgba(34, 211, 238, .14), transparent 72%); bottom: -160px; right: -100px; }
 .hero-grid { position: absolute; inset: 0; background-image: linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px); background-size: 56px 56px; mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, #000 30%, transparent 75%); }
 
 /* ===== 极光渐变动态背景（原样移植自 uiverse.io/risabbir/giant-mole-44） ===== */
 .hero-pattern {
-  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  /* 性能：整层放大 16% 供漂移余量；背景（含混合模式）只光栅化一次成纹理，
+     动画改用纯 transform 合成器动画——替代原 background-position+filter 的逐帧全屏重绘 */
+  position: absolute; top: -8%; left: -8%; width: 116%; height: 116%;
   overflow: hidden;
   background:
     radial-gradient(ellipse at 20% 30%, rgba(138, 43, 226, .8) 0%, rgba(138, 43, 226, 0) 60%),
@@ -79,7 +82,7 @@ a { color: inherit; text-decoration: none; }
     linear-gradient(135deg, #000000 0%, #0a0520 100%);
   background-blend-mode: overlay, screen, hard-light;
   animation: aurora-drift 25s infinite alternate ease-in-out;
-  will-change: background-position, filter;
+  will-change: transform;
 }
 /* 45° 双向斜纹网格，持续平移 */
 .hero-pattern::before {
@@ -97,20 +100,11 @@ a { color: inherit; text-decoration: none; }
   background: radial-gradient(circle at center, transparent 70%, rgba(10, 5, 32, .9) 100%);
   animation: aurora-pulse 8s infinite alternate;
 }
-/* 渐变漂移 + 色相旋转 + 亮度脉动 */
+/* 渐变漂移：纯 transform（GPU 合成），不再逐帧重绘背景 */
 @keyframes aurora-drift {
-  0% {
-    background-position: 0% 0%, 0% 0%, 0% 0%;
-    filter: hue-rotate(0deg) brightness(1);
-  }
-  50% {
-    background-position: -10% -5%, 5% 10%, 0% 15%;
-    filter: hue-rotate(30deg) brightness(1.2);
-  }
-  100% {
-    background-position: 5% 10%, -10% -5%, 15% 0%;
-    filter: hue-rotate(60deg) brightness(1);
-  }
+  0% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(-1.6%, 1.2%, 0) scale(1.05); }
+  100% { transform: translate3d(1.2%, -1.6%, 0) scale(1.02); }
 }
 @keyframes grid-shift {
   0% { transform: translate(0, 0); }
@@ -186,6 +180,8 @@ a { color: inherit; text-decoration: none; }
   padding: 44px 16px 18px;
   overflow: hidden;
   display: flex; flex-direction: column; gap: 22px;
+  /* 撑回原刷题内容的高度比例，斜置黑屏时长宽比例与旧版一致 */
+  min-height: 555px;
 }
 .phone-shadow { position: absolute; bottom: -30px; left: 50%; transform: translateX(-50%); width: 240px; height: 40px; background: rgba(40,159,237,.5); filter: blur(40px); }
 
@@ -193,28 +189,21 @@ a { color: inherit; text-decoration: none; }
 .app-title { font-weight: 600; }
 .app-timer { font-family: var(--mono); font-size: 11px; background: rgba(255,255,255,.08); padding: 3px 8px; border-radius: 6px; }
 
-/* 悬停前隐藏状态栏、题目与报告（uiverse 卡片同款 reveal 交互） */
-.app-head, .app-q, .app-report { opacity: 0; transition: opacity .5s ease; }
-.phone:hover .app-head, .phone:hover .app-q, .phone:hover .app-report { opacity: 1; }
+/* 悬停前隐藏屏内容（uiverse 卡片同款 reveal 交互）：斜置时纯黑屏，悬停回正浮现公式 */
+.app-head, .app-formula { opacity: 0; transition: opacity .5s ease; }
+.phone:hover .app-head, .phone:hover .app-formula { opacity: 1; }
 
-.app-q {
-  background: #1c2033; border-radius: 12px; padding: 16px;
-  border: 1px solid rgba(255,255,255,.08);
-}
-.app-tag { display: inline-block; font-size: 10.5px; color: #9cbde2; background: rgba(10,132,255,.16); padding: 3px 8px; border-radius: 6px; font-weight: 600; }
-.app-q p { font-size: 14px; font-weight: 600; margin: 9px 0 12px; color: #fff; }
-.app-opt { font-size: 12px; color: rgba(255,255,255,.6); padding: 8px 10px; border-radius: 8px; margin-bottom: 6px; background: rgba(255,255,255,.05); }
-.app-opt.on { background: rgba(52,199,89,.16); color: #4ade80; font-weight: 600; }
-.app-report {
-  margin-top: 0; background: #1c2033; border-radius: 12px; padding: 14px 16px;
-  border: 1px solid rgba(255,255,255,.08);
-}
-.app-report span { font-size: 11px; color: rgba(255,255,255,.45); }
-.app-report b { display: block; font-size: 30px; font-weight: 700; color: #9cbde2; margin: 2px 0 8px; }
-.app-bar { height: 6px; border-radius: 3px; background: rgba(255,255,255,.08); overflow: hidden; }
-.app-bar i { display: block; height: 100%; border-radius: 3px; background: linear-gradient(90deg, #289FED, #22d3ee); }
-.app-dims { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 5px; }
-.app-dims span { font-size: 10px; color: rgba(255,255,255,.55); background: rgba(255,255,255,.06); padding: 3px 7px; border-radius: 5px; }
+/* 手机屏内容：黄金分割率 · MathJax 公式展示（金色点缀呼应「黄金」） */
+.app-formula { flex: 1; justify-content: space-evenly; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.af-tag { align-self: center; display: inline-block; font-size: 10.5px; color: #f2c879; background: rgba(242,200,121,.14); padding: 4px 12px; border-radius: 999px; font-weight: 700; letter-spacing: 1px; }
+.af-card { background: #1c2033; border-radius: 12px; padding: 13px 10px 9px; border: 1px solid rgba(255,255,255,.08); text-align: center; }
+.af-name { font-size: 10px; color: rgba(255,255,255,.45); letter-spacing: 1px; margin-bottom: 2px; }
+.af-math { color: #eadfc0; overflow-x: auto; overflow-y: hidden; padding: 2px 0; }
+.af-math.gold { color: #f2c879; font-size: 16px; }
+.af-math.small { color: rgba(255,255,255,.85); font-size: 12.5px; }
+.af-card .af-math + .af-math { margin-top: 8px; }
+.af-math mjx-container { margin: 0 !important; }
+.af-note { font-size: 10.5px; line-height: 1.75; color: rgba(255,255,255,.55); text-align: center; padding: 0 2px; }
 
 /* ===== 通用区块 ===== */
 .section { padding: 110px 0; }
@@ -321,11 +310,8 @@ a { color: inherit; text-decoration: none; }
   /* 右移校正：skewY 视觉重心偏左，补偿后立方体在区块内水平居中 */
   translate: 36px 0;
   transform: skewY(-20deg);
-  animation: cubeHue 5s linear infinite;
-}
-@keyframes cubeHue {
-  0% { filter: hue-rotate(0deg); }
-  100% { filter: hue-rotate(360deg); }
+  /* 性能：移除原 cubeHue 色相旋转动画——方块为灰白色系，hue-rotate 无任何视觉变化，
+     却让浏览器逐帧重绘整棵子树（filter 无法走合成器） */
 }
 /* 三个深度副本：中(z2) / 后(z1, 左上偏移) / 前(z3, 右下偏移) */
 .tech-mosaic .cube {
@@ -468,6 +454,8 @@ a { color: inherit; text-decoration: none; }
 .footer-beian { width: 100%; text-align: center; margin-top: 8px; font-size: 12px; }
 .footer-beian a { color: rgba(255,255,255,.4); margin: 0 10px; transition: color .2s; }
 .footer-beian a:hover { color: rgba(255,255,255,.75); }
+.footer-beian .footer-mail { color: rgba(255,255,255,.4); margin: 0 10px; }
+.footer-beian .footer-mail a { margin: 0; }
 
 /* ===== 滚动渐入 ===== */
 .reveal { opacity: 0; transform: translateY(28px); transition: opacity .7s ease, transform .7s ease; }
@@ -1121,4 +1109,12 @@ a { color: inherit; text-decoration: none; }
 .pill-btn:hover::after {
   transform: scaleX(1.4) scaleY(1.6);
   opacity: 0;
+}
+
+/* ===== 低性能自动降级（JS 帧率监测触发） ===== */
+/* 连续检测到低帧率时，html.low-perf 停掉重绘型动画，保留静态视觉与合成器动画 */
+.low-perf .hero-pattern,
+.low-perf .grad-text,
+.low-perf .hero-pattern::after {
+  animation: none;
 }

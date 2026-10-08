@@ -46,6 +46,18 @@
       cursor: pointer;
       user-select: none;
     }
+    /* 底部：备案号与举报邮箱 */
+    .legal {
+      position: absolute;
+      left: 0; right: 0;
+      bottom: 18px;
+      text-align: center;
+      font-size: 12px;
+      letter-spacing: .05em;
+      color: rgba(0, 0, 0, .35);
+    }
+    .legal a { color: rgba(0, 0, 0, .35); text-decoration: none; margin: 0 6px; transition: color .2s; }
+    .legal a:hover { color: rgba(0, 0, 0, .65); }
   </style>
 </head>
 <body>
@@ -54,5 +66,10 @@
     <div class="author">—— 黄炎培</div>
   </div>
   <a class="start" href="index.html">开 始</a>
+
+  <footer class="legal">
+    <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">桂ICP备2026021376号</a>
+    <span>举报邮箱：<a href="mailto:j2647046805@163.com">j2647046805@163.com</a></span>
+  </footer>
 </body>
 </html>

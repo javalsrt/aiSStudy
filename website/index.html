@@ -18,7 +18,16 @@
   <meta property="og:site_name" content="智学职达" />
   <link rel="icon" type="image/png" href="assets/logo.png" />
   <link rel="apple-touch-icon" href="assets/logo.png" />
-  <link rel="stylesheet" href="css/style.css?v=20260916b" />
+  <link rel="stylesheet" href="css/style.css?v=20260921c" />
+  <!-- MathJax 3：手机屏「黄金分割率」公式排版（SVG 输出，currentColor 自适应深色屏） -->
+  <script>
+    window.MathJax = {
+      tex: { inlineMath: [['\\(', '\\)']], displayMath: [['$$', '$$']] },
+      svg: { fontCache: 'global' },
+      options: { enableMenu: false }
+    };
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
 </head>
 <body>
 
@@ -80,25 +89,21 @@
           <div class="phone-notch"></div>
           <div class="phone-screen">
             <div class="app-head">
-              <span class="app-title">专注刷题 · 计算机网络基础</span>
-              <span class="app-timer">05:32</span>
+              <span class="app-title">AI 数学导师 · 数的美学</span>
+              <span class="app-timer">φ ≈ 1.618</span>
             </div>
-            <div class="app-q">
-              <span class="app-tag">单选题</span>
-              <p>带宽的单位是什么？</p>
-              <div class="app-opt">A. 字节每秒</div>
-              <div class="app-opt on">B. 比特每秒 ✓</div>
-              <div class="app-opt">C. 帧每秒</div>
-              <div class="app-opt">D. 报文每秒</div>
-            </div>
-            <div class="app-report">
-              <span>本次测评 · 正确率</span>
-              <b>87%</b>
-              <div class="app-bar"><i style="width:87%"></i></div>
-              <div class="app-dims">
-                <span>逻辑思维力</span><span>判断决策力</span><span>专注耐力</span>
-                <span>专业学习力</span><span>信息检索力</span><span>自律执行力</span>
+            <div class="app-formula">
+              <span class="af-tag">黄金分割率 · GOLDEN RATIO</span>
+              <div class="af-card">
+                <p class="af-name">定义 · 线段的最优雅分割</p>
+                <div class="af-math gold">$$\varphi = \frac{1+\sqrt{5}}{2} \approx 1.618$$</div>
               </div>
+              <div class="af-card">
+                <p class="af-name">自守方程与连分数</p>
+                <div class="af-math small">$$\varphi^2 = \varphi + 1,\quad \frac{1}{\varphi} = \varphi - 1$$</div>
+                <div class="af-math small">$$\varphi = 1 + \cfrac{1}{1 + \cfrac{1}{1 + \cfrac{1}{1 + \cdots}}}$$</div>
+              </div>
+              <p class="af-note">斐波那契数列相邻两项之比无限逼近 φ——鹦鹉螺螺线、向日葵籽阵与帕特农神庙立面的共通密码。</p>
             </div>
           </div>
         </div>
@@ -616,12 +621,13 @@
       <div class="footer-copy">© 2026 智学职达 · Powered by DeepSeek V4 Flash</div>
       <div class="footer-beian">
         <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">桂ICP备2026021376号</a>
+        <span class="footer-mail">举报邮箱：<a href="mailto:j2647046805@163.com">j2647046805@163.com</a></span>
         <!-- 公安备案号：通过后取消注释并填入编号 -->
         <!-- <a href="https://beian.mps.gov.cn/#/query/webSearch?code=XXXXXXXXXX" target="_blank" rel="noopener noreferrer">X公网安备 XXXXXXXXXXXXX号</a> -->
       </div>
     </div>
   </footer>
 
-  <script src="js/main.js?v=20260913"></script>
+  <script src="js/main.js?v=20260921b"></script>
 </body>
 </html>
