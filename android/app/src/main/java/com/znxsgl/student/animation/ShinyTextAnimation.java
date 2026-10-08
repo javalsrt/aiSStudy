@@ -40,9 +40,9 @@ public class ShinyTextAnimation {
 
             // 高光渐变：主色 -> 高光白 -> 主色，营造金属扫光感
             int[] colors = new int[]{
-                    0xFF5E6AD2,
+                    0xFF0A84FF,
                     0xFFFFFFFF,
-                    0xFF5E6AD2
+                    0xFF0A84FF
             };
             float[] positions = new float[]{0f, 0.5f, 1f};
 

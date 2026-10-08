@@ -4,7 +4,6 @@ import android.app.AlertDialog;
 import android.app.ProgressDialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.os.Handler;
@@ -15,24 +14,22 @@ import android.text.TextWatcher;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.Button;
-import android.widget.CheckBox;
-import android.widget.CompoundButton;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
-import android.widget.RadioButton;
-import android.widget.RadioGroup;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.viewpager2.widget.ViewPager2;
 
 import com.znxsgl.student.network.ApiService;
 import com.znxsgl.student.network.RetrofitClient;
+import com.znxsgl.student.widget.AnimatedChoiceButton;
+import com.znxsgl.student.widget.AnimatedOptionButton;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -59,7 +56,7 @@ public class ExamHomeworkActivity extends AppCompatActivity {
     private TextView tvTitle, tvTimer, tvProgress;
     private ProgressBar progressBar;
     private ViewPager2 vpQuestions;
-    private Button btnPrev, btnNext, btnSubmit;
+    private TextView btnPrev, btnNext, btnSubmit;
 
     private final List<Map<String, Object>> questions = new ArrayList<>();
     private final Map<Long, String> answers = new HashMap<>();
@@ -162,18 +159,20 @@ public class ExamHomeworkActivity extends AppCompatActivity {
                 Object totalScoreObj = body.get("totalScore");
                 Object timeLimitObj = body.get("timeLimit");
 
-                StringBuilder info = new StringBuilder();
-                if (titleObj != null) info.append(titleObj).append("\n\n");
-                if (descObj != null && !String.valueOf(descObj).isEmpty()) {
-                    info.append("说明：").append(descObj).append("\n\n");
+                List<Object[]> infoRows = new ArrayList<>();
+                if (titleObj != null && !String.valueOf(titleObj).isEmpty()) {
+                    infoRows.add(new Object[]{"课程", titleObj.toString()});
                 }
-                info.append("题量：").append(questionCountObj == null ? "-" : questionCountObj).append(" 题\n");
-                info.append("总分：").append(totalScoreObj == null ? "-" : totalScoreObj).append("\n");
+                if (questionCountObj != null) infoRows.add(new Object[]{"题量", fmtNum(questionCountObj) + " 题"});
+                if (totalScoreObj != null) infoRows.add(new Object[]{"总分", fmtNum(totalScoreObj)});
                 if (timeLimitObj instanceof Number && ((Number) timeLimitObj).intValue() > 0) {
-                    info.append("时长：").append(timeLimitObj).append(" 分钟\n");
+                    infoRows.add(new Object[]{"时长", fmtNum(timeLimitObj) + " 分钟"});
                 }
-                if (startTimeObj != null) info.append("开始：").append(startTimeObj).append("\n");
-                if (endTimeObj != null) info.append("截止：").append(endTimeObj).append("\n");
+                if (startTimeObj != null) infoRows.add(new Object[]{"开始", startTimeObj.toString()});
+                if (endTimeObj != null) infoRows.add(new Object[]{"截止", endTimeObj.toString()});
+                if (descObj != null && !String.valueOf(descObj).isEmpty()) {
+                    infoRows.add(new Object[]{"说明", descObj.toString()});
+                }
 
                 if (!available) {
                     parsePaperMeta(body);
@@ -182,22 +181,20 @@ public class ExamHomeworkActivity extends AppCompatActivity {
                     if (btnNext != null) btnNext.setEnabled(false);
                     if (btnSubmit != null) btnSubmit.setEnabled(false);
 
-                    // 已提交完成时，标题显示「已完成」，优先展示后端返回的 reason（含分数）
+                    // 已提交完成时，标签显示「已完成」，优先展示后端返回的 reason（含分数）
                     Object isSubmittedObj = body.get("isSubmitted");
                     boolean isSubmitted = Boolean.TRUE.equals(isSubmittedObj);
                     String reason = reasonObj != null ? String.valueOf(reasonObj)
                             : (isSubmitted ? "已完成作答" :
                             (notStarted ? "尚未到开始时间" : (ended ? "考试已结束" : "不可作答")));
-                    String title = isSubmitted ? "已完成" :
+                    String tag = isSubmitted ? "已完成" :
                             (notStarted ? "尚未开考" : (ended ? "已结束" : "暂不可作答"));
 
-                    // 不直接finish，弹窗提示 + 显示考试信息（用户可返回）
-                    new AlertDialog.Builder(ExamHomeworkActivity.this)
-                            .setTitle(title)
-                            .setMessage(reason + "\n\n" + info)
-                            .setCancelable(false)
-                            .setPositiveButton("返回我的课程", (d, w) -> finish())
-                            .show();
+                    int tagBg = isSubmitted ? 0xFFE8F8EE : (notStarted ? 0xFFE5F1FF : 0xFFFFF3E2);
+                    int tagFg = isSubmitted ? 0xFF34C759 : (notStarted ? 0xFF0A84FF : 0xFFFF9500);
+
+                    // 不直接finish，状态卡片提示 + 显示考试信息（用户可返回）
+                    showStatusCard(tag, tagBg, tagFg, reason, infoRows, "返回我的课程");
                     return;
                 }
 
@@ -234,13 +231,69 @@ public class ExamHomeworkActivity extends AppCompatActivity {
     }
 
     private void showUnavailableDialog(String msg, boolean cancelable, boolean allowFinish) {
-        new AlertDialog.Builder(this)
-                .setTitle("提示")
-                .setMessage(msg == null ? "无法加载" : msg)
-                .setCancelable(cancelable)
-                .setPositiveButton("返回", (d, w) -> finish())
-                .setOnCancelListener(d -> { if (allowFinish) finish(); })
-                .show();
+        android.app.Dialog dialog = showStatusCard("提示", 0xFFE5F1FF, 0xFF0A84FF,
+                msg == null ? "无法加载" : msg, new ArrayList<>(), "返回");
+        dialog.setCancelable(cancelable);
+        dialog.setOnCancelListener(d -> { if (allowFinish) finish(); });
+    }
+
+    /** 统一风格的状态卡片弹窗：状态标签 + 说明 + 信息行 + 返回按钮 */
+    private android.app.Dialog showStatusCard(String tag, int tagBg, int tagFg,
+                                              String reason, List<Object[]> rows, String buttonText) {
+        android.app.Dialog dialog = new android.app.Dialog(this);
+        dialog.setContentView(R.layout.dialog_exam_status);
+        android.view.Window w = dialog.getWindow();
+        if (w != null) {
+            w.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT));
+            w.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            w.setDimAmount(0.45f);
+        }
+
+        TextView tvTag = dialog.findViewById(R.id.tv_status_tag);
+        tvTag.setText(tag);
+        GradientDrawable tagBgDrawable = new GradientDrawable();
+        tagBgDrawable.setCornerRadius(dp(999));
+        tagBgDrawable.setColor(tagBg);
+        tvTag.setBackground(tagBgDrawable);
+        tvTag.setTextColor(tagFg);
+
+        ((TextView) dialog.findViewById(R.id.tv_status_reason)).setText(reason);
+
+        LinearLayout info = dialog.findViewById(R.id.ll_status_info);
+        for (Object[] row : rows) {
+            LinearLayout line = new LinearLayout(this);
+            line.setOrientation(LinearLayout.HORIZONTAL);
+            line.setPadding(0, dp(8), 0, dp(8));
+
+            TextView label = new TextView(this);
+            label.setText(String.valueOf(row[0]));
+            label.setTextSize(13);
+            label.setTextColor(ContextCompat.getColor(this, R.color.ink_subtle));
+            line.addView(label, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+
+            TextView value = new TextView(this);
+            value.setText(String.valueOf(row[1]));
+            value.setTextSize(14);
+            value.setTextColor(ContextCompat.getColor(this, R.color.ink));
+            value.setGravity(android.view.Gravity.END);
+            line.addView(value, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 2f));
+
+            info.addView(line);
+        }
+
+        dialog.findViewById(R.id.btn_status_back).setOnClickListener(v -> finish());
+        dialog.show();
+        return dialog;
+    }
+
+    /** 数字格式化：20.0 → 20，去除无意义的 .0 */
+    private String fmtNum(Object v) {
+        if (v instanceof Number) {
+            double d = ((Number) v).doubleValue();
+            if (d == Math.floor(d)) return String.valueOf((long) d);
+            return String.valueOf(d);
+        }
+        return String.valueOf(v);
     }
 
     @SuppressWarnings("unchecked")
@@ -506,7 +559,7 @@ public class ExamHomeworkActivity extends AppCompatActivity {
             String type = q.get("type") != null ? q.get("type").toString() : "single_choice";
             h.tvType.setText(typeLabel(type));
             h.tvScore.setText(q.get("score") + " 分");
-            h.tvContent.setText(String.valueOf(q.get("content")));
+            RichTextRenderer.set(h.tvContent, Texts.removeDuplicateSentences(String.valueOf(q.get("content"))));
 
             long qid = ((Number) q.get("id")).longValue();
             String currentAnswer = answers.getOrDefault(qid, "");
@@ -537,84 +590,99 @@ public class ExamHomeworkActivity extends AppCompatActivity {
         }
     }
 
+    /** 单选：与学习答题页统一的选项按钮（点击虹膜填充） */
     private void renderSingleChoice(LinearLayout container, long qid, List<String> options, String current) {
-        RadioGroup rg = new RadioGroup(this);
-        rg.setOrientation(RadioGroup.VERTICAL);
-        for (int i = 0; i < options.size(); i++) {
-            RadioButton rb = new RadioButton(this);
-            rb.setText(options.get(i));
-            rb.setTextSize(14);
-            rb.setTextColor(Color.parseColor("#1D1D1F"));
-            rb.setPadding(8, 16, 8, 16);
-            rb.setId(View.generateViewId());
-            if (options.get(i).equals(current)) {
-                rb.setChecked(true);
-            }
-            final String val = options.get(i);
-            rb.setOnCheckedChangeListener((buttonView, isChecked) -> {
-                if (isChecked) {
-                    answers.put(qid, val);
+        List<AnimatedOptionButton> btns = new ArrayList<>();
+        for (String opt : options) {
+            AnimatedOptionButton btn = new AnimatedOptionButton(this);
+            RichTextRenderer.set(btn, opt);
+            btn.setTextSize(15);
+            btn.setPadding(dp(16), dp(14), dp(16), dp(14));
+            btn.setOptionSelected(opt.equals(current));
+            btns.add(btn);
+
+            btn.setOnClickListener(v -> {
+                if (!opt.equals(answers.get(qid))) {
+                    answers.put(qid, opt);
                     scheduleSave();
                 }
+                for (AnimatedOptionButton b : btns) {
+                    b.setOptionSelected(b == btn);
+                }
             });
-            rg.addView(rb);
+            container.addView(btn);
+            ((LinearLayout.LayoutParams) btn.getLayoutParams()).topMargin = dp(10);
         }
-        container.addView(rg);
     }
 
+    /** 多选：同一套按钮样式，点击切换选中态 */
     private void renderMultipleChoice(LinearLayout container, long qid, List<String> options, String current) {
         List<String> selected = new ArrayList<>();
         if (!current.isEmpty()) {
             selected.addAll(Arrays.asList(current.split("[,，;；]")));
         }
         for (String opt : options) {
-            CheckBox cb = new CheckBox(this);
-            cb.setText(opt);
-            cb.setTextSize(14);
-            cb.setTextColor(Color.parseColor("#1D1D1F"));
-            cb.setPadding(8, 16, 8, 16);
-            cb.setChecked(selected.contains(opt));
-            cb.setOnCheckedChangeListener((buttonView, isChecked) -> {
-                if (isChecked) selected.add(opt);
-                else selected.remove(opt);
+            AnimatedOptionButton btn = new AnimatedOptionButton(this);
+            RichTextRenderer.set(btn, opt);
+            btn.setTextSize(15);
+            btn.setPadding(dp(16), dp(14), dp(16), dp(14));
+            btn.setOptionSelected(selected.contains(opt));
+
+            btn.setOnClickListener(v -> {
+                if (selected.contains(opt)) {
+                    selected.remove(opt);
+                    btn.setOptionSelected(false);
+                } else {
+                    selected.add(opt);
+                    btn.setOptionSelected(true);
+                }
                 answers.put(qid, TextUtils.join(",", selected));
                 scheduleSave();
             });
-            container.addView(cb);
+            container.addView(btn);
+            ((LinearLayout.LayoutParams) btn.getLayoutParams()).topMargin = dp(10);
         }
     }
 
+    /** 判断：两个胶囊按钮横排（与学习答题页判断题一致） */
     private void renderTrueFalse(LinearLayout container, long qid, String current) {
-        RadioGroup rg = new RadioGroup(this);
-        rg.setOrientation(RadioGroup.VERTICAL);
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(android.view.Gravity.CENTER);
+
+        AnimatedChoiceButton[] pair = new AnimatedChoiceButton[2];
         String[] opts = {"正确", "错误"};
-        for (String opt : opts) {
-            RadioButton rb = new RadioButton(this);
-            rb.setText(opt);
-            rb.setTextSize(14);
-            rb.setTextColor(Color.parseColor("#1D1D1F"));
-            rb.setPadding(8, 16, 8, 16);
-            rb.setId(View.generateViewId());
-            if (opt.equals(current)) rb.setChecked(true);
-            rb.setOnCheckedChangeListener((buttonView, isChecked) -> {
-                if (isChecked) {
+        for (int i = 0; i < opts.length; i++) {
+            final String opt = opts[i];
+            AnimatedChoiceButton btn = new AnimatedChoiceButton(this);
+            btn.setText(opt);
+            btn.setTextSize(16);
+            btn.setSelected(opt.equals(current));
+            pair[i] = btn;
+
+            btn.setOnClickListener(v -> {
+                if (!opt.equals(answers.get(qid))) {
                     answers.put(qid, opt);
                     scheduleSave();
                 }
+                pair[0].setSelected(pair[0] == btn);
+                pair[1].setSelected(pair[1] == btn);
             });
-            rg.addView(rb);
+
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(56), 1f);
+            if (i == 0) lp.rightMargin = dp(12);
+            row.addView(btn, lp);
         }
-        container.addView(rg);
+        container.addView(row);
     }
 
     private void renderTextInput(LinearLayout container, long qid, String current, boolean multiLine) {
         EditText et = new EditText(this);
         et.setText(current);
-        et.setTextSize(14);
-        et.setTextColor(Color.parseColor("#1D1D1F"));
+        et.setTextSize(15);
         et.setHint("请输入答案");
-        et.setBackgroundResource(R.drawable.bg_input_gray);
-        et.setPadding(16, 16, 16, 16);
+        et.setBackgroundResource(R.drawable.bg_input);
+        et.setPadding(dp(16), dp(14), dp(16), dp(14));
         if (multiLine) {
             et.setMinLines(4);
             et.setMaxLines(6);
@@ -629,5 +697,9 @@ public class ExamHomeworkActivity extends AppCompatActivity {
             }
         });
         container.addView(et);
+    }
+
+    private int dp(float v) {
+        return (int) (v * getResources().getDisplayMetrics().density + 0.5f);
     }
 }

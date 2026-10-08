@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 全局滚动条滑块：圆角胶囊，浅灰半透明 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="#66C7C7CC" />
+    <corners android:radius="3dp" />
+    <size android:width="4dp" android:height="4dp" />
+</shape>

@@ -57,7 +57,7 @@ public class ProtocolActivity extends AppCompatActivity {
                 + "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">"
                 + "<style>"
                 + "body{font-family:system-ui,-apple-system,sans-serif;line-height:1.7;color:#1D1D1F;padding:16px;margin:0;background:#F2F2F7;}"
-                + "h1{font-size:18px;color:#5E6AD2;margin-bottom:12px;}"
+                + "h1{font-size:18px;color:#0A84FF;margin-bottom:12px;}"
                 + "p{margin:10px 0;font-size:14px;}"
                 + "</style></head><body>"
                 + body

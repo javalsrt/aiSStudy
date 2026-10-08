@@ -42,6 +42,11 @@ public interface ApiService {
     Call<List<Map<String, Object>>> getStudentSemesters(
             @Header("Authorization") String token);
 
+    /** 同班在线人数（WebSocket 实时在线，排除自己）：{ count, names } */
+    @GET("/api/schedule/student/online-classmates")
+    Call<Map<String, Object>> getOnlineClassmates(
+            @Header("Authorization") String token);
+
     /** 作息表（服务端按 登录用户年级+周次单双周 自动解析），week 为空按今天 */
     @GET("/api/bell/today")
     Call<Map<String, Object>> getBellToday(

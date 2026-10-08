@@ -3,7 +3,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="#FFFFFF">
+    android:background="@color/surface_1">
 
     <!-- 顶部栏 -->
     <LinearLayout
@@ -12,7 +12,7 @@
         android:gravity="center_vertical"
         android:orientation="horizontal"
         android:paddingHorizontal="8dp"
-        android:background="#FFFFFF">
+        android:background="@color/surface_1">
 
         <TextView
             android:id="@+id/btn_back"
@@ -20,7 +20,7 @@
             android:layout_height="40dp"
             android:text="‹"
             android:textSize="28sp"
-            android:textColor="#0A84FF"
+            android:textColor="@color/primary"
             android:gravity="center"
             android:clickable="true"
             android:focusable="true" />
@@ -32,7 +32,7 @@
             android:layout_weight="1"
             android:text="课程名"
             android:textSize="17sp"
-            android:textColor="#1D1D1F"
+            android:textColor="@color/ink"
             android:textStyle="bold"
             android:gravity="center"
             android:maxLines="1"
@@ -41,7 +41,7 @@
         <View android:layout_width="40dp" android:layout_height="1dp" />
     </LinearLayout>
 
-    <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#E5E7EB" />
+    <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/hairline" />
 
     <!-- 聊天消息区 -->
     <androidx.recyclerview.widget.RecyclerView
@@ -63,48 +63,53 @@
         android:gravity="center_vertical"
         android:paddingHorizontal="12dp"
         android:paddingVertical="10dp"
-        android:background="#F5F5F7">
+        android:background="@color/surface_3">
 
+        <!-- 附件/更多：白色圆形按钮 -->
         <TextView
             android:id="@+id/btn_add"
-            android:layout_width="44dp"
-            android:layout_height="44dp"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
             android:text="＋"
-            android:textSize="24sp"
-            android:textColor="#0A84FF"
+            android:textSize="22sp"
+            android:textColor="@color/primary"
             android:gravity="center"
+            android:background="@drawable/bg_circle_light"
             android:clickable="true"
             android:focusable="true" />
 
+        <!-- 输入框：白底胶囊 -->
         <EditText
             android:id="@+id/et_input"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:minHeight="52dp"
+            android:minHeight="44dp"
             android:maxLines="3"
             android:layout_marginHorizontal="10dp"
-            android:hint="输入消息..."
-            android:textSize="16sp"
-            android:textColor="#1D1D1F"
-            android:textColorHint="#C7C7CC"
-            android:background="@drawable/bg_input"
+            android:hint="输入消息"
+            android:textSize="15sp"
+            android:textColor="@color/ink"
+            android:textColorHint="@color/ink_tertiary"
+            android:background="@drawable/bg_input_pill"
             android:paddingHorizontal="16dp"
-            android:paddingVertical="14dp"
+            android:paddingVertical="11dp"
             android:inputType="text"
             android:focusable="true"
             android:focusableInTouchMode="true" />
 
+        <!-- 发送：8px 圆角主按钮，空内容自动置灰 -->
         <TextView
             android:id="@+id/btn_send"
             android:layout_width="wrap_content"
-            android:layout_height="48dp"
-            android:minWidth="60dp"
+            android:layout_height="44dp"
+            android:minWidth="68dp"
             android:text="发送"
             android:textSize="15sp"
-            android:textColor="#FFFFFF"
+            android:fontFamily="@font/harmonyos_sans_sc_medium"
+            android:textColor="@color/on_primary"
             android:gravity="center"
-            android:paddingHorizontal="14dp"
+            android:paddingHorizontal="16dp"
             android:background="@drawable/bg_btn_primary"
             android:clickable="true"
             android:focusable="true" />

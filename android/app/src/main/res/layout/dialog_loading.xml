@@ -20,7 +20,7 @@
         android:text="正在加载..."
         android:textSize="14sp"
         android:textColor="@color/text_primary"
-        android:fontFamily="sans-serif"
+        android:fontFamily="@font/harmonyos_sans_sc"
         android:gravity="center" />
 
 </LinearLayout>

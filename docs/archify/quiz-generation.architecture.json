@@ -1,0 +1,276 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "App 出题模块架构",
+    "output": "docs/archify/quiz-generation.html",
+    "visual_preset": "blueprint",
+    "animation": "trace",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/javalsrt/aiSStudy.git",
+      "revision": "working-tree"
+    },
+    "views": [
+      {
+        "id": "generate-path",
+        "label": "生成主链路",
+        "focus": ["student", "quizApi", "taskPool", "questionGen", "llmPool", "deepseek", "sessionSink"],
+        "note": "App 提交出题后立即拿 taskId，后台并行生成后轮询取题。"
+      },
+      {
+        "id": "cache-bank",
+        "label": "缓存与题库",
+        "focus": ["questionGen", "bank", "redis", "mysql"],
+        "note": "cacheKey 先查 Redis，再回源 question_bank；生成完成后写回。"
+      },
+      {
+        "id": "prewarm",
+        "label": "题库预生成",
+        "focus": ["teacherAdmin", "prewarm", "questionGen", "bank", "deepseek"],
+        "note": "教师导入或一键生成章节后，后台预生成难度 1~3 的题库。"
+      },
+      {
+        "id": "rag",
+        "label": "章节上下文检索",
+        "focus": ["questionGen", "rag", "embedding", "mysql"],
+        "note": "按已完成章节检索内容，上下文压到 4000 字以内再出题。"
+      }
+    ]
+  },
+  "layout": {
+    "mode": "grid",
+    "origin": [46, 92],
+    "cols": 5,
+    "gapX": 40,
+    "gapY": 50,
+    "cellW": 150,
+    "cellH": 62
+  },
+  "components": [
+    {
+      "id": "student",
+      "type": "external",
+      "label": "学生 App",
+      "sublabel": "Android / 小程序",
+      "row": 1,
+      "col": 0
+    },
+    {
+      "id": "quizApi",
+      "type": "backend",
+      "label": "QuizController",
+      "sublabel": "POST /api/quiz/generate",
+      "tag": "立即返回 taskId",
+      "row": 1,
+      "col": 1,
+      "sources": [{ "path": "backend/src/main/java/com/znxsgl/controller/QuizController.java" }]
+    },
+    {
+      "id": "taskPool",
+      "type": "backend",
+      "label": "quizExecutor",
+      "sublabel": "异步任务池 · 20 线程",
+      "tag": "taskId 轮询",
+      "row": 2,
+      "col": 1,
+      "sources": [{ "path": "backend/src/main/java/com/znxsgl/controller/QuizController.java" }]
+    },
+    {
+      "id": "questionGen",
+      "type": "backend",
+      "label": "QuestionGenerationService",
+      "sublabel": "单飞锁 · cacheKey · 合并入库",
+      "tag": "本次新增",
+      "row": 1,
+      "col": 2,
+      "sources": [{ "path": "backend/src/main/java/com/znxsgl/service/QuestionGenerationService.java" }]
+    },
+    {
+      "id": "llmPool",
+      "type": "backend",
+      "label": "题型并行",
+      "sublabel": "单选7 · 判断3 · 解析3 · 填空2",
+      "tag": "4 路并行",
+      "row": 0,
+      "col": 2,
+      "sources": [{ "path": "backend/src/main/java/com/znxsgl/service/QuestionGenerationService.java" }]
+    },
+    {
+      "id": "deepseek",
+      "type": "external",
+      "label": "DeepSeek API",
+      "sublabel": "deepseek-v4-flash",
+      "tag": "LLM 出题",
+      "row": 0,
+      "col": 3,
+      "sources": [{ "path": "backend/src/main/resources/application.yml" }]
+    },
+    {
+      "id": "rag",
+      "type": "backend",
+      "label": "RagService",
+      "sublabel": "retrieveByChapters",
+      "tag": "上下文 ≤ 4000 字",
+      "row": 1,
+      "col": 3,
+      "sources": [{ "path": "backend/src/main/java/com/znxsgl/service/RagService.java" }]
+    },
+    {
+      "id": "embedding",
+      "type": "backend",
+      "label": "本地 Embedding",
+      "sublabel": "BGE-M3 · :8000",
+      "tag": "可选 · 向量检索",
+      "row": 2,
+      "col": 3,
+      "sources": [{ "path": "embedding-service/main.py" }]
+    },
+    {
+      "id": "bank",
+      "type": "backend",
+      "label": "QuestionBankService",
+      "sublabel": "Redis 共享缓存 + MySQL 题库",
+      "tag": "本次新增",
+      "row": 1,
+      "col": 4,
+      "sources": [
+        { "path": "backend/src/main/java/com/znxsgl/service/QuestionBankService.java" },
+        { "path": "init-db/13-question-bank.sql" }
+      ]
+    },
+    {
+      "id": "redis",
+      "type": "database",
+      "label": "Redis",
+      "sublabel": "znxsgl:qbank:{cacheKey}",
+      "tag": "TTL 24h",
+      "row": 0,
+      "col": 4,
+      "sources": [{ "path": "docker-compose.yml" }]
+    },
+    {
+      "id": "mysql",
+      "type": "database",
+      "label": "MySQL 8.0",
+      "sublabel": "question_bank · quiz_session",
+      "tag": "持久化题库",
+      "row": 2,
+      "col": 4,
+      "sources": [{ "path": "init-db/13-question-bank.sql" }]
+    },
+    {
+      "id": "sessionSink",
+      "type": "database",
+      "label": "答题会话落库",
+      "sublabel": "quiz_session · quiz_answer",
+      "tag": "生成完成后写入",
+      "row": 3,
+      "col": 2,
+      "sources": [{ "path": "backend/src/main/java/com/znxsgl/controller/QuizController.java" }]
+    },
+    {
+      "id": "teacherAdmin",
+      "type": "external",
+      "label": "教师管理端",
+      "sublabel": "章节导入 / AI 生成章节",
+      "row": 3,
+      "col": 0
+    },
+    {
+      "id": "prewarm",
+      "type": "backend",
+      "label": "预生成任务",
+      "sublabel": "QuestionBankPrewarmTask · 难度 1~3",
+      "tag": "本次新增",
+      "row": 3,
+      "col": 1,
+      "sources": [
+        { "path": "backend/src/main/java/com/znxsgl/task/QuestionBankPrewarmTask.java" },
+        { "path": "backend/src/main/java/com/znxsgl/controller/CourseChapterController.java" }
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "客户端",
+      "wraps": ["student", "teacherAdmin"]
+    },
+    {
+      "kind": "region",
+      "label": "Spring Boot 后端",
+      "wraps": ["quizApi", "taskPool", "questionGen", "llmPool", "rag", "bank", "prewarm"]
+    },
+    {
+      "kind": "region",
+      "label": "AI 与基础设施",
+      "wraps": ["deepseek", "embedding", "redis", "mysql", "sessionSink"]
+    }
+  ],
+  "connections": [
+    { "from": "student", "to": "quizApi", "label": "1. 提交出题", "variant": "emphasis" },
+    { "from": "quizApi", "to": "taskPool", "label": "2. 立即返回 taskId" },
+    { "from": "taskPool", "to": "questionGen", "label": "3. 后台执行" },
+    { "from": "questionGen", "to": "bank", "label": "4. 查题库" },
+    { "from": "bank", "to": "redis", "label": "缓存命中", "variant": "dashed" },
+    { "from": "bank", "to": "mysql", "label": "回源/落库", "variant": "dashed" },
+    { "from": "questionGen", "to": "rag", "label": "5. 章节检索" },
+    { "from": "rag", "to": "embedding", "label": "可选向量化", "variant": "dashed" },
+    { "from": "questionGen", "to": "llmPool", "label": "6. 拆分题型" },
+    { "from": "llmPool", "to": "deepseek", "label": "7. 并行生成", "variant": "emphasis" },
+    { "from": "questionGen", "to": "bank", "label": "8. 合并写入题库" },
+    { "from": "taskPool", "to": "sessionSink", "label": "9. 写入会话" },
+    { "from": "taskPool", "to": "student", "label": "10. 轮询取题", "variant": "dashed" },
+    { "from": "teacherAdmin", "to": "prewarm", "label": "导入/生成章节", "variant": "emphasis" },
+    { "from": "prewarm", "to": "questionGen", "label": "后台预生成 难度 1~3", "variant": "dashed" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "并行拆分题型",
+      "items": [
+        "不再一次让 AI 输出 15 道题",
+        "单选7、判断3、解析3、填空2 四路并行",
+        "总耗时约等于最慢题型，而不是四个题型相加"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "单飞锁",
+      "items": [
+        "ConcurrentHashMap inFlight 按 cacheKey 共享 Future",
+        "同一份题只有一个请求真正调 AI",
+        "其他请求等待同一个结果，避免重复生成"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Redis 共享缓存 + 题库",
+      "items": [
+        "Redis key: znxsgl:qbank:{cacheKey}，TTL 24 小时",
+        "MySQL question_bank 持久化，服务重启不丢",
+        "Redis 不可用时自动降级本地缓存"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "预生成题库",
+      "items": [
+        "章节导入或 AI 生成章节成功后自动触发",
+        "后台预生成难度 1~3，学生点击时直接命中",
+        "支持 POST /api/quiz/bank/prewarm 手动触发",
+        "定时任务默认关闭，可配置凌晨执行"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "内容变化自动失效",
+      "items": [
+        "cacheKey 包含章节和课时的内容版本指纹",
+        "章节内容更新后自动生成新 key",
+        "避免继续返回旧题目"
+      ]
+    }
+  ]
+}

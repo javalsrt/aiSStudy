@@ -1,8 +1,10 @@
 package com.znxsgl.student.fragment;
 
+import android.app.Dialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.os.Handler;
@@ -12,10 +14,13 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewParent;
+import android.view.Window;
 import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
+
+import com.znxsgl.student.widget.IOSSwitch;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -27,6 +32,7 @@ import androidx.viewpager2.widget.ViewPager2;
 
 import com.znxsgl.student.CourseDetailActivity;
 import com.znxsgl.student.ExamHomeworkActivity;
+import com.znxsgl.student.RichTextRenderer;
 import com.znxsgl.student.R;
 import com.znxsgl.student.model.StudentCourse;
 import com.znxsgl.student.network.ApiService;
@@ -63,8 +69,6 @@ public class ProfileFragment extends Fragment implements WebSocketManager.OnChat
             mainHandler.postDelayed(this, 10000);
         }
     };
-
-    private static final String[] ICONS = {"📖","💻","📱","🌐","🎨","🔧","✍️","🗣️","🎬","📋","👥","📜","🏛️","🛡️"};
 
     @Nullable
     @Override
@@ -250,18 +254,49 @@ public class ProfileFragment extends Fragment implements WebSocketManager.OnChat
     /** 展示设置菜单：课程图标生成、退出登录 */
     private void showSettingsMenu() {
         if (!isAdded()) return;
-        String[] items = {"课程图标生成", "退出登录"};
-        new android.app.AlertDialog.Builder(getContext())
-                .setTitle("设置")
-                .setItems(items, (dialog, which) -> {
-                    if (which == 0) {
-                        showIconGenerator();
-                    } else if (which == 1) {
-                        doLogout();
-                    }
-                })
-                .setNegativeButton("取消", null)
-                .show();
+        // iOS 风格底部弹出面板
+        Dialog dialog = new Dialog(getContext());
+        dialog.setContentView(R.layout.dialog_settings);
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            window.setGravity(Gravity.BOTTOM);
+            window.setDimAmount(0.45f);
+        }
+
+        // 题目自动跳转开关（默认开启，持久化到 prefs）
+        IOSSwitch switchAutoJump = dialog.findViewById(R.id.switch_auto_jump);
+        if (switchAutoJump != null) {
+            switchAutoJump.setChecked(prefs.getBoolean("quiz_auto_jump", true));
+            switchAutoJump.setOnCheckedChangeListener(checked ->
+                    prefs.edit().putBoolean("quiz_auto_jump", checked).apply());
+        }
+        View rowAutoJump = dialog.findViewById(R.id.row_auto_jump);
+        if (rowAutoJump != null && switchAutoJump != null) {
+            rowAutoJump.setOnClickListener(v -> switchAutoJump.toggle());
+        }
+
+        View rowIconGen = dialog.findViewById(R.id.row_icon_gen);
+        if (rowIconGen != null) {
+            rowIconGen.setOnClickListener(v -> {
+                dialog.dismiss();
+                showIconGenerator();
+            });
+        }
+
+        View rowLogout = dialog.findViewById(R.id.row_logout);
+        if (rowLogout != null) {
+            rowLogout.setOnClickListener(v -> {
+                dialog.dismiss();
+                doLogout();
+            });
+        }
+
+        TextView btnCancel = dialog.findViewById(R.id.btn_cancel);
+        if (btnCancel != null) btnCancel.setOnClickListener(v -> dialog.dismiss());
+
+        dialog.show();
     }
 
     /** 课程图标生成入口 */
@@ -346,7 +381,7 @@ public class ProfileFragment extends Fragment implements WebSocketManager.OnChat
                                 String error = m.get("errorReason") != null ? m.get("errorReason").toString() : "";
                                 String improve = m.get("improve") != null ? m.get("improve").toString() : "";
                                 // 把 question 显示在知识点的位置
-                                ((TextView) h.itemView.findViewById(R.id.tv_question)).setText(question);
+                                RichTextRenderer.set(h.itemView.findViewById(R.id.tv_question), question);
                                 ((TextView) h.itemView.findViewById(R.id.tv_error)).setText(error);
                                 ((TextView) h.itemView.findViewById(R.id.tv_improve)).setText(improve);
                             }
@@ -528,6 +563,8 @@ public class ProfileFragment extends Fragment implements WebSocketManager.OnChat
     }
 
     // ========== Adapter ==========
+    private static final String[] ICONS = {"📖","💻","📱","🌐","🎨","🔧","✍️","🗣️","🎬","📋","👥","📜","🏛️","🛡️"};
+
     private class CourseAdapter extends RecyclerView.Adapter<CourseAdapter.VH> {
         @NonNull @Override
         public VH onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
@@ -565,17 +602,17 @@ public class ProfileFragment extends Fragment implements WebSocketManager.OnChat
                 if (sem.contains("暑假") || sem.contains("暑期")) {
                     holder.semesterTag.setVisibility(View.VISIBLE);
                     holder.semesterTag.setText("暑假班");
-                    holder.semesterTag.setTextColor(0xFFFA8C16);
+                    holder.semesterTag.setTextColor(0xFFFF9500);
                     holder.semesterTag.setBackgroundResource(R.drawable.bg_tag_orange);
                 } else if (sem.contains("寒假")) {
                     holder.semesterTag.setVisibility(View.VISIBLE);
                     holder.semesterTag.setText("寒假班");
-                    holder.semesterTag.setTextColor(0xFF1890FF);
+                    holder.semesterTag.setTextColor(0xFF0A84FF);
                     holder.semesterTag.setBackgroundResource(R.drawable.bg_tag_blue);
                 } else if (sem.contains("培训")) {
                     holder.semesterTag.setVisibility(View.VISIBLE);
                     holder.semesterTag.setText("培训班");
-                    holder.semesterTag.setTextColor(0xFF722ED1);
+                    holder.semesterTag.setTextColor(0xFFAF52DE);
                     holder.semesterTag.setBackgroundResource(R.drawable.bg_tag_purple);
                 } else {
                     holder.semesterTag.setVisibility(View.GONE);
@@ -676,14 +713,14 @@ public class ProfileFragment extends Fragment implements WebSocketManager.OnChat
                     textColor = 0xFF86868B;
                     bgColor = 0xFFF5F5F7;
                 } else if (!started) {
-                    textColor = 0xFF722ED1;
-                    bgColor = 0xFFF9F0FF;
+                    textColor = 0xFFAF52DE;
+                    bgColor = 0xFFF5EBFF;
                 } else if ("exam".equals(type)) {
-                    textColor = 0xFFFA8C16;
-                    bgColor = 0xFFFFF7E6;
+                    textColor = 0xFFFF9500;
+                    bgColor = 0xFFFFF3E2;
                 } else {
-                    textColor = 0xFF1890FF;
-                    bgColor = 0xFFE6F7FF;
+                    textColor = 0xFF0A84FF;
+                    bgColor = 0xFFE5F1FF;
                 }
                 tag.setTextColor(textColor);
 

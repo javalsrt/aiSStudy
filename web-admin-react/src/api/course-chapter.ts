@@ -56,10 +56,16 @@ export const importWordChapters = (courseId: number, file: File) => {
 }
 
 // AI 一键生成整课程章节（长耗时，需要单独设超时）
-export const generateChapters = (courseId: number) => {
+export interface GenerateOptions {
+  chapterCount?: number
+  difficulty?: string
+  notes?: string
+}
+
+export const generateChapters = (courseId: number, options?: GenerateOptions) => {
   return request.post<any, { message: string; data: { chapterCount: number; lessonCount: number } }>(
     `/course-chapter/generate/${courseId}`,
-    null,
+    options ?? {},
     { timeout: 300000 }
   )
 }

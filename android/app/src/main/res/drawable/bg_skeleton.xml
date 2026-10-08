@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 骨架屏占位块：浅灰胶囊（999dp 全圆角，正方形时即圆形） -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#E8E8ED" />
+    <corners android:radius="999dp" />
+</shape>

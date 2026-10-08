@@ -2,6 +2,26 @@
 @tailwind components;
 @tailwind utilities;
 
+/* 全局滚动条：圆角胶囊滑块，替代默认直角样式 */
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.18);
+  border-radius: 8px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.3);
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+
 @layer base {
   :root {
     --background: 220 60% 98%;

@@ -150,7 +150,7 @@ public class ReviewActivity extends AppCompatActivity {
             TextView tv = new TextView(this);
             tv.setText(tag);
             tv.setTextSize(13);
-            tv.setTextColor(0xFF5E6AD2);
+            tv.setTextColor(0xFF0A84FF);
             tv.setBackgroundResource(R.drawable.bg_tag_blue);
             tv.setPadding(dp(10), dp(4), dp(10), dp(4));
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(

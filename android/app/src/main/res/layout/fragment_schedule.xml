@@ -2,7 +2,7 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#FFFFFF"
+    android:background="@color/canvas"
     android:orientation="vertical">
 
     <!-- ========== 顶部区域 ========== -->
@@ -13,7 +13,7 @@
         android:paddingHorizontal="16dp"
         android:paddingTop="12dp"
         android:paddingBottom="8dp"
-        android:background="#FFFFFF">
+        android:background="@color/surface_1">
 
         <!-- 第一行：周数 + 年月日 -->
         <LinearLayout
@@ -29,7 +29,7 @@
                 android:layout_height="match_parent"
                 android:gravity="center_vertical"
                 android:text="第1周"
-                android:textColor="#1D1D1F"
+                android:textColor="@color/ink"
                 android:textSize="20sp"
                 android:textStyle="bold"
                 android:paddingEnd="12dp"
@@ -38,48 +38,49 @@
                 android:clickable="true"
                 android:focusable="true" />
 
-            <!-- 学期标签（可点击切换学期） -->
-            <TextView
-                android:id="@+id/tv_semester_label"
-                android:layout_width="wrap_content"
-                android:layout_height="26dp"
-                android:gravity="center"
-                android:text=""
-                android:textColor="#5E6AD2"
-                android:textSize="12sp"
-                android:background="#F0F4FF"
-                android:paddingHorizontal="10dp"
-                android:layout_marginEnd="12dp"
-                android:clickable="true"
-                android:focusable="true"
-                android:visibility="gone" />
-
-            <View
-                android:layout_width="1dp"
-                android:layout_height="20dp"
-                android:background="#E5E7EB"
-                android:layout_marginHorizontal="12dp" />
-
-            <!-- 年月日 -->
-            <TextView
-                android:id="@+id/tv_date_info"
+            <!-- 天气 + 班级在线（仿 QQ 顶栏） -->
+            <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text=""
-                android:textColor="#86868B"
-                android:textSize="14sp" />
+                android:layout_marginStart="4dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
 
-            <!-- 今天按钮 -->
+                <TextView
+                    android:id="@+id/tv_weather_info"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text=""
+                    android:textColor="@color/ink_subtle"
+                    android:textSize="14sp"
+                    android:singleLine="true"
+                    android:ellipsize="end" />
+
+                <!-- 好友在线（有同班同学在线才显示） -->
+                <TextView
+                    android:id="@+id/tv_online_info"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:text=""
+                    android:textColor="@color/success"
+                    android:textSize="13sp"
+                    android:singleLine="true"
+                    android:visibility="gone" />
+            </LinearLayout>
+
+            <!-- 今天按钮（44dp 满足触摸目标） -->
             <TextView
                 android:id="@+id/btn_today"
                 android:layout_width="wrap_content"
-                android:layout_height="32dp"
+                android:layout_height="44dp"
                 android:minWidth="52dp"
                 android:gravity="center"
                 android:text="今天"
-                android:textColor="#FFFFFF"
-                android:textSize="12sp"
+                android:textColor="@color/on_primary"
+                android:textSize="13sp"
                 android:background="@drawable/bg_today_btn"
                 android:clickable="true"
                 android:focusable="true" />
@@ -106,17 +107,23 @@
     <View
         android:layout_width="match_parent"
         android:layout_height="1dp"
-        android:background="#E5E7EB" />
+        android:background="@color/hairline" />
 
-    <!-- ========== 课表网格 8×8 ========== -->
-    <HorizontalScrollView
-        android:id="@+id/scroll_grid"
+    <!-- ========== 课表网格 8×8（含骨架屏加载层） ========== -->
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1"
-        android:fillViewport="true"
-        android:scrollbars="none"
-        android:overScrollMode="never">
+        android:layout_weight="1">
+
+        <HorizontalScrollView
+            android:id="@+id/scroll_grid"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:fillViewport="true"
+            android:scrollbars="none"
+            android:overScrollMode="never"
+            android:paddingBottom="104dp"
+            android:clipToPadding="false">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -129,13 +136,13 @@
                 android:layout_width="match_parent"
                 android:layout_height="36dp"
                 android:orientation="horizontal"
-                android:background="#F5F5F7">
+                android:background="@color/surface_3">
             </LinearLayout>
 
             <View
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
-                android:background="#E5E7EB" />
+                android:background="@color/hairline" />
 
             <!-- 课表内容区（无嵌套 ScrollView，全部撑满底部） -->
             <LinearLayout
@@ -146,4 +153,49 @@
             </LinearLayout>
         </LinearLayout>
     </HorizontalScrollView>
+
+    <!-- 骨架屏加载层：圆形 + 双行条块，脉冲呼吸动画 -->
+    <LinearLayout
+        android:id="@+id/skeleton_loading"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:paddingHorizontal="28dp"
+        android:background="@color/canvas"
+        android:visibility="gone">
+
+        <LinearLayout style="@style/SkeletonRow">
+            <View style="@style/SkeletonCircle" />
+            <LinearLayout style="@style/SkeletonLines">
+                <View style="@style/SkeletonBar" android:layout_width="120dp" />
+                <View style="@style/SkeletonBar" android:layout_width="160dp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout style="@style/SkeletonRow">
+            <View style="@style/SkeletonCircle" />
+            <LinearLayout style="@style/SkeletonLines">
+                <View style="@style/SkeletonBar" android:layout_width="150dp" />
+                <View style="@style/SkeletonBar" android:layout_width="110dp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout style="@style/SkeletonRow">
+            <View style="@style/SkeletonCircle" />
+            <LinearLayout style="@style/SkeletonLines">
+                <View style="@style/SkeletonBar" android:layout_width="100dp" />
+                <View style="@style/SkeletonBar" android:layout_width="170dp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout style="@style/SkeletonRow">
+            <View style="@style/SkeletonCircle" />
+            <LinearLayout style="@style/SkeletonLines">
+                <View style="@style/SkeletonBar" android:layout_width="140dp" />
+                <View style="@style/SkeletonBar" android:layout_width="120dp" />
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
+    </FrameLayout>
 </LinearLayout>

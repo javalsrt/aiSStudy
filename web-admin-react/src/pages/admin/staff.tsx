@@ -331,8 +331,8 @@ export function StaffPage() {
       email: user.email || '',
       studentNo: user.studentNo || '',
       classId: user.classId ? String(user.classId) : '',
-      major: user.major || '',
-      grade: user.grade || '',
+      major: classes.find((c) => c.id === user.classId)?.major || user.major || '',
+      grade: classes.find((c) => c.id === user.classId)?.grade || user.grade || '',
     })
     setFormError('')
     setSheetOpen(true)
@@ -648,6 +648,17 @@ export function StaffPage() {
 
   const updateField = (key: keyof FormState, value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }))
+  }
+
+  // 选择班级后，专业和年级自动以班级信息为准，避免手工填写不一致
+  const handleClassChange = (classId: string) => {
+    const selected = classes.find((c) => String(c.id) === classId)
+    setForm((prev) => ({
+      ...prev,
+      classId,
+      major: selected?.major || '',
+      grade: selected?.grade || '',
+    }))
   }
 
   // 下载人员批量导入模板（按当前标签下载学生/教师模板，Excel 格式，含填写说明）
@@ -1336,7 +1347,7 @@ export function StaffPage() {
               {tabLabel}
             </SheetTitle>
           </SheetHeader>
-          <div className="py-6 space-y-5">
+          <div className="pt-6 pb-24 space-y-5">
             <div className="space-y-2">
               <Label>姓名</Label>
               <Input
@@ -1385,7 +1396,7 @@ export function StaffPage() {
                   <select
                     className="w-full h-10 px-3 rounded-md border border-neutral-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                     value={form.classId}
-                    onChange={(e) => updateField('classId', e.target.value)}
+                    onChange={(e) => handleClassChange(e.target.value)}
                   >
                     <option value="">请选择班级</option>
                     {classes.map((c) => (
@@ -1399,16 +1410,18 @@ export function StaffPage() {
                   <div className="space-y-2">
                     <Label>专业</Label>
                     <Input
-                      placeholder="请输入专业"
+                      placeholder="由班级自动带出"
                       value={form.major}
+                      disabled={!!form.classId}
                       onChange={(e) => updateField('major', e.target.value)}
                     />
                   </div>
                   <div className="space-y-2">
                     <Label>年级</Label>
                     <Input
-                      placeholder="如 2024级"
+                      placeholder="由班级自动带出"
                       value={form.grade}
+                      disabled={!!form.classId}
                       onChange={(e) => updateField('grade', e.target.value)}
                     />
                   </div>

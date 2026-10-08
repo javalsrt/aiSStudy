@@ -2,10 +2,13 @@ package com.znxsgl.student.fragment;
 
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
-import android.app.AlertDialog;
+import android.animation.ObjectAnimator;
+import android.animation.ValueAnimator;
+import android.app.Dialog;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.os.Handler;
@@ -15,8 +18,10 @@ import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.Window;
 import android.widget.GridLayout;
 import android.widget.HorizontalScrollView;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -30,6 +35,13 @@ import com.znxsgl.student.model.ScheduleItem;
 import com.znxsgl.student.network.ApiService;
 import com.znxsgl.student.network.RetrofitClient;
 
+import org.json.JSONObject;
+
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -48,10 +60,12 @@ import retrofit2.Response;
 
 public class ScheduleFragment extends Fragment {
 
-    private TextView tvWeekLabel, tvDateInfo, btnToday, tvSemesterLabel;
+    private TextView tvWeekLabel, tvWeatherInfo, tvOnlineInfo, btnToday;
     private LinearLayout containerWeeks, gridBody;
     private LinearLayout rowHeader;
     private HorizontalScrollView scrollGrid;
+    private View skeletonLoading;
+    private ObjectAnimator skeletonAnim;
 
     private int currentWeek = 1;
     private int maxWeekCount = 18;
@@ -122,26 +136,24 @@ public class ScheduleFragment extends Fragment {
                              @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_schedule, container, false);
         tvWeekLabel = view.findViewById(R.id.tv_week_label);
-        tvDateInfo = view.findViewById(R.id.tv_date_info);
+        tvWeatherInfo = view.findViewById(R.id.tv_weather_info);
+        tvOnlineInfo = view.findViewById(R.id.tv_online_info);
         btnToday = view.findViewById(R.id.btn_today);
-        tvSemesterLabel = view.findViewById(R.id.tv_semester_label);
         containerWeeks = view.findViewById(R.id.container_weeks);
         gridBody = view.findViewById(R.id.grid_body);
         rowHeader = view.findViewById(R.id.row_header);
         scrollGrid = view.findViewById(R.id.scroll_grid);
+        skeletonLoading = view.findViewById(R.id.skeleton_loading);
 
         // 计算今天的星期
         Calendar cal = Calendar.getInstance();
         todayDayOfWeek = (cal.get(Calendar.DAY_OF_WEEK) + 6) % 7; // 周日=0, 周一=1...
         if (todayDayOfWeek == 0) todayDayOfWeek = 7; // 周日=7
 
-        // 学期加载前清除默认日期文案，避免显示 XML 中的占位符
-        if (tvDateInfo != null) tvDateInfo.setText("");
+        // 学期加载前清除默认文案，避免显示 XML 中的占位符
+        if (tvWeatherInfo != null) tvWeatherInfo.setText("");
 
         tvWeekLabel.setOnClickListener(v -> showWeekPicker());
-        if (tvSemesterLabel != null) {
-            tvSemesterLabel.setOnClickListener(v -> showSemesterPicker());
-        }
         btnToday.setOnClickListener(v -> {
             currentWeek = getCurrentWeek();
             fetchSchedule(currentWeek);
@@ -152,10 +164,16 @@ public class ScheduleFragment extends Fragment {
         // 只在学期加载成功后构建表头，避免初始使用「今天」日期
         loadSemesters();
 
-        // 左右滑动切换周次（在 ScrollView 上检测，优先级高于滚动）
+        // 加载当地天气（IP 定位 + Open-Meteo，30 分钟缓存）
+        loadWeather();
+
+        // 边缘感知滑动切换周次：
+        // 平时横向滑动 = 正常滚动课表（周日也能看到）；
+        // 只有当课表已经滚到对应尽头（最左/最右）时再滑，才切换上一周/下一周。
         scrollGrid.setOnTouchListener(new View.OnTouchListener() {
             private float startX, startY;
-            private boolean isSwiping = false;
+            private boolean startAtRightEdge = false;
+            private boolean startAtLeftEdge = false;
 
             @Override
             public boolean onTouch(View v, MotionEvent event) {
@@ -163,30 +181,26 @@ public class ScheduleFragment extends Fragment {
                     case MotionEvent.ACTION_DOWN:
                         startX = event.getX();
                         startY = event.getY();
-                        isSwiping = false;
-                        break;
-                    case MotionEvent.ACTION_MOVE:
-                        float dx = Math.abs(event.getX() - startX);
-                        float dy = Math.abs(event.getY() - startY);
-                        // 确认是横向滑动后，禁止 ScrollView 拦截
-                        if (!isSwiping && dx > dy && dx > 20) {
-                            isSwiping = true;
-                            v.getParent().requestDisallowInterceptTouchEvent(true);
-                        }
-                        if (isSwiping) return true;
+                        // 记录按下时表格是否已在尽头（-1=向左滚到头，1=向右滚到头）
+                        startAtRightEdge = !scrollGrid.canScrollHorizontally(1);
+                        startAtLeftEdge = !scrollGrid.canScrollHorizontally(-1);
                         break;
                     case MotionEvent.ACTION_UP:
                     case MotionEvent.ACTION_CANCEL:
                         float totalDx = event.getX() - startX;
-                        if (isSwiping && Math.abs(totalDx) > 60) {
-                            if (totalDx < 0 && currentWeek < maxWeekCount) animateWeekChange(1);
-                            else if (totalDx > 0 && currentWeek > 1) animateWeekChange(-1);
+                        float totalDy = event.getY() - startY;
+                        // 横向明显大于纵向才算滑动意图，避免误触
+                        if (Math.abs(totalDx) > 80 && Math.abs(totalDx) > Math.abs(totalDy) * 1.5f) {
+                            if (totalDx < 0 && startAtRightEdge && currentWeek < maxWeekCount) {
+                                animateWeekChange(1);   // 在最右端继续左滑 → 下一周
+                            } else if (totalDx > 0 && startAtLeftEdge && currentWeek > 1) {
+                                animateWeekChange(-1);  // 在最左端继续右滑 → 上一周
+                            }
                         }
-                        v.getParent().requestDisallowInterceptTouchEvent(false);
-                        isSwiping = false;
                         break;
                 }
-                return isSwiping;
+                // 始终不消费事件，把滚动交还给 HorizontalScrollView
+                return false;
             }
         });
         return view;
@@ -195,6 +209,9 @@ public class ScheduleFragment extends Fragment {
     @Override
     public void onResume() {
         super.onResume();
+        // 回到页面时刷新天气与好友在线状态
+        loadWeather();
+        loadOnlineInfo();
     }
 
     // ========== 滑动切换动画 ==========
@@ -203,6 +220,7 @@ public class ScheduleFragment extends Fragment {
             // 降级：无动画
             currentWeek += direction;
             refreshAll();
+            scrollGrid.post(() -> scrollGrid.scrollTo(0, 0));
             return;
         }
         isAnimating = true;
@@ -221,6 +239,8 @@ public class ScheduleFragment extends Fragment {
                     // 预置到对面
                     content.setTranslationX(direction * w * 0.5f);
                     fetchScheduleAnimated(currentWeek, content, direction, w);
+                    // 切周后回到最左（周一），避免停留在边缘导致反向滑动误判
+                    scrollGrid.post(() -> scrollGrid.smoothScrollTo(0, 0));
                 }
             }).start();
     }
@@ -237,45 +257,59 @@ public class ScheduleFragment extends Fragment {
                 if (resp.isSuccessful() && resp.body() != null && !resp.body().isEmpty()) {
                     semesterList = resp.body();
                     semestersLoaded = true;
-                    // 优先选择当前学期（isCurrent），其次选择进行中的学期，都没有则选第一个
+                    // 选学期优先级：
+                    // 1) 日期范围包含今天的学期（最可靠，不依赖后端 isCurrent 标记是否更新）
+                    // 2) isCurrent=1 的学期
+                    // 3) 第一个学期
                     String selectedName = null;
                     String selectedStart = null;
                     int selectedWeeks = 18;
+                    Calendar todayCal = Calendar.getInstance();
+
+                    java.text.SimpleDateFormat df = new java.text.SimpleDateFormat("yyyy-MM-dd", Locale.CHINA);
+
+                    // 1) 日期包含今天
                     for (Map<String, Object> s : semesterList) {
-                        Object isCurrent = s.get("isCurrent");
-                        boolean currentFlag = false;
-                        if (isCurrent instanceof Boolean) {
-                            currentFlag = (Boolean) isCurrent;
-                        } else if (isCurrent instanceof Number) {
-                            currentFlag = ((Number) isCurrent).intValue() == 1;
-                        }
-                        if (currentFlag) {
+                        Object startObj = s.get("startDate"), endObj = s.get("endDate");
+                        if (!(startObj instanceof String) || !(endObj instanceof String)) continue;
+                        java.util.Date sd = df.parse(startObj.toString(), new java.text.ParsePosition(0));
+                        java.util.Date ed = df.parse(endObj.toString(), new java.text.ParsePosition(0));
+                        if (sd == null || ed == null) continue;
+                        if (!todayCal.getTime().before(sd) && !todayCal.getTime().after(ed)) {
                             selectedName = s.get("name").toString();
-                            selectedStart = s.get("startDate") != null ? s.get("startDate").toString() : null;
-                            if (s.get("weekCount") != null) {
+                            selectedStart = startObj.toString();
+                            if (s.get("weekCount") instanceof Number) {
                                 selectedWeeks = ((Number) s.get("weekCount")).intValue();
                             }
                             break;
                         }
                     }
+                    // 2) isCurrent 标记
                     if (selectedName == null) {
                         for (Map<String, Object> s : semesterList) {
-                            String status = s.get("status") != null ? s.get("status").toString() : "";
-                            if ("ongoing".equals(status)) {
+                            Object isCurrent = s.get("isCurrent");
+                            boolean currentFlag = false;
+                            if (isCurrent instanceof Boolean) {
+                                currentFlag = (Boolean) isCurrent;
+                            } else if (isCurrent instanceof Number) {
+                                currentFlag = ((Number) isCurrent).intValue() == 1;
+                            }
+                            if (currentFlag) {
                                 selectedName = s.get("name").toString();
                                 selectedStart = s.get("startDate") != null ? s.get("startDate").toString() : null;
-                                if (s.get("weekCount") != null) {
+                                if (s.get("weekCount") instanceof Number) {
                                     selectedWeeks = ((Number) s.get("weekCount")).intValue();
                                 }
                                 break;
                             }
                         }
                     }
+                    // 3) 第一个
                     if (selectedName == null && !semesterList.isEmpty()) {
                         Map<String, Object> first = semesterList.get(0);
                         selectedName = first.get("name").toString();
                         selectedStart = first.get("startDate") != null ? first.get("startDate").toString() : null;
-                        if (first.get("weekCount") != null) {
+                        if (first.get("weekCount") instanceof Number) {
                             selectedWeeks = ((Number) first.get("weekCount")).intValue();
                         }
                     }
@@ -283,7 +317,6 @@ public class ScheduleFragment extends Fragment {
                     semesterStartDate = selectedStart;
                     maxWeekCount = selectedWeeks;
                     mainHandler.post(() -> {
-                        updateSemesterLabel();
                         currentWeek = getCurrentWeek();
                         buildWeekSelector();
                         buildHeader();
@@ -318,21 +351,13 @@ public class ScheduleFragment extends Fragment {
         });
     }
 
-    private void updateSemesterLabel() {
-        if (tvSemesterLabel == null) return;
-        if (currentSemester != null) {
-            tvSemesterLabel.setText(currentSemester);
-            tvSemesterLabel.setVisibility(View.VISIBLE);
-        } else {
-            tvSemesterLabel.setVisibility(View.GONE);
-        }
-    }
-
     private void fetchSchedule(int week) {
         fetchScheduleAnimated(week, null, 0, 0);
     }
 
     private void fetchScheduleAnimated(int week, View content, int direction, int width) {
+        // 进入加载态：非切周动画时展示骨架屏（切周有滑动过渡，不叠加骨架）
+        showSkeleton(content == null);
         SharedPreferences prefs = requireActivity().getSharedPreferences("znxsgl", 0);
         String token = prefs.getString("token", "");
 
@@ -389,6 +414,7 @@ public class ScheduleFragment extends Fragment {
                 }
                 mainHandler.post(() -> {
                     buildScheduleGrid();
+                    showSkeleton(false);
                     if (content != null) {
                         content.animate()
                             .translationX(0).alpha(1f)
@@ -407,6 +433,7 @@ public class ScheduleFragment extends Fragment {
                 mainHandler.post(() -> {
                     Toast.makeText(RetrofitClient.safeContext(getContext()), "无法连接服务器", Toast.LENGTH_SHORT).show();
                     buildScheduleGrid();
+                    showSkeleton(false);
                     if (content != null) {
                         content.animate().translationX(0).alpha(1f).setDuration(150)
                             .setListener(new AnimatorListenerAdapter() {
@@ -451,13 +478,12 @@ public class ScheduleFragment extends Fragment {
         rowHeader.removeAllViews();
         int todayIdx = todayDayOfWeek - 1; // 0索引
         // 节次列
-        TextView timeHeader = createHeaderCell("节次", 0xFF86868B, dp(36));
+        TextView timeHeader = createHeaderCell("节次", 0xFF8E8E93, dp(36));
         timeHeader.setBackgroundColor(0xFFF5F5F7);
         rowHeader.addView(timeHeader);
         
         // 周一到周日，带日期和高亮
         // 日期锚定开学日所在自然周的周一 + 当前周次，对齐真实星期几，与上传/查看日期无关
-        updateDateInfo();
         Calendar cal = getWeekMonday(currentWeek);
         SimpleDateFormat sdf = new SimpleDateFormat("M/d", Locale.CHINA);
         
@@ -476,15 +502,15 @@ public class ScheduleFragment extends Fragment {
             TextView tvDay = new TextView(getContext());
             tvDay.setText(DAY_NAMES[i]);
             tvDay.setTextSize(11);
-            tvDay.setTextColor(isToday ? 0xFF5E6AD2 : 0xFF1D1D1F);
+            tvDay.setTextColor(isToday ? 0xFF0A84FF : 0xFF1D1D1F);
             tvDay.setGravity(Gravity.CENTER);
-            tvDay.setTypeface(null, Typeface.BOLD);
+            tvDay.setTypeface(fontMedium());
             cell.addView(tvDay);
             
             TextView tvDate = new TextView(getContext());
             tvDate.setText(dateStr);
-            tvDate.setTextSize(8);
-            tvDate.setTextColor(isToday ? 0xFF5E6AD2 : 0xFF86868B);
+            tvDate.setTextSize(10);
+            tvDate.setTextColor(isToday ? 0xFF0A84FF : 0xFF8E8E93);
             tvDate.setGravity(Gravity.CENTER);
             cell.addView(tvDate);
             
@@ -542,19 +568,6 @@ public class ScheduleFragment extends Fragment {
         return todayMs >= startMs && todayMs <= endMs;
     }
 
-    /**
-     * 更新顶部右上角日期信息：显示当前查看周的学期日期区间（如 9/1 - 9/6），
-     * 与上传/查看日期无关，暑假/寒假也始终显示开学后的真实日期。
-     */
-    private void updateDateInfo() {
-        if (tvDateInfo == null) return;
-        SimpleDateFormat sdf = new SimpleDateFormat("M/d", Locale.CHINA);
-        Calendar start = getWeekMonday(currentWeek);
-        Calendar end = (Calendar) start.clone();
-        end.add(Calendar.DAY_OF_MONTH, 6); // 周日
-        tvDateInfo.setText(sdf.format(start.getTime()) + " - " + sdf.format(end.getTime()));
-    }
-
     private TextView createHeaderCell(String text, int color, int fixedWidth) {
         TextView tv = new TextView(getContext());
         if (fixedWidth > 0) {
@@ -564,7 +577,7 @@ public class ScheduleFragment extends Fragment {
         }
         tv.setText(text); tv.setTextSize(11);
         tv.setTextColor(color); tv.setGravity(Gravity.CENTER);
-        tv.setTypeface(null, Typeface.BOLD);
+        tv.setTypeface(fontMedium());
         return tv;
     }
 
@@ -584,7 +597,7 @@ public class ScheduleFragment extends Fragment {
                 bg.setColor(0xFF0A84FF); bg.setCornerRadius(dp(15));
                 tv.setBackground(bg); tv.setTextColor(Color.WHITE);
             } else {
-                tv.setBackground(null); tv.setTextColor(0xFF86868B);
+                tv.setBackground(null); tv.setTextColor(0xFF8E8E93);
             }
             tv.setOnClickListener(v -> { currentWeek = week; refreshAll(); });
             containerWeeks.addView(tv);
@@ -654,13 +667,13 @@ public class ScheduleFragment extends Fragment {
         timeCol.setBackground(timeBg);
 
         TextView tvStart = new TextView(getContext());
-        tvStart.setText(start); tvStart.setTextSize(9);
+        tvStart.setText(start); tvStart.setTextSize(10);
         tvStart.setTextColor(0xFF1D1D1F); tvStart.setGravity(Gravity.CENTER);
         timeCol.addView(tvStart);
 
         TextView tvEnd = new TextView(getContext());
-        tvEnd.setText(end); tvEnd.setTextSize(8);
-        tvEnd.setTextColor(0xFF86868B); tvEnd.setGravity(Gravity.CENTER);
+        tvEnd.setText(end); tvEnd.setTextSize(10);
+        tvEnd.setTextColor(0xFF8E8E93); tvEnd.setGravity(Gravity.CENTER);
         timeCol.addView(tvEnd);
         row.addView(timeCol);
 
@@ -707,54 +720,25 @@ public class ScheduleFragment extends Fragment {
 
         if (courseName != null) {
             int baseColor = COURSE_COLORS[Math.abs(courseName.hashCode()) % COURSE_COLORS.length];
-            
-            if (isToday) {
-                // 今天列：左边加蓝条 + 课程颜色卡片
-                cell.setOrientation(LinearLayout.HORIZONTAL);
-                View strip = new View(getContext());
-                strip.setLayoutParams(new LinearLayout.LayoutParams(dp(3), LinearLayout.LayoutParams.MATCH_PARENT));
-                strip.setBackgroundColor(0xFF5E6AD2);
-                cell.addView(strip);
-                // 内嵌卡片
-                LinearLayout card = new LinearLayout(getContext());
-                card.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1));
-                card.setOrientation(LinearLayout.VERTICAL);
-                card.setGravity(Gravity.CENTER);
-                GradientDrawable cardBg = new GradientDrawable();
-                cardBg.setColor(baseColor); cardBg.setCornerRadius(dp(6));
-                card.setBackground(cardBg);
-                
-                TextView tvName = new TextView(getContext());
-                tvName.setText(courseName); tvName.setTextSize(10);
-                tvName.setTextColor(0xFF1D1D1F); tvName.setGravity(Gravity.CENTER);
-                tvName.setMaxLines(2);
-                card.addView(tvName);
-                if (classroom != null && !classroom.isEmpty()) {
-                    String shortRoom = classroom.length() > 10 ? classroom.substring(0, 9) + "…" : classroom;
-                    TextView tvRoom = new TextView(getContext());
-                    tvRoom.setText(shortRoom); tvRoom.setTextSize(8);
-                    tvRoom.setTextColor(0xFF86868B); tvRoom.setGravity(Gravity.CENTER);
-                    tvRoom.setMaxLines(1);
-                    card.addView(tvRoom);
-                }
-                cell.addView(card);
-            } else {
-                GradientDrawable bg = new GradientDrawable();
-                bg.setColor(baseColor); bg.setCornerRadius(dp(6));
-                cell.setBackground(bg);
-                TextView tvName = new TextView(getContext());
-                tvName.setText(courseName); tvName.setTextSize(10);
-                tvName.setTextColor(0xFF1D1D1F); tvName.setGravity(Gravity.CENTER);
-                tvName.setMaxLines(2);
-                cell.addView(tvName);
-                if (classroom != null && !classroom.isEmpty()) {
-                    String shortRoom = classroom.length() > 10 ? classroom.substring(0, 9) + "…" : classroom;
-                    TextView tvRoom = new TextView(getContext());
-                    tvRoom.setText(shortRoom); tvRoom.setTextSize(8);
-                    tvRoom.setTextColor(0xFF86868B); tvRoom.setGravity(Gravity.CENTER);
-                    tvRoom.setMaxLines(1);
-                    cell.addView(tvRoom);
-                }
+            // 今天列：不另加蓝条/白卡，直接把课程色加深一档以示强调
+            int bgColor = isToday ? darkenColor(baseColor, 0.85f) : baseColor;
+
+            GradientDrawable bg = new GradientDrawable();
+            bg.setColor(bgColor); bg.setCornerRadius(dp(6));
+            cell.setBackground(bg);
+
+            TextView tvName = new TextView(getContext());
+            tvName.setText(courseName); tvName.setTextSize(11);
+            tvName.setTextColor(0xFF1D1D1F); tvName.setGravity(Gravity.CENTER);
+            tvName.setMaxLines(2);
+            cell.addView(tvName);
+            if (classroom != null && !classroom.isEmpty()) {
+                String shortRoom = classroom.length() > 10 ? classroom.substring(0, 9) + "…" : classroom;
+                TextView tvRoom = new TextView(getContext());
+                tvRoom.setText(shortRoom); tvRoom.setTextSize(10);
+                tvRoom.setTextColor(0xFF8E8E93); tvRoom.setGravity(Gravity.CENTER);
+                tvRoom.setMaxLines(1);
+                cell.addView(tvRoom);
             }
         } else {
             GradientDrawable bg = new GradientDrawable();
@@ -788,7 +772,7 @@ public class ScheduleFragment extends Fragment {
 
         TextView tv = new TextView(getContext());
         tv.setText(text);
-        tv.setTextSize(10); tv.setTextColor(0xFFFF9500); tv.setGravity(Gravity.CENTER);
+        tv.setTextSize(11); tv.setTextColor(0xFFFF9500); tv.setGravity(Gravity.CENTER);
         sep.addView(tv);
 
         View lineR = new View(getContext());
@@ -810,14 +794,31 @@ public class ScheduleFragment extends Fragment {
 
     // ========== 周数选择弹窗 ==========
     private void showWeekPicker() {
-        GridLayout grid = new GridLayout(getContext());
-        grid.setColumnCount(6);
-        grid.setPadding(dp(16), dp(16), dp(16), dp(16));
+        // iOS 风格底部弹出面板
+        Dialog dialog = new Dialog(getContext());
+        dialog.setContentView(R.layout.dialog_week_picker);
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            window.setGravity(Gravity.BOTTOM);
+            window.setDimAmount(0.45f);
+        }
 
-        AlertDialog dialog = new AlertDialog.Builder(getContext())
-                .setTitle("选择周数").setView(grid)
-                .setPositiveButton("关闭", null).create();
+        TextView btnCancel = dialog.findViewById(R.id.btn_cancel);
+        if (btnCancel != null) btnCancel.setOnClickListener(v -> dialog.dismiss());
 
+        // 学期内容移入切换周目弹窗：显示当前学期，点击可切换
+        TextView tvDialogSemester = dialog.findViewById(R.id.tv_dialog_semester);
+        if (tvDialogSemester != null) {
+            tvDialogSemester.setText(currentSemester != null ? currentSemester : "未加载学期");
+            tvDialogSemester.setOnClickListener(v -> {
+                dialog.dismiss();
+                showSemesterPicker();
+            });
+        }
+
+        GridLayout grid = dialog.findViewById(R.id.gl_weeks);
         for (int w = 1; w <= maxWeekCount; w++) {
             final int week = w;
             TextView tv = new TextView(getContext());
@@ -825,16 +826,17 @@ public class ScheduleFragment extends Fragment {
             params.width = dp(44); params.height = dp(40);
             params.setMargins(dp(4), dp(4), dp(4), dp(4));
             tv.setLayoutParams(params);
-            tv.setText(String.valueOf(w)); tv.setTextSize(16); tv.setGravity(Gravity.CENTER);
+            tv.setText(String.valueOf(w)); tv.setTextSize(15); tv.setGravity(Gravity.CENTER);
             if (w == currentWeek) {
                 GradientDrawable bg = new GradientDrawable();
-                bg.setColor(0xFF0A84FF); bg.setCornerRadius(dp(20));
+                bg.setColor(0xFF0A84FF); bg.setCornerRadius(dp(8));
                 tv.setBackground(bg); tv.setTextColor(Color.WHITE);
+                tv.setTypeface(fontMedium());
             } else {
                 tv.setTextColor(0xFF1D1D1F);
+                tv.setBackgroundResource(R.drawable.bg_sheet_row);
             }
-            final AlertDialog d = dialog;
-            tv.setOnClickListener(v -> { currentWeek = week; d.dismiss(); refreshAll(); });
+            tv.setOnClickListener(v -> { currentWeek = week; dialog.dismiss(); refreshAll(); });
             grid.addView(tv);
         }
         dialog.show();
@@ -846,42 +848,95 @@ public class ScheduleFragment extends Fragment {
             Toast.makeText(RetrofitClient.safeContext(getContext()), "暂无可选学期", Toast.LENGTH_SHORT).show();
             return;
         }
-        String[] names = new String[semesterList.size()];
         int selectedIndex = 0;
         for (int i = 0; i < semesterList.size(); i++) {
-            Map<String, Object> s = semesterList.get(i);
-            String name = s.get("name") != null ? s.get("name").toString() : "未知";
-            String status = s.get("status") != null ? s.get("status").toString() : "";
-            String statusLabel = "";
-            switch (status) {
-                case "ongoing": statusLabel = "（进行中）"; break;
-                case "before": statusLabel = "（未开始）"; break;
-                case "ended": statusLabel = "（已结束）"; break;
-            }
-            names[i] = name + statusLabel;
+            String name = semesterList.get(i).get("name") != null
+                    ? semesterList.get(i).get("name").toString() : "未知";
             if (name.equals(currentSemester)) selectedIndex = i;
         }
 
-        AlertDialog dialog = new AlertDialog.Builder(getContext())
-                .setTitle("选择学期")
-                .setSingleChoiceItems(names, selectedIndex, (d, which) -> {
-                    Map<String, Object> s = semesterList.get(which);
-                    currentSemester = s.get("name") != null ? s.get("name").toString() : null;
-                    semesterStartDate = s.get("startDate") != null ? s.get("startDate").toString() : null;
-                    if (s.get("weekCount") != null) {
-                        maxWeekCount = ((Number) s.get("weekCount")).intValue();
-                    } else {
-                        maxWeekCount = 18;
-                    }
-                    updateSemesterLabel();
-                    currentWeek = getCurrentWeek();
-                    buildWeekSelector();
-                    buildHeader();
-                    fetchSchedule(currentWeek);
-                    d.dismiss();
-                })
-                .setNegativeButton("取消", null)
-                .create();
+        // iOS 风格底部弹出面板
+        Dialog dialog = new Dialog(getContext());
+        dialog.setContentView(R.layout.dialog_semester_picker);
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            window.setGravity(Gravity.BOTTOM);
+            window.setDimAmount(0.45f);
+        }
+
+        TextView btnCancel = dialog.findViewById(R.id.btn_cancel);
+        if (btnCancel != null) btnCancel.setOnClickListener(v -> dialog.dismiss());
+
+        LinearLayout list = dialog.findViewById(R.id.ll_semester_list);
+        for (int i = 0; i < semesterList.size(); i++) {
+            final Map<String, Object> s = semesterList.get(i);
+            String name = s.get("name") != null ? s.get("name").toString() : "未知";
+            String status = s.get("status") != null ? s.get("status").toString() : "";
+            String statusLabel = switch (status) {
+                case "ongoing" -> "进行中";
+                case "before" -> "未开始";
+                case "ended" -> "已结束";
+                default -> "";
+            };
+            final boolean selected = (i == selectedIndex);
+
+            LinearLayout row = new LinearLayout(getContext());
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            row.setPadding(dp(20), dp(14), dp(20), dp(14));
+            row.setBackgroundResource(R.drawable.bg_sheet_row);
+            row.setClickable(true);
+
+            TextView tvName = new TextView(getContext());
+            tvName.setText(name);
+            tvName.setTextSize(16);
+            tvName.setTextColor(selected ? 0xFF0A84FF : 0xFF1D1D1F);
+            tvName.setTypeface(selected ? fontMedium() : fontRegular());
+            row.addView(tvName, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+
+            if (!statusLabel.isEmpty()) {
+                TextView tvStatus = new TextView(getContext());
+                tvStatus.setText(statusLabel);
+                tvStatus.setTextSize(12);
+                tvStatus.setTextColor(0xFF8E8E93);
+                row.addView(tvStatus);
+            }
+
+            if (selected) {
+                ImageView ivCheck = new ImageView(getContext());
+                ivCheck.setImageResource(R.drawable.ic_check);
+                ivCheck.setColorFilter(0xFF0A84FF);
+                LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(dp(18), dp(18));
+                clp.leftMargin = dp(8);
+                row.addView(ivCheck, clp);
+            }
+
+            row.setOnClickListener(v -> {
+                dialog.dismiss();
+                currentSemester = s.get("name") != null ? s.get("name").toString() : null;
+                semesterStartDate = s.get("startDate") != null ? s.get("startDate").toString() : null;
+                if (s.get("weekCount") != null) {
+                    maxWeekCount = ((Number) s.get("weekCount")).intValue();
+                } else {
+                    maxWeekCount = 18;
+                }
+                currentWeek = getCurrentWeek();
+                buildWeekSelector();
+                buildHeader();
+                fetchSchedule(currentWeek);
+            });
+            list.addView(row);
+
+            if (i < semesterList.size() - 1) {
+                View sep = new View(getContext());
+                sep.setBackgroundResource(R.color.hairline);
+                LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 1);
+                slp.leftMargin = dp(20);
+                list.addView(sep, slp);
+            }
+        }
         dialog.show();
     }
 
@@ -890,11 +945,252 @@ public class ScheduleFragment extends Fragment {
         todayDayOfWeek = (cal.get(Calendar.DAY_OF_WEEK) + 6) % 7;
         if (todayDayOfWeek == 0) todayDayOfWeek = 7;
         buildWeekSelector();
-        buildHeader();      // 切换周次时同步更新表头日期与顶部日期
+        buildHeader();      // 切换周次时同步更新表头日期
         fetchSchedule(currentWeek);
+    }
+
+    // ========== 当地天气（IP 定位 + Open-Meteo，30 分钟缓存） ==========
+    private static String cachedWeatherText = null;
+    private static long cachedWeatherAt = 0L;
+    private static final long WEATHER_CACHE_MS = 30 * 60 * 1000L;
+
+    private void loadWeather() {
+        if (tvWeatherInfo == null) return;
+        long now = System.currentTimeMillis();
+        if (cachedWeatherText != null && now - cachedWeatherAt < WEATHER_CACHE_MS) {
+            tvWeatherInfo.setText(dayGreeting() + " · " + cachedWeatherText);
+            return;
+        }
+        tvWeatherInfo.setText(dayGreeting());
+        executor.execute(() -> {
+            String text = fetchWeatherText();
+            if (text != null) {
+                cachedWeatherText = text;
+                cachedWeatherAt = System.currentTimeMillis();
+            }
+            String finalText = text != null ? dayGreeting() + " · " + text : dayGreeting();
+            mainHandler.post(() -> {
+                if (tvWeatherInfo != null && isAdded()) tvWeatherInfo.setText(finalText);
+            });
+        });
+    }
+
+    /** 按当前时段返回问候语：早上 / 中午 / 下午 / 半晚 / 夜晚 */
+    private String dayGreeting() {
+        int hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY);
+        if (hour >= 5 && hour < 11) return "早上好 🌅";
+        if (hour >= 11 && hour < 13) return "中午好 ☀️";
+        if (hour >= 13 && hour < 18) return "下午好 🌤️";
+        if (hour >= 18 && hour < 21) return "半晚好 🌆";
+        return "夜晚好 🌙";
+    }
+
+    /** 将颜色按比例加深（用于今天列的课程强调） */
+    private int darkenColor(int color, float factor) {
+        int r = (int) (android.graphics.Color.red(color) * factor);
+        int g = (int) (android.graphics.Color.green(color) * factor);
+        int b = (int) (android.graphics.Color.blue(color) * factor);
+        return android.graphics.Color.rgb(r, g, b);
+    }
+
+    /** 请求 Open-Meteo 当前天气，返回如「南宁武鸣区 ☀️ 33°C」；失败返回 null */
+    private String fetchWeatherText() {
+        try {
+            String[] loc = locateByIp();
+            double lat = loc != null ? Double.parseDouble(loc[0]) : 39.9042;
+            double lon = loc != null ? Double.parseDouble(loc[1]) : 116.4074;
+            String fallbackCity = loc != null && loc.length > 2 ? loc[2] : "";
+            URL url = new URL("https://api.open-meteo.com/v1/forecast?latitude=" + lat
+                    + "&longitude=" + lon
+                    + "&current=temperature_2m,weather_code&timezone=auto");
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setConnectTimeout(5000);
+            conn.setReadTimeout(5000);
+            try {
+                JSONObject obj = new JSONObject(readAll(conn));
+                JSONObject cur = obj.getJSONObject("current");
+                double temp = cur.getDouble("temperature_2m");
+                int code = cur.optInt("weather_code", -1);
+                String place = fetchDistrictName(lat, lon, fallbackCity);
+                String icon = weatherEmoji(code);
+                StringBuilder sb = new StringBuilder();
+                if (!place.isEmpty()) sb.append(place).append(" ");
+                if (!icon.isEmpty()) sb.append(icon).append(" ");
+                sb.append(Math.round(temp)).append("°C");
+                return sb.toString();
+            } finally {
+                conn.disconnect();
+            }
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /** 通过 IP 粗定位获取经纬度与城市名（无需定位权限），失败返回 null */
+    private String[] locateByIp() {
+        try {
+            URL url = new URL("http://ip-api.com/json/?fields=lat,lon,city&lang=zh-CN");
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setConnectTimeout(5000);
+            conn.setReadTimeout(5000);
+            try {
+                JSONObject obj = new JSONObject(readAll(conn));
+                if (obj.has("lat") && obj.has("lon")) {
+                    return new String[]{
+                            String.valueOf(obj.getDouble("lat")),
+                            String.valueOf(obj.getDouble("lon")),
+                            obj.optString("city", "")};
+                }
+                return null;
+            } finally {
+                conn.disconnect();
+            }
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /** 反查区县级地名（Nominatim 逆地理编码，失败降级为 IP 城市名） */
+    private String fetchDistrictName(double lat, double lon, String fallbackCity) {
+        try {
+            URL url = new URL("https://nominatim.openstreetmap.org/reverse?format=jsonv2"
+                    + "&lat=" + lat + "&lon=" + lon + "&zoom=10&accept-language=zh-CN");
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setConnectTimeout(5000);
+            conn.setReadTimeout(5000);
+            conn.setRequestProperty("User-Agent", "aiStudyApp/1.0");
+            try {
+                JSONObject obj = new JSONObject(readAll(conn));
+                JSONObject addr = obj.optJSONObject("address");
+                if (addr != null) {
+                    String city = addr.optString("city", addr.optString("province", ""));
+                    String district = addr.optString("county",
+                            addr.optString("suburb", addr.optString("city_district", "")));
+                    String cityName = city.endsWith("市") ? city.substring(0, city.length() - 1) : city;
+                    if (!district.isEmpty()) return cityName + district; // 如「南宁武鸣区」
+                    if (!city.isEmpty()) return city;
+                }
+            } finally {
+                conn.disconnect();
+            }
+        } catch (Exception ignored) {
+        }
+        return fallbackCity == null ? "" : fallbackCity;
+    }
+
+    private String readAll(HttpURLConnection conn) throws Exception {
+        StringBuilder sb = new StringBuilder();
+        try (BufferedReader br = new BufferedReader(
+                new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = br.readLine()) != null) sb.append(line);
+        }
+        return sb.toString();
+    }
+
+    /** WMO 天气码 → 简短中文描述 */
+    private String weatherDesc(int code) {
+        if (code == 0) return "晴";
+        if (code >= 1 && code <= 2) return "多云";
+        if (code == 3) return "阴";
+        if (code == 45 || code == 48) return "雾";
+        if (code >= 51 && code <= 57) return "毛毛雨";
+        if ((code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return "雨";
+        if ((code >= 71 && code <= 77) || code == 85 || code == 86) return "雪";
+        if (code >= 95) return "雷雨";
+        return "";
+    }
+
+    /** WMO 天气码 → 彩色 emoji 图标 */
+    private String weatherEmoji(int code) {
+        if (code == 0) return "☀️";
+        if (code == 1 || code == 2) return "🌤️";
+        if (code == 3) return "☁️";
+        if (code == 45 || code == 48) return "🌫️";
+        if (code >= 51 && code <= 57) return "🌦️";
+        if ((code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return "🌧️";
+        if ((code >= 71 && code <= 77) || code == 85 || code == 86) return "❄️";
+        if (code >= 95) return "⛈️";
+        return "";
+    }
+
+    // ========== 好友在线（同班同学 WebSocket 实时在线） ==========
+    private void loadOnlineInfo() {
+        if (tvOnlineInfo == null) return;
+        try {
+            SharedPreferences prefs = requireActivity().getSharedPreferences("znxsgl", 0);
+            String token = prefs.getString("token", "");
+            ApiService api = RetrofitClient.getInstance().create(ApiService.class);
+            api.getOnlineClassmates("Bearer " + token).enqueue(new Callback<Map<String, Object>>() {
+                @Override
+                public void onResponse(Call<Map<String, Object>> call, Response<Map<String, Object>> resp) {
+                    int count = 0;
+                    if (resp.isSuccessful() && resp.body() != null
+                            && resp.body().get("count") instanceof Number) {
+                        count = ((Number) resp.body().get("count")).intValue();
+                    }
+                    final int c = count;
+                    mainHandler.post(() -> {
+                        if (tvOnlineInfo == null || !isAdded()) return;
+                        if (c > 0) {
+                            tvOnlineInfo.setText("● " + c + "人在线");
+                            tvOnlineInfo.setVisibility(View.VISIBLE);
+                        } else {
+                            tvOnlineInfo.setVisibility(View.GONE);
+                        }
+                    });
+                }
+                @Override
+                public void onFailure(Call<Map<String, Object>> call, Throwable t) {
+                    mainHandler.post(() -> {
+                        if (tvOnlineInfo != null) tvOnlineInfo.setVisibility(View.GONE);
+                    });
+                }
+            });
+        } catch (Exception ignored) {
+        }
+    }
+
+    // ========== 骨架屏加载动画（模仿 animate-pulse 呼吸效果） ==========
+    private void showSkeleton(boolean show) {
+        if (skeletonLoading == null) return;
+        if (show) {
+            skeletonLoading.setVisibility(View.VISIBLE);
+            skeletonLoading.setAlpha(1f);
+            if (skeletonAnim == null) {
+                skeletonAnim = ObjectAnimator.ofFloat(skeletonLoading, View.ALPHA, 1f, 0.35f);
+                skeletonAnim.setDuration(750);
+                skeletonAnim.setRepeatCount(ValueAnimator.INFINITE);
+                skeletonAnim.setRepeatMode(ValueAnimator.REVERSE);
+            }
+            if (!skeletonAnim.isRunning()) skeletonAnim.start();
+        } else {
+            if (skeletonAnim != null && skeletonAnim.isRunning()) skeletonAnim.cancel();
+            skeletonLoading.setAlpha(1f);
+            skeletonLoading.setVisibility(View.GONE);
+        }
+    }
+
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        if (skeletonAnim != null) {
+            skeletonAnim.cancel();
+            skeletonAnim = null;
+        }
+        skeletonLoading = null;
     }
 
     private int dp(int val) {
         return (int) (val * getResources().getDisplayMetrics().density + 0.5f);
+    }
+
+    /** HarmonyOS Sans 字重（动态 UI 与全局字体保持一致） */
+    private android.graphics.Typeface fontMedium() {
+        return androidx.core.content.res.ResourcesCompat.getFont(requireContext(), R.font.harmonyos_sans_sc_medium);
+    }
+
+    private android.graphics.Typeface fontRegular() {
+        return androidx.core.content.res.ResourcesCompat.getFont(requireContext(), R.font.harmonyos_sans_sc_regular);
     }
 }

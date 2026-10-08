@@ -25,7 +25,7 @@
                 android:layout_height="wrap_content"
                 android:text="第 1 题"
                 android:textSize="15sp"
-                android:textColor="#1D1D1F"
+                android:textColor="@color/ink"
                 android:textStyle="bold" />
 
             <TextView
@@ -35,8 +35,8 @@
                 android:layout_marginStart="8dp"
                 android:text="单选题"
                 android:textSize="12sp"
-                android:textColor="#1890FF"
-                android:background="#E6F7FF"
+                android:textColor="@color/primary"
+                android:background="@color/primary_soft"
                 android:paddingHorizontal="8dp"
                 android:paddingVertical="2dp" />
 
@@ -48,7 +48,7 @@
                 android:gravity="end"
                 android:text="10 分"
                 android:textSize="13sp"
-                android:textColor="#FA8C16" />
+                android:textColor="@color/warning" />
         </LinearLayout>
 
         <!-- 题干 -->
@@ -58,8 +58,9 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
             android:text="题目内容"
-            android:textSize="15sp"
-            android:textColor="#1D1D1F"
+            android:textSize="17sp"
+            android:fontFamily="@font/harmonyos_sans_sc_medium"
+            android:textColor="@color/ink"
             android:lineSpacingMultiplier="1.3" />
 
         <!-- 选项/作答区域 -->

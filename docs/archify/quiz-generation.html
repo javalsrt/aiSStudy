@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>App 出题模块架构</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: #020617;
+    color: #e2e8f0;
+    font-family: "Microsoft YaHei", "PingFang SC", "Segoe UI", sans-serif;
+  }
+  header {
+    padding: 24px 32px 8px;
+    border-bottom: 1px solid #1e293b;
+  }
+  h1 { margin: 0; font-size: 24px; color: #f8fafc; letter-spacing: 0.02em; }
+  header p { margin: 8px 0 0; color: #94a3b8; font-size: 13px; }
+  .canvas-wrap {
+    width: 100%;
+    overflow-x: auto;
+    padding: 20px 32px 40px;
+  }
+  svg { display: block; min-width: 1500px; width: 100%; height: auto; }
+  .lanes { fill: rgba(15, 23, 42, 0.35); stroke: #1e293b; stroke-width: 1; }
+  .lane-title { fill: #64748b; font-size: 13px; font-weight: 600; letter-spacing: 0.08em; }
+  .node { fill: #0f172a; stroke-width: 1.5; rx: 12; ry: 12; }
+  .node-api { stroke: #38bdf8; }
+  .node-gen { stroke: #a78bfa; }
+  .node-llm { stroke: #f472b6; }
+  .node-rag { stroke: #22d3ee; }
+  .node-bank { stroke: #34d399; }
+  .node-db { stroke: #fbbf24; }
+  .node-prewarm { stroke: #fb923c; }
+  .node-external { stroke: #94a3b8; }
+  .node-title { fill: #f8fafc; font-size: 14px; font-weight: 700; }
+  .node-sub { fill: #94a3b8; font-size: 11px; }
+  .node-tag { fill: #64748b; font-size: 10px; }
+  .edge { fill: none; stroke: #475569; stroke-width: 1.6; marker-end: url(#arrow); }
+  .edge-emphasis { stroke: #38bdf8; stroke-width: 2.2; }
+  .edge-dashed { stroke-dasharray: 6 5; }
+  .edge-label { fill: #94a3b8; font-size: 11px; }
+  .edge-label-bg { fill: #020617; }
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 14px;
+    padding: 0 32px 40px;
+  }
+  .card {
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 14px;
+    padding: 16px 18px;
+  }
+  .card h3 { margin: 0 0 10px; font-size: 15px; color: #f8fafc; }
+  .card h3 span { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; }
+  .card ul { margin: 0; padding-left: 18px; color: #94a3b8; font-size: 13px; line-height: 1.9; }
+  .dot-cyan { background: #22d3ee; }
+  .dot-rose { background: #fb7185; }
+  .dot-emerald { background: #34d399; }
+  .dot-amber { background: #fbbf24; }
+  .dot-violet { background: #a78bfa; }
+  .note { padding: 0 32px 16px; color: #64748b; font-size: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>App 出题模块架构</h1>
+  <p>并行拆分题型 · 单飞锁 · Redis 共享缓存 · question_bank 预生成题库</p>
+</header>
+
+<div class="canvas-wrap">
+<svg viewBox="0 0 1500 980" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b" />
+    </marker>
+    <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse">
+      <path d="M 30 0 L 0 0 0 30" fill="none" stroke="#0f172a" stroke-width="1" />
+    </pattern>
+  </defs>
+
+  <rect x="0" y="0" width="1500" height="980" fill="url(#grid)" />
+
+  <!-- lanes -->
+  <rect class="lanes" x="20" y="20" width="300" height="920" rx="18" />
+  <text class="lane-title" x="44" y="52">客户端 / 教师管理端</text>
+  <rect class="lanes" x="350" y="20" width="1120" height="920" rx="18" />
+  <text class="lane-title" x="374" y="52">Spring Boot 后端</text>
+
+  <!-- nodes left -->
+  <rect class="node node-external" x="60" y="420" width="190" height="84" />
+  <text class="node-title" x="155" y="452" text-anchor="middle">学生 App</text>
+  <text class="node-sub" x="155" y="474" text-anchor="middle">Android / 小程序</text>
+
+  <rect class="node node-external" x="60" y="760" width="190" height="84" />
+  <text class="node-title" x="155" y="792" text-anchor="middle">教师管理端</text>
+  <text class="node-sub" x="155" y="814" text-anchor="middle">章节导入 / AI 生成章节</text>
+
+  <!-- api + task -->
+  <rect class="node node-api" x="420" y="350" width="220" height="100" />
+  <text class="node-title" x="530" y="388" text-anchor="middle">QuizController</text>
+  <text class="node-sub" x="530" y="410" text-anchor="middle">POST /api/quiz/generate</text>
+  <text class="node-tag" x="530" y="430" text-anchor="middle">立即返回 taskId</text>
+
+  <rect class="node node-api" x="420" y="560" width="220" height="100" />
+  <text class="node-title" x="530" y="598" text-anchor="middle">quizExecutor</text>
+  <text class="node-sub" x="530" y="620" text-anchor="middle">异步任务池 · 20 线程</text>
+  <text class="node-tag" x="530" y="640" text-anchor="middle">轮询 /api/quiz/generate/result</text>
+
+  <!-- question generation -->
+  <rect class="node node-gen" x="760" y="330" width="250" height="130" />
+  <text class="node-title" x="885" y="372" text-anchor="middle">QuestionGenerationService</text>
+  <text class="node-sub" x="885" y="396" text-anchor="middle">单飞锁 · cacheKey · 合并入库</text>
+  <text class="node-tag" x="885" y="420" text-anchor="middle">本次新增模块</text>
+
+  <!-- llm -->
+  <rect class="node node-llm" x="1120" y="120" width="220" height="96" />
+  <text class="node-title" x="1230" y="158" text-anchor="middle">题型并行</text>
+  <text class="node-sub" x="1230" y="180" text-anchor="middle">单选7 · 判断3</text>
+  <text class="node-sub" x="1230" y="198" text-anchor="middle">解析3 · 填空2</text>
+
+  <rect class="node node-external" x="1120" y="250" width="220" height="86" />
+  <text class="node-title" x="1230" y="286" text-anchor="middle">DeepSeek API</text>
+  <text class="node-sub" x="1230" y="308" text-anchor="middle">deepseek-v4-flash</text>
+
+  <!-- rag -->
+  <rect class="node node-rag" x="1120" y="380" width="220" height="86" />
+  <text class="node-title" x="1230" y="416" text-anchor="middle">RagService</text>
+  <text class="node-sub" x="1230" y="438" text-anchor="middle">retrieveByChapters · ≤ 4000 字</text>
+
+  <rect class="node node-external" x="1120" y="510" width="220" height="86" />
+  <text class="node-title" x="1230" y="546" text-anchor="middle">本地 Embedding</text>
+  <text class="node-sub" x="1230" y="568" text-anchor="middle">BGE-M3 :8000 · 可选</text>
+
+  <!-- bank -->
+  <rect class="node node-bank" x="760" y="560" width="250" height="110" />
+  <text class="node-title" x="885" y="600" text-anchor="middle">QuestionBankService</text>
+  <text class="node-sub" x="885" y="622" text-anchor="middle">Redis 共享缓存 + MySQL 题库</text>
+  <text class="node-tag" x="885" y="644" text-anchor="middle">24 小时 TTL · 持久化</text>
+
+  <rect class="node node-db" x="1120" y="650" width="220" height="82" />
+  <text class="node-title" x="1230" y="684" text-anchor="middle">Redis</text>
+  <text class="node-sub" x="1230" y="706" text-anchor="middle">znxsgl:qbank:{cacheKey}</text>
+
+  <rect class="node node-db" x="1120" y="770" width="220" height="82" />
+  <text class="node-title" x="1230" y="804" text-anchor="middle">MySQL</text>
+  <text class="node-sub" x="1230" y="826" text-anchor="middle">question_bank 表</text>
+
+  <!-- session -->
+  <rect class="node node-db" x="420" y="760" width="220" height="92" />
+  <text class="node-title" x="530" y="796" text-anchor="middle">答题会话落库</text>
+  <text class="node-sub" x="530" y="818" text-anchor="middle">quiz_session · quiz_answer</text>
+
+  <!-- prewarm -->
+  <rect class="node node-prewarm" x="760" y="760" width="250" height="96" />
+  <text class="node-title" x="885" y="796" text-anchor="middle">预生成任务</text>
+  <text class="node-sub" x="885" y="818" text-anchor="middle">QuestionBankPrewarmTask</text>
+  <text class="node-tag" x="885" y="840" text-anchor="middle">导入后 难度 1~3</text>
+
+  <!-- edges -->
+  <path class="edge edge-emphasis" d="M250 462 C320 462 350 400 420 400" />
+  <text class="edge-label" x="320" y="438">1 提交出题</text>
+
+  <path class="edge edge-dashed" d="M420 420 C340 440 320 500 250 500" />
+  <text class="edge-label" x="300" y="492">2 taskId</text>
+
+  <path class="edge" d="M530 450 L530 560" />
+  <text class="edge-label" x="540" y="512">3 后台执行</text>
+
+  <path class="edge edge-emphasis" d="M640 610 C700 610 700 430 760 430" />
+  <text class="edge-label" x="700" y="520">4 生成题目</text>
+
+  <path class="edge" d="M760 600 C710 600 700 640 700 640" opacity="0" />
+  <path class="edge" d="M885 460 L885 560" />
+  <text class="edge-label" x="895" y="506">5 查题库</text>
+
+  <path class="edge edge-dashed" d="M1010 600 C1060 600 1080 690 1120 690" />
+  <text class="edge-label" x="1040" y="652">命中</text>
+
+  <path class="edge edge-dashed" d="M1010 635 C1070 700 1080 790 1120 808" />
+  <text class="edge-label" x="1040" y="726">回源/落库</text>
+
+  <path class="edge" d="M1010 410 C1060 410 1080 420 1120 420" />
+  <text class="edge-label" x="1042" y="402">6 章节检索</text>
+
+  <path class="edge edge-dashed" d="M1230 466 L1230 510" />
+  <text class="edge-label" x="1240" y="486">可选向量化</text>
+
+  <path class="edge" d="M885 330 C900 260 950 190 1120 180" />
+  <text class="edge-label" x="960" y="248">7 拆分题型</text>
+
+  <path class="edge edge-emphasis" d="M1230 216 L1230 250" />
+  <text class="edge-label" x="1240" y="238">8 并行生成</text>
+
+  <path class="edge" d="M900 460 C900 500 885 520 885 560" />
+  <text class="edge-label" x="908" y="516">9 合并写入</text>
+
+  <path class="edge" d="M530 660 L530 760" />
+  <text class="edge-label" x="540" y="716">10 写入会话</text>
+
+  <path class="edge edge-dashed" d="M420 610 C300 620 260 620 250 520" />
+  <text class="edge-label" x="282" y="608">11 轮询取题</text>
+
+  <path class="edge edge-emphasis" d="M250 800 C340 800 400 800 420 800" />
+  <text class="edge-label" x="322" y="792">导入/生成章节</text>
+
+  <path class="edge edge-dashed" d="M760 808 C730 808 720 500 760 460" />
+  <text class="edge-label" x="704" y="680">后台预生成</text>
+
+  <!-- card hints in svg -->
+  <text class="node-tag" x="885" y="488" text-anchor="middle">cacheKey = 课程 + 难度 + 科目 + 章节 + 内容版本</text>
+</svg>
+</div>
+
+<div class="note">说明：本 HTML 是出题模块架构的可视化预览，源数据见 docs/archify/quiz-generation.architecture.json。</div>
+
+<div class="card-grid">
+  <div class="card">
+    <h3><span class="dot-cyan"></span>并行拆分题型</h3>
+    <ul>
+      <li>单选 7、判断 3、解析 3、填空 2</li>
+      <li>四路任务同时调用大模型</li>
+      <li>总耗时约等于最慢题型，不再串行等待</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3><span class="dot-rose"></span>单飞锁</h3>
+    <ul>
+      <li>同一 cacheKey 只允许一个生成任务</li>
+      <li>其他请求共享同一个 Future 结果</li>
+      <li>避免多学生同时点击时重复调 AI</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3><span class="dot-emerald"></span>Redis 共享缓存 + 题库</h3>
+    <ul>
+      <li>Redis 多实例共享，TTL 24 小时</li>
+      <li>question_bank 表持久化，重启不丢</li>
+      <li>Redis 不可用时自动降级本地缓存</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3><span class="dot-amber"></span>预生成题库</h3>
+    <ul>
+      <li>章节导入 / AI 生成成功后自动触发</li>
+      <li>后台预生成难度 1~3</li>
+      <li>支持手动接口 POST /api/quiz/bank/prewarm</li>
+      <li>定时任务默认关闭，可配置凌晨执行</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3><span class="dot-violet"></span>内容变化自动失效</h3>
+    <ul>
+      <li>cacheKey 包含章节和课时内容版本</li>
+      <li>章节内容更新后生成新 key</li>
+      <li>避免返回旧题</li>
+    </ul>
+  </div>
+</div>
+</body>
+</html>

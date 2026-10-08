@@ -66,6 +66,10 @@ public class TeacherScheduleAdjustController {
     private final Map<String, Long> recentNotifyOps = new java.util.concurrent.ConcurrentHashMap<>();
     private static final long NOTIFY_OP_TTL_MS = 5 * 60 * 1000;
 
+    /** Redis 分布式幂等；为空时仅使用本地 ConcurrentHashMap */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.znxsgl.service.RedisIdempotencyService idempotencyService;
+
     private final BellTimeService bellTimeService;
 
     /** 自动适配作息：按班级年级 + 目标周奇偶解析节次段起止，无配置回退内置 NODE_TIMES */
@@ -255,13 +259,23 @@ public class TeacherScheduleAdjustController {
         processedRequestIds.entrySet().removeIf(e -> now - e.getValue() > REQUEST_ID_TTL_MS);
         recentNotifyOps.entrySet().removeIf(e -> now - e.getValue() > NOTIFY_OP_TTL_MS);
 
-        // 对同一 requestId 加锁，保证并发场景下 check + put 原子性，防止重复调课/重复通知
+        // 对同一 requestId 加锁，保证并发场景下 check + put 原子性，防止重复调课/重复通知。
+        // 同时使用 Redis 分布式幂等标记，多实例部署时也能避免重复处理。
         synchronized (requestId.intern()) {
+            boolean redisAcquired = idempotencyService == null
+                    || idempotencyService.tryAcquire("schedule:adjust:" + requestId, java.time.Duration.ofMinutes(5));
             Long lastProcessed = processedRequestIds.get(requestId);
             System.out.println("=== 调课请求入口: requestId=" + requestId + ", principal=" + auth.getPrincipal()
-                    + ", body=" + body + ", lastProcessed=" + lastProcessed);
+                    + ", body=" + body + ", lastProcessed=" + lastProcessed + ", redisAcquired=" + redisAcquired);
             if (lastProcessed != null && now - lastProcessed < REQUEST_ID_TTL_MS) {
+                if (redisAcquired && idempotencyService != null) {
+                    idempotencyService.release("schedule:adjust:" + requestId);
+                }
                 System.out.println("=== 调课请求重复提交，已忽略: requestId=" + requestId);
+                return ResponseEntity.ok(Map.of("message", "调课请求已处理，请勿重复提交"));
+            }
+            if (!redisAcquired) {
+                System.out.println("=== 调课请求已被分布式幂等拦截: requestId=" + requestId);
                 return ResponseEntity.ok(Map.of("message", "调课请求已处理，请勿重复提交"));
             }
 
@@ -272,7 +286,7 @@ public class TeacherScheduleAdjustController {
         String classroom = (String) body.get("classroom");
         String reason = body.get("reason") != null ? body.get("reason").toString() : "教师调课";
 
-        Schedule schedule = scheduleMapper.selectById(scheduleId);
+        Schedule schedule = scheduleMapper.selectByIdForUpdate(scheduleId);
         if (schedule == null) {
             return ResponseEntity.badRequest().body(Map.of("error", "课表记录不存在"));
         }
@@ -334,7 +348,9 @@ public class TeacherScheduleAdjustController {
                         .eq(Schedule::getStartNode, schedule.getStartNode())
                         .eq(Schedule::getClassroom, schedule.getClassroom())
                         .apply("JSON_CONTAINS(weeks, {0})", schedule.getWeeks())
-                        .in(Schedule::getUserId, classStudentIds));
+                        .in(Schedule::getUserId, classStudentIds)
+                        .orderByAsc(Schedule::getId)
+                        .last("FOR UPDATE"));
 
         if (allSchedules.isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("error", "未找到该班级学生的课表记录，调课失败"));
@@ -427,6 +443,9 @@ public class TeacherScheduleAdjustController {
                 "locked", true
         ));
             } catch (Exception e) {
+                if (idempotencyService != null) {
+                    idempotencyService.release("schedule:adjust:" + requestId);
+                }
                 System.out.println("=== 调课处理异常: requestId=" + requestId + ", error=" + e.getMessage());
                 e.printStackTrace();
                 throw e;
@@ -469,7 +488,9 @@ public class TeacherScheduleAdjustController {
                         .eq(Schedule::getStartNode, schedule.getStartNode())
                         .eq(Schedule::getClassroom, schedule.getClassroom())
                         .apply("JSON_CONTAINS(weeks, {0})", schedule.getWeeks())
-                        .in(Schedule::getUserId, classStudentIds));
+                        .in(Schedule::getUserId, classStudentIds)
+                        .orderByAsc(Schedule::getId)
+                        .last("FOR UPDATE"));
 
         List<Long> scheduleIds = allSchedules.stream()
                 .map(Schedule::getId)

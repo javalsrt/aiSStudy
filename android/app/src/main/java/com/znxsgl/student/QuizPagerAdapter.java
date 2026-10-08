@@ -14,6 +14,8 @@ import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.znxsgl.student.model.QuizQuestion;
+import com.znxsgl.student.widget.AnimatedChoiceButton;
+import com.znxsgl.student.widget.AnimatedOptionButton;
 
 import java.util.List;
 
@@ -23,14 +25,6 @@ public class QuizPagerAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
     private static final int TYPE_JUDGE = 1;
     private static final int TYPE_ANALYSIS = 2;
     private static final int TYPE_FILL = 3;
-
-    // 统一配色
-    private static final int COLOR_PRIMARY = 0xFF5E6AD2;
-    private static final int COLOR_WHITE = 0xFFFFFFFF;
-    private static final int COLOR_HAIRLINE = 0xFFE5E5EA;
-    private static final int COLOR_INK = 0xFF1D1D1F;
-    private static final int COLOR_SUCCESS = 0xFF34C759;
-    private static final int COLOR_DANGER = 0xFFFF3B30;
 
     private final List<QuizQuestion> questions;
     private OnAnswerListener listener;
@@ -61,19 +55,21 @@ public class QuizPagerAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
 
     @Override public void onBindViewHolder(@NonNull RecyclerView.ViewHolder h, int pos) {
         QuizQuestion q = questions.get(pos);
-        if (h instanceof ChoiceVH) bindChoice((ChoiceVH) h, q, pos);
-        else if (h instanceof JudgeVH) bindJudge((JudgeVH) h, q, pos);
-        else if (h instanceof AnalysisVH) bindAnalysis((AnalysisVH) h, q, pos);
-        else if (h instanceof FillVH) bindFill((FillVH) h, q, pos);
+        // 题干去重：AI 生成偶发整句重复
+        String question = Texts.removeDuplicateSentences(q.getQuestion());
+        if (h instanceof ChoiceVH) bindChoice((ChoiceVH) h, q, question, pos);
+        else if (h instanceof JudgeVH) bindJudge((JudgeVH) h, q, question, pos);
+        else if (h instanceof AnalysisVH) bindAnalysis((AnalysisVH) h, q, question, pos);
+        else if (h instanceof FillVH) bindFill((FillVH) h, q, question, pos);
     }
 
     @Override public int getItemCount() { return questions.size(); }
 
     // ===== 选择题 =====
-    private void bindChoice(ChoiceVH vh, QuizQuestion q, int pos) {
+    private void bindChoice(ChoiceVH vh, QuizQuestion q, String question, int pos) {
         vh.tvTag.setText("单选题");
         vh.tvNum.setText((pos + 1) + "/" + questions.size());
-        vh.tvQuestion.setText(q.getQuestion());
+        RichTextRenderer.set(vh.tvQuestion, question);
         vh.llOptions.removeAllViews();
 
         List<String> options = q.getOptions();
@@ -96,18 +92,18 @@ public class QuizPagerAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
     }
 
     // ===== 判断题 =====
-    private void bindJudge(JudgeVH vh, QuizQuestion q, int pos) {
+    private void bindJudge(JudgeVH vh, QuizQuestion q, String question, int pos) {
         vh.tvTag.setText("判断题");
         vh.tvNum.setText((pos + 1) + "/" + questions.size());
-        vh.tvQuestion.setText(q.getQuestion());
+        RichTextRenderer.set(vh.tvQuestion, question);
 
         boolean selectedTrue = "正确".equals(q.getUserAnswer());
         boolean selectedFalse = "错误".equals(q.getUserAnswer());
 
-        applyJudgeStyle(vh.btnTrue, "正确", selectedTrue, true);
-        applyJudgeStyle(vh.btnFalse, "错误", selectedFalse, false);
-        applyPillFeedback(vh.btnTrue);
-        applyPillFeedback(vh.btnFalse);
+        vh.btnTrue.setText("正确");
+        vh.btnFalse.setText("错误");
+        vh.btnTrue.setSelected(selectedTrue);
+        vh.btnFalse.setSelected(selectedFalse);
 
         vh.btnTrue.setOnClickListener(v -> {
             if (selectedTrue) return;
@@ -130,10 +126,10 @@ public class QuizPagerAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
     }
 
     // ===== 解析题 =====
-    private void bindAnalysis(AnalysisVH vh, QuizQuestion q, int pos) {
+    private void bindAnalysis(AnalysisVH vh, QuizQuestion q, String question, int pos) {
         vh.tvTag.setText("解析题");
         vh.tvNum.setText((pos + 1) + "/" + questions.size());
-        vh.tvQuestion.setText(q.getQuestion());
+        RichTextRenderer.set(vh.tvQuestion, question);
         if (q.getUserAnswer() == null || q.getUserAnswer().isEmpty()) {
             vh.etAnswer.setText("");
         } else if (!vh.etAnswer.getText().toString().equals(q.getUserAnswer())) {
@@ -142,10 +138,10 @@ public class QuizPagerAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
     }
 
     // ===== 填空题 =====
-    private void bindFill(FillVH vh, QuizQuestion q, int pos) {
+    private void bindFill(FillVH vh, QuizQuestion q, String question, int pos) {
         vh.tvTag.setText("填空题");
         vh.tvNum.setText((pos + 1) + "/" + questions.size());
-        vh.tvQuestion.setText(q.getQuestion());
+        RichTextRenderer.set(vh.tvQuestion, question);
         if (q.getUserAnswer() == null || q.getUserAnswer().isEmpty()) {
             vh.etAnswer.setText("");
         } else if (!vh.etAnswer.getText().toString().equals(q.getUserAnswer())) {
@@ -153,15 +149,14 @@ public class QuizPagerAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
         }
     }
 
-    /** 统一选项样式：白色卡片 + 选中主色 */
+    /** 选择题选项样式：浅蓝底 + 浅灰斜切块滑动 */
     private TextView createOptionText(android.content.Context ctx, String text, boolean selected) {
-        TextView tv = new TextView(ctx);
-        tv.setText(text);
-        tv.setTextSize(16);
-        tv.setGravity(Gravity.CENTER_VERTICAL);
+        AnimatedOptionButton tv = new AnimatedOptionButton(ctx);
+        // 选项可能含 LaTeX 公式（AI 出题用 $/$$ 包裹），走富文本渲染
+        RichTextRenderer.set(tv, text);
+        tv.setTextSize(17);
         tv.setPadding(dp(ctx, 20), dp(ctx, 18), dp(ctx, 20), dp(ctx, 18));
-        tv.setBackground(makeOptionBg(selected));
-        tv.setTextColor(selected ? COLOR_WHITE : COLOR_INK);
+        tv.setOptionSelected(selected);
         tv.setClickable(true);
         tv.setFocusable(true);
 
@@ -169,26 +164,7 @@ public class QuizPagerAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         lp.setMargins(0, 0, 0, dp(ctx, 12));
         tv.setLayoutParams(lp);
-
-        // 点击反馈
-        tv.setOnTouchListener((v, e) -> {
-            if (e.getAction() == android.view.MotionEvent.ACTION_DOWN) {
-                v.animate().scaleX(0.98f).scaleY(0.98f).setDuration(80).start();
-            } else if (e.getAction() == android.view.MotionEvent.ACTION_UP
-                    || e.getAction() == android.view.MotionEvent.ACTION_CANCEL) {
-                v.animate().scaleX(1f).scaleY(1f).setDuration(80).start();
-            }
-            return false;
-        });
         return tv;
-    }
-
-    private void applyJudgeStyle(TextView tv, String label, boolean selected, boolean isTrue) {
-        tv.setText(label);
-        tv.setBackgroundResource(R.drawable.bg_btn_pill);
-        tv.setSelected(selected);
-        tv.setTextColor(selected ? COLOR_WHITE : (isTrue ? COLOR_SUCCESS : COLOR_DANGER));
-        tv.setElevation(dp(tv.getContext(), selected ? 0 : 4));
     }
 
     private void applyPillFeedback(View v) {
@@ -205,14 +181,6 @@ public class QuizPagerAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             }
             return false;
         });
-    }
-
-    private GradientDrawable makeOptionBg(boolean selected) {
-        GradientDrawable bg = new GradientDrawable();
-        bg.setCornerRadius(14);
-        bg.setColor(selected ? COLOR_PRIMARY : COLOR_WHITE);
-        bg.setStroke(1, selected ? COLOR_PRIMARY : COLOR_HAIRLINE);
-        return bg;
     }
 
     private int dp(android.content.Context ctx, int v) {
@@ -232,7 +200,8 @@ public class QuizPagerAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             tvQuestion = v.findViewById(R.id.tv_quiz_question); llOptions = v.findViewById(R.id.ll_options); }
     }
     static class JudgeVH extends RecyclerView.ViewHolder {
-        TextView tvTag, tvNum, tvQuestion, btnTrue, btnFalse;
+        TextView tvTag, tvNum, tvQuestion;
+        AnimatedChoiceButton btnTrue, btnFalse;
         JudgeVH(View v) { super(v);
             tvTag = v.findViewById(R.id.tv_quiz_tag); tvNum = v.findViewById(R.id.tv_quiz_num);
             tvQuestion = v.findViewById(R.id.tv_quiz_question);

@@ -28,7 +28,7 @@
             android:text="❌ 错因分析"
             android:textColor="@color/danger"
             android:textSize="13sp"
-            android:fontFamily="sans-serif-medium" />
+            android:fontFamily="@font/harmonyos_sans_sc_medium" />
 
         <TextView
             android:id="@+id/tv_error"
@@ -48,7 +48,7 @@
             android:text="💡 改进建议"
             android:textColor="@color/success"
             android:textSize="13sp"
-            android:fontFamily="sans-serif-medium" />
+            android:fontFamily="@font/harmonyos_sans_sc_medium" />
 
         <TextView
             android:id="@+id/tv_improve"

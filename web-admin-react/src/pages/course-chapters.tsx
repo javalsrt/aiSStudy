@@ -19,6 +19,8 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { MarkdownView } from '@/components/markdown-view'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import {
@@ -117,6 +119,11 @@ export function CourseChaptersPage() {
   const [importResult, setImportResult] = useState<ChapterImportResult | null>(null)
 
   const [generating, setGenerating] = useState(false)
+  // 一键生成设置弹窗：生成范围 + 难度 + 备注
+  const [genOpen, setGenOpen] = useState(false)
+  const [genChapterCount, setGenChapterCount] = useState(6)
+  const [genDifficulty, setGenDifficulty] = useState('基础')
+  const [genNotes, setGenNotes] = useState('')
 
   // 更多菜单展开状态
   const [openMenuId, setOpenMenuId] = useState<number | null>(null)
@@ -387,14 +394,26 @@ export function CourseChaptersPage() {
       await alert({ description: '您没有创建章节的权限' })
       return
     }
-    const ok = await confirm({
-      title: '一键生成内容',
-      description: `将为「${selectedCourseName}」通过 AI 自动生成完整的章节+课时+内容（5-8章，每章2-3课时）。\n\n注意：需要该课程当前无任何章节；生成约 60-90 秒，请耐心等待。`,
-    })
-    if (!ok) return
+    // 打开生成设置弹窗（生成范围 / 难度 / 备注）
+    setGenNotes('')
+    setGenOpen(true)
+  }
+
+  const handleGenerateConfirm = async () => {
+    if (!selectedCourseId) return
+    const notes = genNotes.trim()
+    if (notes.length > 500) {
+      await alert({ description: '备注内容不能超过 500 字' })
+      return
+    }
+    setGenOpen(false)
     setGenerating(true)
     try {
-      const res = await generateChapters(selectedCourseId)
+      const res = await generateChapters(selectedCourseId, {
+        chapterCount: genChapterCount,
+        difficulty: genDifficulty,
+        notes: notes || undefined,
+      })
       const { chapterCount, lessonCount } = res.data
       await alert({
         description: `生成成功！共 ${chapterCount} 个章节、${lessonCount} 个课时（内容向量化在后台进行）。`,
@@ -417,6 +436,64 @@ export function CourseChaptersPage() {
   return (
     <div className="space-y-6">
       {DialogComponent}
+
+      {/* 一键生成设置弹窗：生成范围 + 难度 + 备注 */}
+      <Dialog open={genOpen} onOpenChange={setGenOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>一键生成内容</DialogTitle>
+            <DialogDescription>
+              将为「{selectedCourseName}」通过 AI 自动生成完整的章节+课时+内容。
+              注意：需要该课程当前无任何章节；生成约 60-90 秒，请耐心等待。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label>生成范围（章节数量）</Label>
+              <select
+                value={genChapterCount}
+                onChange={(e) => setGenChapterCount(Number(e.target.value))}
+                className="h-10 w-full pl-3 pr-10 rounded-lg border border-neutral-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              >
+                {[3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((n) => (
+                  <option key={n} value={n}>{n} 章（每章 2-3 课时）</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>基础难易程度</Label>
+              <select
+                value={genDifficulty}
+                onChange={(e) => setGenDifficulty(e.target.value)}
+                className="h-10 w-full pl-3 pr-10 rounded-lg border border-neutral-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              >
+                <option value="入门">入门（零基础，例子多、铺垫细）</option>
+                <option value="基础">基础（标准大学课程深度）</option>
+                <option value="进阶">进阶（原理推导 + 综合实战）</option>
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>内容备注（可选）</Label>
+              <Textarea
+                value={genNotes}
+                onChange={(e) => setGenNotes(e.target.value)}
+                rows={4}
+                maxLength={500}
+                placeholder="例如：只覆盖第 1-5 章基础内容，侧重集合框架与泛型；不要包含 GUI 章节……"
+              />
+              <p className="text-xs text-neutral-400">{genNotes.length}/500</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setGenOpen(false)} disabled={generating}>
+              取消
+            </Button>
+            <Button onClick={handleGenerateConfirm} className="bg-indigo-600 hover:bg-indigo-700">
+              确定
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-neutral-900">章节管理</h1>
@@ -944,9 +1021,10 @@ export function CourseChaptersPage() {
           </DialogHeader>
           <div className="py-4">
             {viewingLesson?.content ? (
-              <div className="text-sm text-neutral-800 leading-relaxed whitespace-pre-wrap">
-                {viewingLesson.content}
-              </div>
+              <MarkdownView
+                className="text-sm text-neutral-800 leading-relaxed"
+                content={viewingLesson.content}
+              />
             ) : (
               <div className="text-sm text-neutral-400 text-center py-8">
                 暂无内容，请点击「编辑」补充

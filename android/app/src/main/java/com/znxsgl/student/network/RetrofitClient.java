@@ -20,10 +20,10 @@ import java.util.concurrent.TimeUnit;
 
 public class RetrofitClient {
 
-    // 本地调试：模拟器 10.0.2.2（自动映射到宿主机 localhost）
-    // 真机调试切到电脑局域网 IP；线上部署用 http://8.163.105.116:8081
+    // 线上服务器：nginx 8081 端口反代 /api/ 与 /ws/（官网在 80 端口，互不影响）
+    // 本地调试时切回：模拟器 http://10.0.2.2:8080；真机 http://电脑局域网IP:8080
     public static String getBaseUrl() {
-        return "http://10.0.2.2:8080";
+        return "http://8.163.105.116:8081";
     }
 
     /**

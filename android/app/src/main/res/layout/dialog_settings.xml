@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 设置：iOS 底部弹出面板（开关行 + 入口行 + 独立取消卡片） -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingHorizontal="10dp"
+    android:paddingBottom="16dp">
+
+    <!-- 设置项卡片 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="@drawable/bg_sheet_top">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="设置"
+            android:textSize="17sp"
+            android:textColor="@color/ink"
+            android:fontFamily="@font/harmonyos_sans_sc_medium"
+            android:gravity="center"
+            android:paddingTop="18dp"
+            android:paddingBottom="6dp" />
+
+        <!-- 题目自动跳转 -->
+        <LinearLayout
+            android:id="@+id/row_auto_jump"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="20dp"
+            android:paddingVertical="12dp"
+            android:background="@drawable/bg_sheet_row"
+            android:clickable="true"
+            android:focusable="true">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="题目自动跳转"
+                    android:textSize="16sp"
+                    android:textColor="@color/ink" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:text="答题后自动滑到下一题，关闭后需手动滑动"
+                    android:textSize="12sp"
+                    android:textColor="@color/ink_subtle" />
+            </LinearLayout>
+
+            <com.znxsgl.student.widget.IOSSwitch
+                android:id="@+id/switch_auto_jump"
+                android:layout_width="46dp"
+                android:layout_height="24dp"
+                android:layout_marginStart="12dp" />
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginStart="20dp"
+            android:background="@color/hairline" />
+
+        <!-- 课程图标生成 -->
+        <LinearLayout
+            android:id="@+id/row_icon_gen"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="20dp"
+            android:paddingVertical="14dp"
+            android:background="@drawable/bg_sheet_row"
+            android:clickable="true"
+            android:focusable="true">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="课程图标生成"
+                android:textSize="16sp"
+                android:textColor="@color/ink" />
+
+            <ImageView
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:src="@drawable/ic_chevron_right"
+                android:tint="@color/ink_tertiary"
+                android:contentDescription="@null"
+                android:importantForAccessibility="no" />
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginStart="20dp"
+            android:background="@color/hairline" />
+
+        <!-- 退出登录 -->
+        <LinearLayout
+            android:id="@+id/row_logout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="20dp"
+            android:paddingVertical="14dp"
+            android:background="@drawable/bg_sheet_row"
+            android:clickable="true"
+            android:focusable="true">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="退出登录"
+                android:textSize="16sp"
+                android:textColor="@color/danger" />
+
+            <ImageView
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:src="@drawable/ic_chevron_right"
+                android:tint="@color/ink_tertiary"
+                android:contentDescription="@null"
+                android:importantForAccessibility="no" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- 取消卡片 -->
+    <TextView
+        android:id="@+id/btn_cancel"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:layout_marginTop="10dp"
+        android:background="@drawable/bg_sheet_cancel"
+        android:gravity="center"
+        android:text="取消"
+        android:textSize="16sp"
+        android:textColor="@color/ink"
+        android:fontFamily="@font/harmonyos_sans_sc_medium"
+        android:clickable="true"
+        android:focusable="true" />
+
+</LinearLayout>

@@ -2,14 +2,15 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#FFFFFF"
-    android:orientation="vertical">
+    android:background="@color/surface_1"
+    android:orientation="vertical"
+    android:paddingBottom="104dp">
 
     <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
         android:text="学习"
         android:textSize="20sp"
-        android:textColor="#1D1D1F"
-        android:fontFamily="sans-serif-medium"
+        android:textColor="@color/ink"
+        android:fontFamily="@font/harmonyos_sans_sc_medium"
         android:paddingStart="16dp"
         android:paddingTop="24dp"
         android:paddingBottom="16dp" />

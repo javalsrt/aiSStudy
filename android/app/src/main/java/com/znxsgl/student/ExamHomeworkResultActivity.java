@@ -94,8 +94,8 @@ public class ExamHomeworkResultActivity extends AppCompatActivity {
 
         tvScore.setText(String.valueOf(score));
         tvPassStatus.setText(passed ? "已通过" : "未通过");
-        tvPassStatus.setTextColor(passed ? 0xFF52C41A : 0xFFFF4D4F);
-        tvPassStatus.setBackgroundColor(passed ? 0xFFF6FFED : 0xFFFFF2F0);
+        tvPassStatus.setTextColor(passed ? 0xFF34C759 : 0xFFFF3B30);
+        tvPassStatus.setBackgroundColor(passed ? 0xFFE8F8EE : 0xFFFFECEB);
         tvScoreSummary.setText("满分 " + totalScore + " 分，及格 " + passScore + " 分");
 
         Object detailObj = body.get("detail");
@@ -120,10 +120,10 @@ public class ExamHomeworkResultActivity extends AppCompatActivity {
             tvIndex.setText("第 " + index + " 题");
             tvType.setText(typeLabel(type));
             tvScoreTag.setText(qScore + " 分");
-            tvScoreTag.setTextColor(isCorrect == 1 ? 0xFF52C41A : 0xFFFF4D4F);
-            tvScoreTag.setBackgroundColor(isCorrect == 1 ? 0xFFF6FFED : 0xFFFFF2F0);
+            tvScoreTag.setTextColor(isCorrect == 1 ? 0xFF34C759 : 0xFFFF3B30);
+            tvScoreTag.setBackgroundColor(isCorrect == 1 ? 0xFFE8F8EE : 0xFFFFECEB);
 
-            tvQuestion.setText(String.valueOf(item.get("question")));
+            RichTextRenderer.set(tvQuestion, String.valueOf(item.get("question")));
             tvUserAnswer.setText("你的答案：" + (item.get("userAnswer") != null ? item.get("userAnswer") : "未作答"));
             tvCorrectAnswer.setText("正确答案：" + (item.get("correctAnswer") != null ? item.get("correctAnswer") : ""));
 

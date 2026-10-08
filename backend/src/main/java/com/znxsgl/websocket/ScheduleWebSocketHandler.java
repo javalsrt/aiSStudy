@@ -146,7 +146,7 @@ public class ScheduleWebSocketHandler extends TextWebSocketHandler {
 
         WebSocketSession session = studentSessions.get(userId);
         if (session == null) {
-            System.out.println("=== WebSocket sendToUser 无session: userId=" + userId + ", type=" + type);
+            // 用户不在线是常态（班级群发会给全员推送），静默跳过，避免刷屏
             return false;
         }
         if (!session.isOpen()) {

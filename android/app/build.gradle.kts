@@ -14,8 +14,8 @@ android {
         applicationId = "com.znxsgl.student"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 4
+        versionName = "1.3"
     }
 
     buildTypes {
@@ -43,8 +43,11 @@ dependencies {
     implementation(libs.okhttp.logging)
     implementation(libs.gson)
     implementation(libs.markwon.core)
+    implementation(libs.markwon.inline.parser)
     implementation(libs.markwon.html)
     implementation(libs.markwon.syntax.highlight)
+    implementation(libs.markwon.ext.latex)
+    implementation(libs.markwon.ext.tables)
     annotationProcessor(libs.prism4j.bundler)
     implementation(libs.glide)
     annotationProcessor(libs.glide.compiler)

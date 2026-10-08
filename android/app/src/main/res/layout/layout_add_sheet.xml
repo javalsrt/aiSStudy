@@ -4,14 +4,14 @@
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:padding="20dp"
-    android:background="#FFFFFF">
+    android:background="@color/surface_1">
 
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="选择操作"
         android:textSize="15sp"
-        android:textColor="#86868B"
+        android:textColor="@color/ink_subtle"
         android:paddingBottom="12dp" />
 
     <LinearLayout
@@ -31,7 +31,7 @@
             android:background="@drawable/bg_circle_light" />
 
         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-            android:text="拍照" android:textSize="15sp" android:textColor="#1D1D1F"
+            android:text="拍照" android:textSize="15sp" android:textColor="@color/ink"
             android:layout_marginStart="12dp" />
     </LinearLayout>
 
@@ -51,7 +51,7 @@
             android:background="@drawable/bg_circle_light" />
 
         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-            android:text="资料上传" android:textSize="15sp" android:textColor="#1D1D1F"
+            android:text="资料上传" android:textSize="15sp" android:textColor="@color/ink"
             android:layout_marginStart="12dp" />
     </LinearLayout>
 </LinearLayout>

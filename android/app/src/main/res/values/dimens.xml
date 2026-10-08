@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- ===== 圆角体系（iOS 扁平：卡片 14 / 按钮 8 / 全圆角） ===== -->
+    <dimen name="radius_sm">8dp</dimen>     <!-- 按钮、输入框、小标签 -->
+    <dimen name="radius_md">12dp</dimen>    <!-- 小卡片、弹层内元素 -->
+    <dimen name="radius_lg">14dp</dimen>    <!-- 标准卡片 -->
+    <dimen name="radius_xl">20dp</dimen>    <!-- 大弹窗 -->
+    <dimen name="radius_full">999dp</dimen> <!-- 胶囊、底部导航 -->
+
+    <!-- ===== 间距体系（4dp 网格） ===== -->
+    <dimen name="space_xs">4dp</dimen>
+    <dimen name="space_sm">8dp</dimen>
+    <dimen name="space_md">12dp</dimen>
+    <dimen name="space_lg">16dp</dimen>
+    <dimen name="space_xl">24dp</dimen>
+    <dimen name="screen_padding">16dp</dimen>
+</resources>

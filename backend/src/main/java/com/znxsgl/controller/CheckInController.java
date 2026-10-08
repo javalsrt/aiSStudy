@@ -98,19 +98,15 @@ public class CheckInController {
 
         Long checkInId = ((Number) list.get(0).get("id")).longValue();
 
-        // 检查是否已签到
-        int count = jdbc.queryForObject(
-            "SELECT COUNT(*) FROM check_in_record WHERE check_in_id = ? AND student_id = ?",
-            Integer.class, checkInId, studentId);
+        // 依赖唯一索引 (check_in_id, student_id) 做原子幂等写入，避免先查后插并发重复
+        int inserted = jdbc.update(
+            "INSERT IGNORE INTO check_in_record (check_in_id, student_id, student_name, checked_at) " +
+            "VALUES (?, ?, ?, NOW())",
+            checkInId, studentId, studentName);
 
-        if (count > 0) {
+        if (inserted == 0) {
             return ResponseEntity.ok(Map.of("error", "您已签到过了"));
         }
-
-        // 记录签到
-        jdbc.update(
-            "INSERT INTO check_in_record (check_in_id, student_id, student_name, checked_at) VALUES (?, ?, ?, NOW())",
-            checkInId, studentId, studentName);
 
         return ResponseEntity.ok(Map.of("msg", studentName + " 签到成功！", "success", true));
     }

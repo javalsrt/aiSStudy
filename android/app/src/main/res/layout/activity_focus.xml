@@ -27,7 +27,7 @@
             <TextView android:id="@+id/tv_title"
                 android:layout_width="wrap_content" android:layout_height="wrap_content"
                 android:text="专注刷题" android:textSize="17sp" android:textColor="@color/ink"
-                android:fontFamily="sans-serif-medium" />
+                android:fontFamily="@font/harmonyos_sans_sc_medium" />
         </LinearLayout>
 
         <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content"
@@ -40,7 +40,7 @@
             <TextView android:id="@+id/tv_timer_corner"
                 android:layout_width="wrap_content" android:layout_height="wrap_content"
                 android:text="00:00" android:textSize="16sp" android:textColor="@color/primary"
-                android:fontFamily="sans-serif-medium" />
+                android:fontFamily="@font/harmonyos_sans_sc_medium" />
         </LinearLayout>
     </LinearLayout>
 
@@ -51,28 +51,29 @@
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/rv_quiz_panels"
             android:layout_width="match_parent" android:layout_height="match_parent"
-            android:paddingHorizontal="16dp" android:paddingTop="16dp" android:paddingBottom="24dp"
+            android:paddingHorizontal="16dp" android:paddingTop="16dp" android:paddingBottom="104dp"
             android:clipToPadding="false" />
 
-        <!-- 答题区 -->
+        <!-- 答题区（全屏：导航隐藏，提交按钮悬浮在导航栏位置，外观同导航胶囊） -->
         <LinearLayout android:id="@+id/ll_quiz_area"
             android:layout_width="match_parent" android:layout_height="match_parent"
             android:orientation="vertical" android:visibility="gone"
-            android:paddingBottom="72dp"
             android:background="@color/canvas">
             <androidx.viewpager2.widget.ViewPager2
                 android:id="@+id/viewpager_quiz"
                 android:layout_width="match_parent" android:layout_height="0dp"
-                android:layout_weight="1" />
+                android:layout_weight="1"
+                android:paddingBottom="104dp"
+                android:clipToPadding="false" />
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:orientation="horizontal" android:gravity="center"
-                android:padding="16dp" android:background="@color/canvas">
-                <TextView android:id="@+id/btn_quiz_done"
-                    android:layout_width="0dp" android:layout_height="48dp" android:layout_weight="1"
-                    android:text="长按提交" android:textSize="14sp" android:textColor="@color/on_primary"
-                    android:gravity="center" android:background="@drawable/bg_btn_primary"
-                    android:fontFamily="sans-serif-medium"
-                    android:clickable="true" android:focusable="true" android:longClickable="true" />
+                android:orientation="vertical"
+                android:paddingStart="16dp" android:paddingEnd="16dp" android:paddingBottom="16dp">
+                <com.znxsgl.student.widget.HoldSubmitButton android:id="@+id/btn_quiz_done"
+                    android:layout_width="match_parent" android:layout_height="72dp"
+                    android:text="长按提交" android:textSize="16sp" android:textColor="@color/primary"
+                    android:letterSpacing="0.05"
+                    android:gravity="center" android:fontFamily="@font/harmonyos_sans_sc_medium"
+                    android:clickable="true" android:focusable="true" />
             </LinearLayout>
         </LinearLayout>
     </FrameLayout>

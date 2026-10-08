@@ -294,50 +294,99 @@ public class ScheduleService {
             return Collections.emptyList();
         }
 
+        List<Schedule> schedules = queryStudentSchedule(userId, activeSemesters, week);
+        if (schedules.isEmpty() && classId != null) {
+            // 新建学生/转班学生可能还没有个人 schedule 记录：
+            // 回退到本班已有课表，按课程 + 时段去重展示，保证课表可见。
+            schedules = queryClassSchedule(classId, activeSemesters, week);
+        }
+        return schedules.stream().map(this::toStudentScheduleDTO).collect(Collectors.toList());
+    }
+
+    private List<Schedule> queryStudentSchedule(Long userId, List<String> activeSemesters, int week) {
         LambdaQueryWrapper<Schedule> qw = new LambdaQueryWrapper<Schedule>()
                 .eq(Schedule::getUserId, userId)
                 .in(Schedule::getSemester, activeSemesters)
                 .eq(Schedule::getStatus, 1)
                 .gt(Schedule::getDayOfWeek, 0);
-
-        // 按周过滤：weeks 为 JSON 数组，使用 JSON_CONTAINS
         if (week > 0) {
             qw.apply("JSON_CONTAINS(weeks, CAST({0} AS JSON))", week);
         }
-
-        List<Schedule> schedules;
         try {
-            schedules = scheduleMapper.selectList(qw);
+            return scheduleMapper.selectList(qw);
         } catch (Exception e) {
-            log.warn("学生课表查询异常 userId={} week={} semester={}", userId, week, semester, e);
+            log.warn("学生课表查询异常 userId={} week={}", userId, week, e);
             return Collections.emptyList();
         }
+    }
 
-        return schedules.stream().map(s -> {
-            StudentScheduleDTO dto = new StudentScheduleDTO();
-            dto.setScheduleId(s.getId());
-            dto.setCourseId(s.getCourseId());
-            dto.setCourseName(s.getCourseName());
-            dto.setDayOfWeek(s.getDayOfWeek());
-            dto.setStartTime(s.getStartTime());
-            dto.setEndTime(s.getEndTime());
-            dto.setStartNode(s.getStartNode());
-            dto.setStep(s.getStep());
-            dto.setClassroom(s.getClassroom());
-            dto.setSemester(s.getSemester());
-            dto.setWeeks(s.getWeeks());
-            dto.setTeacherName("");
+    private List<Schedule> queryClassSchedule(Long classId, List<String> activeSemesters, int week) {
+        List<Long> classUserIds = userMapper.selectList(
+                        new LambdaQueryWrapper<User>()
+                                .select(User::getId)
+                                .eq(User::getClassId, classId)
+                                .eq(User::getRole, 1))
+                .stream().map(User::getId).collect(Collectors.toList());
+        if (classUserIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        LambdaQueryWrapper<Schedule> qw = new LambdaQueryWrapper<Schedule>()
+                .in(Schedule::getUserId, classUserIds)
+                .in(Schedule::getSemester, activeSemesters)
+                .eq(Schedule::getStatus, 1)
+                .gt(Schedule::getDayOfWeek, 0);
+        if (week > 0) {
+            qw.apply("JSON_CONTAINS(weeks, CAST({0} AS JSON))", week);
+        }
+        try {
+            List<Schedule> rows = scheduleMapper.selectList(qw);
+            Map<String, Schedule> distinct = new LinkedHashMap<>();
+            for (Schedule s : rows) {
+                String key = String.join("|",
+                        String.valueOf(s.getCourseId()),
+                        String.valueOf(s.getCourseName()),
+                        String.valueOf(s.getDayOfWeek()),
+                        String.valueOf(s.getStartTime()),
+                        String.valueOf(s.getEndTime()),
+                        String.valueOf(s.getStartNode()),
+                        String.valueOf(s.getStep()),
+                        String.valueOf(s.getClassroom()),
+                        String.valueOf(s.getSemester()),
+                        String.valueOf(s.getWeeks()));
+                distinct.putIfAbsent(key, s);
+            }
+            return new ArrayList<>(distinct.values());
+        } catch (Exception e) {
+            log.warn("班级课表回退查询异常 classId={} week={}", classId, week, e);
+            return Collections.emptyList();
+        }
+    }
 
-            // 尝试从课程表获取教师名
-            if (s.getCourseId() != null) {
-                Course course = courseMapper.selectById(s.getCourseId());
-                if (course != null && course.getTeacherId() != null) {
-                    Teacher t = teacherMapper.selectById(course.getTeacherId());
-                    if (t != null) dto.setTeacherName(t.getRealName());
+    private StudentScheduleDTO toStudentScheduleDTO(Schedule s) {
+        StudentScheduleDTO dto = new StudentScheduleDTO();
+        dto.setScheduleId(s.getId());
+        dto.setCourseId(s.getCourseId());
+        dto.setCourseName(s.getCourseName());
+        dto.setDayOfWeek(s.getDayOfWeek());
+        dto.setStartTime(s.getStartTime());
+        dto.setEndTime(s.getEndTime());
+        dto.setStartNode(s.getStartNode());
+        dto.setStep(s.getStep());
+        dto.setClassroom(s.getClassroom());
+        dto.setSemester(s.getSemester());
+        dto.setWeeks(s.getWeeks());
+        dto.setTeacherName("");
+
+        if (s.getCourseId() != null) {
+            Course course = courseMapper.selectById(s.getCourseId());
+            if (course != null && course.getTeacherId() != null) {
+                Teacher t = teacherMapper.selectById(course.getTeacherId());
+                if (t != null) {
+                    dto.setTeacherName(t.getRealName());
                 }
             }
-            return dto;
-        }).collect(Collectors.toList());
+        }
+        return dto;
     }
 
     // ===== 学生：获取可见的学期列表（正常学期 + 本班假期培训） =====

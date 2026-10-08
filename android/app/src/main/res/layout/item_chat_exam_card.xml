@@ -1,10 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="horizontal"
-    android:paddingHorizontal="8dp"
-    android:paddingVertical="4dp">
+    android:paddingHorizontal="14dp"
+    android:paddingTop="4dp"
+    android:paddingBottom="12dp">
 
     <!-- 对方头像 -->
     <TextView
@@ -25,7 +27,7 @@
         android:layout_height="wrap_content"
         android:layout_weight="1"
         android:orientation="vertical"
-        android:layout_marginHorizontal="6dp">
+        android:layout_marginHorizontal="4dp">
 
         <TextView
             android:id="@+id/tv_sender"
@@ -36,82 +38,99 @@
             android:textColor="@color/ink_subtle"
             android:layout_marginBottom="2dp" />
 
-        <!-- 考试/作业卡片 -->
-        <LinearLayout
+        <!-- 考试/作业卡片（cookie-card：白卡 + 10dp 圆角 + 极柔和阴影） -->
+        <com.google.android.material.card.MaterialCardView
             android:id="@+id/card_container"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:minWidth="240dp"
-            android:maxWidth="280dp"
-            android:orientation="vertical"
-            android:background="@drawable/bg_exam_card"
-            android:padding="14dp"
             android:clickable="true"
             android:focusable="true"
-            android:foreground="?attr/selectableItemBackground">
+            app:cardBackgroundColor="@color/surface_1"
+            app:cardCornerRadius="10dp"
+            app:cardElevation="2dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical">
+                android:orientation="vertical"
+                android:padding="16dp">
 
-                <TextView
-                    android:id="@+id/tv_exam_icon"
-                    android:layout_width="28dp"
-                    android:layout_height="28dp"
-                    android:gravity="center"
-                    android:text="试"
-                    android:textSize="13sp"
-                    android:textStyle="bold"
-                    android:textColor="@color/white"
-                    android:background="@drawable/bg_exam_icon" />
-
+                <!-- 标题行：类型图标 + 标题 -->
                 <LinearLayout
-                    android:layout_width="0dp"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical"
-                    android:layout_marginStart="10dp">
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:id="@+id/tv_exam_icon"
+                        android:layout_width="28dp"
+                        android:layout_height="28dp"
+                        android:gravity="center"
+                        android:text="试"
+                        android:textSize="13sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/white"
+                        android:background="@drawable/bg_exam_icon" />
 
                     <TextView
                         android:id="@+id/tv_exam_title"
-                        android:layout_width="wrap_content"
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginStart="10dp"
                         android:text="考试标题"
                         android:textSize="15sp"
-                        android:textStyle="bold"
+                        android:fontFamily="@font/harmonyos_sans_sc_medium"
                         android:textColor="@color/ink"
                         android:maxLines="2"
                         android:ellipsize="end" />
+                </LinearLayout>
+
+                <!-- 描述（description：margin-top 1rem，灰字） -->
+                <TextView
+                    android:id="@+id/tv_exam_status"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:text="点击开始作答"
+                    android:textSize="12sp"
+                    android:lineSpacingExtra="2dp"
+                    android:textColor="@color/ink_muted" />
+
+                <!-- 行动区（actions：space-between） -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginTop="14dp">
 
                     <TextView
-                        android:id="@+id/tv_exam_status"
+                        android:id="@+id/tv_exam_source"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="老师发布"
+                        android:textSize="12sp"
+                        android:textColor="@color/ink_muted" />
+
+                    <TextView
+                        android:id="@+id/tv_exam_action"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="点击开始作答"
+                        android:text="去考试"
                         android:textSize="12sp"
-                        android:textColor="@color/ink_subtle"
-                        android:layout_marginTop="2dp" />
+                        android:fontFamily="@font/harmonyos_sans_sc_medium"
+                        android:textColor="@color/on_primary"
+                        android:background="@drawable/bg_btn_primary"
+                        android:paddingHorizontal="16dp"
+                        android:paddingVertical="10dp"
+                        android:clickable="true"
+                        android:focusable="true" />
                 </LinearLayout>
             </LinearLayout>
-
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:background="@color/exam_card_border"
-                android:layout_marginTop="12dp"
-                android:layout_marginBottom="10dp" />
-
-            <TextView
-                android:id="@+id/tv_exam_action"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="去考试 →"
-                android:textSize="13sp"
-                android:textStyle="bold"
-                android:textColor="@color/exam_action" />
-        </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
     </LinearLayout>
 
     <!-- 自己头像 -->

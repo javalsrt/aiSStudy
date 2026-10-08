@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 选择学期：iOS 底部弹出面板（列表卡片 + 独立取消卡片） -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingHorizontal="10dp"
+    android:paddingBottom="16dp">
+
+    <!-- 学期列表卡片 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="@drawable/bg_sheet_top">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="选择学期"
+            android:textSize="17sp"
+            android:textColor="@color/ink"
+            android:fontFamily="@font/harmonyos_sans_sc_medium"
+            android:gravity="center"
+            android:paddingTop="18dp"
+            android:paddingBottom="6dp" />
+
+        <LinearLayout
+            android:id="@+id/ll_semester_list"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingTop="4dp"
+            android:paddingBottom="6dp" />
+    </LinearLayout>
+
+    <!-- 取消卡片 -->
+    <TextView
+        android:id="@+id/btn_cancel"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:layout_marginTop="10dp"
+        android:background="@drawable/bg_sheet_cancel"
+        android:gravity="center"
+        android:text="取消"
+        android:textSize="16sp"
+        android:textColor="@color/ink"
+        android:fontFamily="@font/harmonyos_sans_sc_medium"
+        android:clickable="true"
+        android:focusable="true" />
+
+</LinearLayout>

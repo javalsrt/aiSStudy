@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Card, CardContent } from '@/components/ui/card'
+import { HtmlMath } from '@/components/rich-text'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
@@ -113,9 +114,9 @@ function AnswerCard({ answer }: { answer: QuizReportAnswer }) {
         </div>
       </div>
 
-      <div
+      <HtmlMath
         className="text-sm text-neutral-700 mt-3 leading-relaxed break-all"
-        dangerouslySetInnerHTML={{ __html: answer.question || '' }}
+        html={answer.question || ''}
       />
 
       {options.length > 0 && (

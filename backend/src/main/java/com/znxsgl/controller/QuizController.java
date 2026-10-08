@@ -10,6 +10,7 @@ import com.znxsgl.mapper.QuizAnswerMapper;
 import com.znxsgl.mapper.QuizSessionMapper;
 import com.znxsgl.mapper.UserMapper;
 import com.znxsgl.service.LlmService;
+import com.znxsgl.service.QuestionGenerationService;
 import com.znxsgl.service.RagService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -35,6 +36,9 @@ public class QuizController {
     private final JdbcTemplate jdbc;
     private final RagService ragService;
     private final ObjectMapper json = new ObjectMapper();
+
+    // max question duration seconds
+    private static final int MAX_QUESTION_DURATION_SEC = 600;
 
     // 出题结果缓存：key=MD5指纹（课程+难度+科目+题型+已学章节），value=题目+过期时间（15分钟）
     // 同课同档位的学生并发刷题时只调一次 AI，其余直接命中缓存，大幅降低 AI 调用压力
@@ -63,9 +67,12 @@ public class QuizController {
         volatile long expireAt; // 0 表示未完成，完成后记录过期时间（10 分钟）
     }
 
+    private final QuestionGenerationService questionGenerationService;
+
     public QuizController(LlmService llmService, QuizSessionMapper sessionMapper,
                           QuizAnswerMapper answerMapper, QuestionBookmarkMapper bookmarkMapper,
-                          UserMapper userMapper, JdbcTemplate jdbc, RagService ragService) {
+                          UserMapper userMapper, JdbcTemplate jdbc, RagService ragService,
+                          QuestionGenerationService questionGenerationService) {
         this.llmService = llmService;
         this.sessionMapper = sessionMapper;
         this.answerMapper = answerMapper;
@@ -73,6 +80,7 @@ public class QuizController {
         this.userMapper = userMapper;
         this.jdbc = jdbc;
         this.ragService = ragService;
+        this.questionGenerationService = questionGenerationService;
     }
 
     /**
@@ -123,6 +131,18 @@ public class QuizController {
         return ResponseEntity.ok(Map.of("status", "pending"));
     }
 
+    /** 预生成课程题库：管理端/教师调用，异步执行，立即返回。 */
+    @PostMapping("/bank/prewarm")
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('TEACHER') or hasRole('ADMIN')")
+    public ResponseEntity<Map<String, Object>> prewarm(@RequestBody Map<String, Object> body) {
+        Object courseIdObj = body.get("courseId");
+        if (courseIdObj == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "courseId不能为空"));
+        }
+        Long courseId = Long.valueOf(courseIdObj.toString());
+        questionGenerationService.prewarmCourseAsync(courseId);
+        return ResponseEntity.ok(Map.of("msg", "题库预生成任务已提交", "courseId", courseId));
+    }
     /** 后台出题任务：不占请求线程，在固定线程池内排队执行 */
     private void doGenerate(Long userId, String subject, String subjectType, Long courseId, QuizTask task) {
         try {
@@ -145,36 +165,10 @@ public class QuizController {
                 return;
             }
 
-            // RAG 按章节检索
-            String chapterContext = ragService.retrieveByChapters(chapterIds, subject);
-            if (chapterContext == null || chapterContext.isEmpty()) {
-                task.status = "error";
-                task.error = "章节内容尚未准备好";
-                return;
-            }
-
-            String prompt = buildAdaptivePrompt(subject, subjectType, difficulty, chapterContext);
-
-            // 出题缓存：按 课程+难度+科目+题型+已学章节 的 MD5 指纹缓存 15 分钟，
-            // 同课同档位学生并发刷题只调一次 AI，其余直接命中缓存
-            List<Long> sortedChapters = new ArrayList<>(chapterIds);
-            Collections.sort(sortedChapters);
-            String cacheKey = md5(courseId + "|" + difficulty + "|" + subject + "|" + subjectType + "|" + sortedChapters);
-            CachedQuestions cached = questionCache.get(cacheKey);
-            List<Map<String, Object>> questions;
-            if (cached != null && cached.expireAt > System.currentTimeMillis()) {
-                questions = cached.questions;
-                System.out.println("=== 出题缓存命中: " + cacheKey);
-            } else {
-                // 排队式调用：高并发时阻塞等待令牌，而不是直接抛"繁忙"拒绝
-                String raw = llmService.chatQueued("你是专业出题专家，只输出纯JSON数组，不要任何解释文字。", prompt);
-                System.out.println("=== AI出题原始返回: " + (raw != null ? raw.substring(0, Math.min(300, raw.length())) : "null"));
-                questions = parseQuestions(raw);
-                if (!questions.isEmpty()) {
-                    questionCache.put(cacheKey, new CachedQuestions(questions, System.currentTimeMillis() + 15 * 60 * 1000L));
-                }
-            }
-            if (questions.isEmpty()) {
+            // 并行拆分题型 + 单飞锁 + Redis 共享缓存 + 预生成题库
+            List<Map<String, Object>> questions =
+                    questionGenerationService.getOrGenerate(courseId, subject, subjectType, difficulty, chapterIds);
+            if (questions == null || questions.isEmpty()) {
                 task.status = "error";
                 String fail = com.znxsgl.service.LlmService.getLastFailure();
                 task.error = "题目生成失败，请稍后重试" + (fail == null || fail.isEmpty() ? "" : "（" + fail + "）");
@@ -203,7 +197,8 @@ public class QuizController {
             System.out.println("=== 后台出题异常: " + e.getMessage());
             e.printStackTrace();
             task.status = "error";
-            task.error = "出题失败，请稍后重试";
+            task.error = (e.getMessage() != null && !e.getMessage().isEmpty())
+                    ? e.getMessage() : "出题失败，请稍后重试";
         } finally {
             // 结果保留 10 分钟供前端轮询
             task.expireAt = System.currentTimeMillis() + 10 * 60 * 1000L;
@@ -240,7 +235,8 @@ public class QuizController {
             qa.setOptions(a.get("options") != null ? jsonValue(a.get("options")) : null);
             qa.setUserAnswer(safeStr(a, "userAnswer"));
             qa.setCorrectAnswer(safeStr(a, "correctAnswer"));
-            int dur = a.get("durationSec") instanceof Number ? ((Number) a.get("durationSec")).intValue() : 0;
+            int dur = sanitizeDurationSec(a.get("durationSec"));
+            a.put("durationSec", dur);
             qa.setDurationSec(dur);
             totalSec += dur;
 
@@ -300,12 +296,25 @@ public class QuizController {
         String r2 = midTotal > 0 ? (midCorrect * 100 / midTotal) + "%" : "0%";
         String r3 = lateTotal > 0 ? (lateCorrect * 100 / lateTotal) + "%" : "0%";
 
+        double correctRate = total > 0 ? (double) correct / total : 0;
+        double skipRate = total > 0 ? (double) skip / total : 0;
+        double avgDur = total > 0 ? (double) totalSec / total : 0;
+
+        // Low-evidence guard: no AI diagnosis for random or too-fast attempts
+        boolean lowEvidence = total > 0
+                && (avgDur <= 1.0 || (correctRate == 0 && skipRate >= 0.5));
+        Map<String, Object> evalResult;
+        if (lowEvidence) {
+            evalResult = buildLowEvidenceResult(total, skip, totalSec, correct);
+            System.out.println("=== low evidence attempt, skip AI evaluation");
+        } else {
         String evalPrompt = buildEvaluatePrompt(answers, userId, totalSec, r1, r2, r3, skip);
         // 排队式调用：并发提交评估时阻塞等待令牌，而不是抛"繁忙"拒绝（评分失败也不影响主流程）
         String evalRaw = llmService.chatQueued("你是大学生能力测评专家，只输出JSON，不要多余文字。评分严格稳定。", evalPrompt);
         System.out.println("=== AI评估返回: " + (evalRaw != null ? evalRaw.substring(0, Math.min(200, evalRaw.length())) : "null"));
 
-        Map<String, Object> evalResult = parseEvalResult(evalRaw);
+            evalResult = parseEvalResult(evalRaw);
+        }
         if (evalResult != null) {
             // 修复AI返回"N"表示无法评估的情况
             Object scoresObj = evalResult.get("scores");
@@ -313,8 +322,12 @@ public class QuizController {
                 Map<String, Object> fixed = new LinkedHashMap<>();
                 for (Map.Entry<String, Object> e : ((Map<String, Object>) scoresObj).entrySet()) {
                     Object v = e.getValue();
-                    if (!(v instanceof Number)) fixed.put(e.getKey(), 0); // "N"→0
-                    else fixed.put(e.getKey(), v);
+                    if (!(v instanceof Number)) {
+                        fixed.put(e.getKey(), 1);
+                    } else {
+                        int score = ((Number) v).intValue();
+                        fixed.put(e.getKey(), Math.max(1, Math.min(10, score)));
+                    }
                 }
                 scoresObj = fixed;
                 evalResult.put("scores", scoresObj);
@@ -327,13 +340,13 @@ public class QuizController {
             session.setStatus("evaluated");
         }
         sessionMapper.updateById(session);
-        vectorizeSummary(userId, session, evalResult);
+        if (!lowEvidence) {
+            vectorizeSummary(userId, session, evalResult);
+        }
 
         // 自适应难度更新（失败不影响主流程）
+        if (!lowEvidence) {
         try {
-            double correctRate = total > 0 ? (double) correct / total : 0;
-            double skipRate = total > 0 ? (double) skip / total : 0;
-            double avgDur = total > 0 ? (double) totalSec / total : 0;
 
             Long courseId = session.getCourseId();
             int currentDifficulty = session.getDifficulty() != null ? session.getDifficulty() : 1;
@@ -349,6 +362,7 @@ public class QuizController {
             }
         } catch (Exception e) {
             System.out.println("=== 难度更新失败: " + e.getMessage());
+        }
         }
 
         // 收集本次错题/空题，便于报告页直接展示
@@ -414,7 +428,7 @@ public class QuizController {
         StringBuilder ansText = new StringBuilder();
         for (int i = 0; i < answers.size(); i++) {
             Map<String, Object> a = answers.get(i);
-            int dur = a.get("durationSec") instanceof Number ? ((Number) a.get("durationSec")).intValue() : 0;
+            int dur = sanitizeDurationSec(a.get("durationSec"));
             ansText.append(String.format("Q%d: %s → %s (%ds)\n",
                     i + 1,
                     a.getOrDefault("question", ""),
@@ -664,6 +678,37 @@ public class QuizController {
         return current;
     }
 
+    private int sanitizeDurationSec(Object raw) {
+        int dur = raw instanceof Number ? ((Number) raw).intValue() : 0;
+        if (dur < 0) {
+            return 0;
+        }
+        return Math.min(dur, MAX_QUESTION_DURATION_SEC);
+    }
+
+    private Map<String, Object> buildLowEvidenceResult(int total, int skip, int totalSec, int correct) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        Map<String, Object> scores = new LinkedHashMap<>();
+        // 证据不足时给出保守基线分（按真实正确率折算，避免报告中出现全 0）：
+        // 基础分 = 正确率 × 10，上限压到 6 分表示"证据有限，仅供参考"
+        double correctRate = total > 0 ? (double) correct / total : 0;
+        double skipRate = total > 0 ? (double) skip / total : 0;
+        int base = Math.max(1, Math.min(6, (int) Math.round(correctRate * 10)));
+        scores.put("信息检索力", base);
+        scores.put("判断决策力", base);
+        scores.put("专业学习力", base);
+        scores.put("逻辑思维力", base);
+        scores.put("专注耐力", Math.max(1, base - 1)); // 作答过快，专注维度额外扣 1
+        scores.put("自律执行力", Math.max(1, base - (skipRate >= 0.3 ? 1 : 0))); // 跳题多，自律扣 1
+        result.put("scores", scores);
+        result.put("strengths", List.of("本次作答有效信息不足，暂不形成能力结论"));
+        result.put("weaknesses", List.of("正确率较低、跳过较多或作答过快，建议认真作答后再次测评"));
+        result.put("suggestion", "本次共 " + total + " 题，跳过 " + skip + " 题，作答 " + totalSec
+                + " 秒。以上能力分为按基础表现的保守估计，暂不根据本次结果调整难度，建议认真完成一次完整测评。");
+        result.put("study_plan", List.of("回看本次错题和对应章节", "认真作答下一次测评"));
+        result.put("lowEvidence", true);
+        return result;
+    }
     private int toInt(Object v) {
         return v instanceof Number ? ((Number) v).intValue() : 0;
     }

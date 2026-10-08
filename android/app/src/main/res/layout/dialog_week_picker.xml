@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 选择周数：iOS 底部弹出面板（周网格卡片 + 独立取消卡片） -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingHorizontal="10dp"
+    android:paddingBottom="16dp">
+
+    <!-- 周网格卡片 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="@drawable/bg_sheet_top">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="选择周数"
+            android:textSize="17sp"
+            android:textColor="@color/ink"
+            android:fontFamily="@font/harmonyos_sans_sc_medium"
+            android:gravity="center"
+            android:paddingTop="18dp"
+            android:paddingBottom="2dp" />
+
+        <!-- 当前学期（点击可切换学期） -->
+        <TextView
+            android:id="@+id/tv_dialog_semester"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:text=""
+            android:textSize="12sp"
+            android:textColor="@color/ink_subtle"
+            android:paddingBottom="6dp"
+            android:clickable="true"
+            android:focusable="true" />
+
+        <GridLayout
+            android:id="@+id/gl_weeks"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:columnCount="6"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="10dp" />
+    </LinearLayout>
+
+    <!-- 取消卡片 -->
+    <TextView
+        android:id="@+id/btn_cancel"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:layout_marginTop="10dp"
+        android:background="@drawable/bg_sheet_cancel"
+        android:gravity="center"
+        android:text="取消"
+        android:textSize="16sp"
+        android:textColor="@color/ink"
+        android:fontFamily="@font/harmonyos_sans_sc_medium"
+        android:clickable="true"
+        android:focusable="true" />
+
+</LinearLayout>

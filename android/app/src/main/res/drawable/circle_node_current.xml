@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 章节进行中：白底 + 主蓝描边 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <solid android:color="@color/surface_1" />
+    <stroke android:width="2dp" android:color="@color/primary" />
+    <size android:width="24dp" android:height="24dp" />
+</shape>

@@ -22,7 +22,7 @@
             android:text="@string/brand_name"
             android:textSize="36sp"
             android:textColor="@color/text_primary"
-            android:fontFamily="sans-serif-medium"
+            android:fontFamily="@font/harmonyos_sans_sc_medium"
             android:letterSpacing="-0.02" />
 
         <TextView
@@ -33,7 +33,7 @@
             android:text="@string/brand_desc"
             android:textSize="14sp"
             android:textColor="@color/primary"
-            android:fontFamily="sans-serif-medium" />
+            android:fontFamily="@font/harmonyos_sans_sc_medium" />
 
         <!-- 用户卡片（模仿 card-client：描边卡片 + 圆环头像 + 姓名 + 分隔线） -->
         <LinearLayout
@@ -59,8 +59,8 @@
                 android:gravity="center"
                 android:text="学"
                 android:textSize="26sp"
-                android:textColor="#FFFFFF"
-                android:fontFamily="sans-serif-medium" />
+                android:textColor="@color/on_primary"
+                android:fontFamily="@font/harmonyos_sans_sc_medium" />
 
             <!-- 姓名 -->
             <TextView
@@ -69,8 +69,8 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="18dp"
                 android:textSize="18sp"
-                android:textColor="#1D1D1F"
-                android:fontFamily="sans-serif-medium" />
+                android:textColor="@color/ink"
+                android:fontFamily="@font/harmonyos_sans_sc_medium" />
 
             <!-- 分隔线（对应 social-media:before） -->
             <View
@@ -78,7 +78,7 @@
                 android:layout_height="2dp"
                 android:layout_marginTop="20dp"
                 android:layout_marginBottom="14dp"
-                android:background="#E5E7EB" />
+                android:background="@color/hairline" />
 
             <TextView
                 android:layout_width="wrap_content"
@@ -86,7 +86,7 @@
                 android:text="点击一键登录进入学习"
                 android:textSize="13sp"
                 android:textColor="#6B7280"
-                android:fontFamily="sans-serif" />
+                android:fontFamily="@font/harmonyos_sans_sc" />
         </LinearLayout>
 
         <!-- 同意协议 -->
@@ -118,7 +118,7 @@
                 android:layout_marginStart="6dp"
                 android:textSize="13sp"
                 android:textColor="@color/text_primary"
-                android:fontFamily="sans-serif" />
+                android:fontFamily="@font/harmonyos_sans_sc" />
         </LinearLayout>
 
         <!-- 一键登录按钮 -->
@@ -130,7 +130,7 @@
             android:text="@string/quick_login_btn"
             android:textSize="16sp"
             android:textColor="@color/white"
-            android:fontFamily="sans-serif-medium"
+            android:fontFamily="@font/harmonyos_sans_sc_medium"
             android:stateListAnimator="@null" />
 
         <!-- 进度条 -->
@@ -157,7 +157,7 @@
             android:text="@string/switch_account"
             android:textSize="14sp"
             android:textColor="@color/primary"
-            android:fontFamily="sans-serif-medium" />
+            android:fontFamily="@font/harmonyos_sans_sc_medium" />
 
     </LinearLayout>
 </ScrollView>

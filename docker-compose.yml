@@ -9,7 +9,7 @@ services:
       MYSQL_DATABASE: znxsglTest
       MYSQL_CHARACTER_SET_SERVER: utf8mb4
       MYSQL_COLLATION_SERVER: utf8mb4_unicode_ci
-    command: --innodb-buffer-pool-size=128M
+    command: --innodb-buffer-pool-size=128M --slow-query-log=1 --long-query-time=1 --log-output=TABLE
     ports:
       - "3307:3306"   # 映射到宿主机 3307 避免和本地 MySQL 冲突
     volumes:
@@ -17,6 +17,22 @@ services:
       - ./init-db:/docker-entrypoint-initdb.d  # 自动初始化 SQL
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ===== Redis（分布式幂等/限流/锁） =====
+  redis:
+    image: redis:7-alpine
+    container_name: znxsgl-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -31,10 +47,16 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/znxsglTest?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&characterEncoding=UTF-8
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: 123456
+      # Redis：分布式幂等、分布式锁、限流
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      APP_REDIS_ENABLED: "true"
       JWT_SECRET: ZnxsglRAGLearningApp2026SecretKeyForJWTTokenGenerationMustBe256Bits
       JWT_EXPIRATION: "86400000"
       # LLM 对话模型（DeepSeek），Key 需在服务器上通过 .env 提供
@@ -82,3 +104,4 @@ services:
 volumes:
   mysql_data:
   embedding_models:
+  redis_data:

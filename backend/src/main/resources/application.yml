@@ -1,7 +1,23 @@
 server:
   port: 8080
+  shutdown: graceful
 
 spring:
+  application:
+    name: znxsgl-backend
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 3s
+      lettuce:
+        pool:
+          max-active: 16
+          max-idle: 8
+          min-idle: 2
   servlet:
     multipart:
       max-file-size: 20MB
@@ -12,8 +28,8 @@ spring:
     password: ${DB_PASSWORD:123456}
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
-      maximum-pool-size: 20
-      minimum-idle: 5
+      maximum-pool-size: ${DB_POOL_MAX:30}
+      minimum-idle: ${DB_POOL_MIN:10}
       connection-timeout: 30000
       idle-timeout: 600000
       max-lifetime: 1800000
@@ -21,7 +37,7 @@ spring:
 mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true
-    log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl
+    log-impl: ${MYBATIS_LOG_IMPL:org.apache.ibatis.logging.nologging.NoLoggingImpl}
   global-config:
     db-config:
       id-type: auto
@@ -53,3 +69,27 @@ embedding:
     python-cmd: python
     # 服务目录，留空则自动探测（项目根目录/embedding-service 或 backend/../embedding-service）
     work-dir:
+
+app:
+  redis:
+    # 是否启用 Redis 分布式幂等/限流；本地无 Redis 时保持 false
+    enabled: ${APP_REDIS_ENABLED:false}
+  question-bank:
+    # 是否启用题库定时预生成（默认关闭，避免夜间大量调用大模型）
+    prewarm-enabled: ${QUESTION_BANK_PREWARM_ENABLED:false}
+    prewarm-cron: ${QUESTION_BANK_PREWARM_CRON:0 0 4 * * ?}
+
+# 生产监控与健康检查
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when_authorized
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      application: znxsgl-backend

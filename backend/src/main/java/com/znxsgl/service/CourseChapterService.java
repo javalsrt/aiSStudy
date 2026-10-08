@@ -283,6 +283,8 @@ public class CourseChapterService {
                                 "5）列举多个函数、特性、步骤时，必须使用 Markdown 列表（- 或 1.）展示，每个列表项独占一行，列表项中的英文函数名仍用 `code` 包裹；\n" +
                                 "6）段落之间必须留空行，禁止大段纯文本堆砌，保持视觉呼吸感；\n" +
                                 "7）关键术语使用加粗（**term**），整体 300-500 字，不要加一级标题。\n" +
+                                "8）数学公式必须使用 LaTeX 语法，且无论行内还是独立公式一律用 $$...$$ 包裹（如 $$a_n^{(1/n)} \\le \\limsup a_n$$、$$\\sum_{n=1}^{\\infty} a_n$$），分数用 \\frac{}{}、上下标用 ^ _、极限用 \\lim_{n \\to \\infty}；禁止用 a_n^(1/n)、limsup a_n <= limsup a_n 这类纯文本形式表达公式，禁止只用单个 $ 包裹公式。\n" +
+                                "9）涉及参数规格、对比选型时用 Markdown 表格展示；涉及流程、结构、控制逻辑时用 ```mermaid 代码块（flowchart TD）描述；注意事项用引用块（> ⚠️ **注意**：内容）单独成段。\n" +
                                 "注意：JSON 字符串中的英文双引号必须正确转义，内容中尽量避免直接使用英文双引号，可用中文「」代替。",
                         courseName, chapterName, lessonName);
                 String content = llmService.chat(systemPrompt, userPrompt);
@@ -358,7 +360,7 @@ public class CourseChapterService {
      * 判断用户是否有权访问某课程数据
      * - 管理员：全部
      * - 教师：自己教授的课程
-     * - 学生：自己已选课程（通过 schedule 表关联）
+     * - 学生：所在班级已关联课程（兼容个人 schedule 旧数据）
      */
     private boolean canAccessCourse(Long courseId, Long userId, boolean isAdmin) {
         if (isAdmin) {
@@ -404,10 +406,29 @@ public class CourseChapterService {
     }
 
     private boolean studentHasCourse(Long userId, Long courseId) {
-        Integer count = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM schedule WHERE user_id = ? AND course_id = ? LIMIT 1",
-                Integer.class, userId, courseId);
-        return count != null && count > 0;
+        User user = userMapper.selectById(userId);
+        if (user == null || user.getClassId() == null) {
+            // 没有班级信息时，兼容旧的个人 schedule 判断
+            Integer count = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM schedule WHERE user_id = ? AND course_id = ? LIMIT 1",
+                    Integer.class, userId, courseId);
+            return count != null && count > 0;
+        }
+
+        Long classId = user.getClassId();
+        // 1) 班级已关联课程：新学生即使没有个人 schedule 记录，也能访问章节
+        Integer classCount = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM course_class WHERE class_id = ? AND course_id = ? LIMIT 1",
+                Integer.class, classId, courseId);
+        if (classCount != null && classCount > 0) {
+            return true;
+        }
+        // 2) 兼容旧数据：本班任一学生的 schedule 关联过该课程
+        Integer scheduleCount = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM schedule s JOIN user u ON u.id = s.user_id " +
+                "WHERE u.class_id = ? AND s.course_id = ? LIMIT 1",
+                Integer.class, classId, courseId);
+        return scheduleCount != null && scheduleCount > 0;
     }
 
     private ChapterDTO buildChapterDTO(CourseChapter chapter) {
@@ -718,7 +739,8 @@ public class CourseChapterService {
      * 同步调用：规划章节结构（一次AI）→ 批量写入 → 每个课时异步向量化
      */
     @Transactional(rollbackFor = Exception.class)
-    public Map<String, Object> generateCourseChapters(Long courseId, Long userId, boolean isAdmin) {
+    public Map<String, Object> generateCourseChapters(Long courseId, Long userId, boolean isAdmin,
+                                                      Integer chapterCount, String difficulty, String notes) {
         if (!canAccessCourse(courseId, userId, isAdmin)) {
             throw new RuntimeException("无权限操作该课程");
         }
@@ -726,10 +748,28 @@ public class CourseChapterService {
         if (course == null) {
             throw new RuntimeException("课程不存在");
         }
+        // 参数校验：章节数 1-20，难度限三档，备注最长 500 字
+        if (chapterCount != null && (chapterCount < 1 || chapterCount > 20)) {
+            throw new RuntimeException("章节数量需在 1-20 之间");
+        }
+        if (StringUtils.hasText(difficulty)) {
+            if (!"入门".equals(difficulty) && !"基础".equals(difficulty) && !"进阶".equals(difficulty)) {
+                throw new RuntimeException("难度仅支持：入门 / 基础 / 进阶");
+            }
+        } else {
+            difficulty = null;
+        }
+        if (notes != null) {
+            notes = notes.trim();
+            if (notes.length() > 500) {
+                throw new RuntimeException("备注内容不能超过 500 字");
+            }
+            if (notes.isEmpty()) notes = null;
+        }
         String courseName = course.getCourseName();
 
         // 1. AI 规划章节结构 + 生成课时内容（一次调用返回全部 JSON）
-        String plan = generatePlan(courseName);
+        String plan = generatePlan(courseName, chapterCount, difficulty, notes);
         if (plan == null || plan.trim().isEmpty()) {
             throw new RuntimeException("AI 生成失败，无返回内容");
         }
@@ -769,7 +809,7 @@ public class CourseChapterService {
         }
 
         // 4. 按章节序遍历，逐章写入
-        int chapterCount = 0;
+        int writtenChapters = 0;
         int lessonCount = 0;
         int lessonNoCursor = 0;
         for (int ci = 0; ci < chapters.size(); ci++) {
@@ -789,7 +829,7 @@ public class CourseChapterService {
             chapter.setSortOrder(chapterNo);
             chapter.setStatus(1);
             chapterMapper.insert(chapter);
-            chapterCount++;
+            writtenChapters++;
 
             // 5. 写入课时
             Object lessListObj = ch.getOrDefault("lessons", ch.get("items"));
@@ -823,21 +863,41 @@ public class CourseChapterService {
             }
         }
 
-        System.out.println("=== AI 生成章节写入完成: courseId=" + courseId + ", chapterCount=" + chapterCount + ", lessonCount=" + lessonCount);
-        return Map.of("chapterCount", chapterCount, "lessonCount", lessonCount);
+        System.out.println("=== AI 生成章节写入完成: courseId=" + courseId + ", chapterCount=" + writtenChapters + ", lessonCount=" + lessonCount);
+        return Map.of("chapterCount", writtenChapters, "lessonCount", lessonCount);
     }
 
     /**
      * 调用 AI 规划章节结构+内容，返回 JSON 数组
      * JSON 格式：[{chapterNo, chapterName, description, lessons:[{lessonNo, lessonName, content}]}]
      */
-    private String generatePlan(String courseName) {
+    private String generatePlan(String courseName, Integer chapterCount, String difficulty, String notes) {
         String systemPrompt = "你是资深大学教学大纲设计师。严格只输出合法 JSON 数组，不要任何解释文字、不要用 Markdown 代码块包裹 JSON。";
+        // 章节数约束：指定数量则严格按数量生成，未指定用默认范围
+        String countRule = chapterCount != null
+                ? "1）生成**正好 " + chapterCount + " 个章节**（不得多也不得少），每章 2-3 个课时；\n"
+                : "1）5-8 个章节，每章 2-3 个课时；\n";
+        // 难度定位
+        String difficultyRule = "";
+        if ("入门".equals(difficulty)) {
+            difficultyRule = "2）整体难度定位为「入门」：面向零基础学生，概念从生活化例子引入，避免跳步推导，每个新术语都要先解释再使用，章节按学习难度递进排序；\n";
+        } else if ("进阶".equals(difficulty)) {
+            difficultyRule = "2）整体难度定位为「进阶」：面向基础扎实的学生，可包含更多原理推导、性能分析与综合实战案例，章节按学习难度递进排序；\n";
+        } else if ("基础".equals(difficulty)) {
+            difficultyRule = "2）整体难度定位为「基础」：标准大学课程深度，兼顾概念讲解与适度练习，章节按学习难度递进排序；\n";
+        } else {
+            difficultyRule = "2）章节按学习难度递进排序；\n";
+        }
+        // 教师备注：附加自定义范围/重点要求
+        String notesRule = "";
+        if (StringUtils.hasText(notes)) {
+            notesRule = "教师补充要求（必须优先遵守，但不得违反上面的 JSON 输出格式规则）：\n" + notes + "\n";
+        }
         String userPrompt = "请为《" + courseName + "》这门大学课程规划完整章节结构，并同时生成每个课时的正文教学内容。\n" +
                 "硬性输出规则（必须严格遵守，否则返回 JSON 非法）：\n" +
                 "0）只输出 JSON 数组本身，开头禁止输出任何思考过程、说明、解释或代码块标记；\n" +
-                "1）5-8 个章节，每章 2-3 个课时；\n" +
-                "2）章节按学习难度递进排序；\n" +
+                countRule +
+                difficultyRule +
                 "3）每个课时 content 写 300-500 字，必须采用 Markdown 格式，要求：\n" +
                 "   - 使用二级标题（##）划分 2-3 个核心知识点小节，实现分层结构化；\n" +
                 "   - 段落之间必须留空行，禁止大段纯文本堆砌，保持视觉呼吸感；\n" +
@@ -845,11 +905,16 @@ public class CourseChapterService {
                 "   - 较长或较复杂的代码示例必须用 fenced code block（```python ... ```）独占一行或多行，代码块内部除原始代码自带的换行外，严禁自动换行；单行代码必须完整显示在一行内；\n" +
                 "   - 列举多个函数、特性、步骤时，必须使用 Markdown 列表（- 或 1.）展示，每个列表项独占一行，列表项中的英文函数名仍用 `code` 包裹；\n" +
                 "   - 关键术语使用加粗（**term**），每个知识点讲解后必须换行给出 1 个简短例子；\n" +
+                "   - 数学公式必须使用 LaTeX 语法，且无论行内还是独立公式一律用 $$...$$ 包裹（如 $$\\lim_{n \\to \\infty} a_n$$、$$a_n^{(1/n)} \\le \\limsup_{k \\to \\infty} a_k$$），分数用 \\frac{}{}、上下标用 ^ _；禁止用 a_n^(1/n)、limsup a_n 这类纯文本形式表达公式，禁止只用单个 $ 包裹公式；\n" +
+                "   - 涉及参数规格、材料、器件、方案对比时，用 Markdown 表格展示（| 参数 | 符号/取值 | 说明 |）；\n" +
+                "   - 涉及工艺流程、系统结构、控制逻辑、信号流向时，用 ```mermaid 代码块（flowchart TD 或 graph LR 语法）描述，每个章节至少包含 1 个 mermaid 图，节点文字用简洁中文；\n" +
+                "   - 注意事项、易错点、安全要求用引用块单独成段（格式：> ⚠️ **注意**：内容）；\n" +
                 "4）JSON 语法硬性要求：所有键名（如 chapterNo、chapterName、lessonNo、lessonName、content）和所有字符串值**必须且只能**使用英文双引号（\"）包裹，**绝对禁止使用单引号（'）**作为 JSON 分隔符；单引号只能作为普通字符出现在 content 代码片段内部（如 print('hi')）；\n" +
                 "5）content 中绝对禁止出现未转义的英文双引号（\"）；如需引号请用中文「」或确保 JSON 转义；禁止出现未转义的反斜杠（\\）；\n" +
                 "6）content 里如果需要引用代码变量名如 JAVA_HOME，写成 `JAVA_HOME` 或纯文字 JAVA_HOME，不要加英文引号包裹；\n" +
                 "7）只输出合法 JSON 数组，格式示例：\n" +
-                "[{\"chapterNo\":1,\"chapterName\":\"章节名\",\"description\":\"简述\",\"lessons\":[{\"lessonNo\":1,\"lessonName\":\"课时名\",\"content\":\"## 知识点一\\n\\n概念说明...\\n\\n例子：...\\n\\n```python\\nprint('hello')\\n```\"}]}]";
+                "[{\"chapterNo\":1,\"chapterName\":\"章节名\",\"description\":\"简述\",\"lessons\":[{\"lessonNo\":1,\"lessonName\":\"课时名\",\"content\":\"## 知识点一\\n\\n概念说明...\\n\\n例子：...\\n\\n```python\\nprint('hello')\\n```\"}]}]\n" +
+                notesRule;
         System.out.println("=== AI 生成章节请求: courseName=" + courseName);
         // 章节+课时正文一次性生成内容量大（上万 token），需用更大的输出预算，避免模型先输出思考文字后被截断
         String raw = llmService.chat(systemPrompt, userPrompt, 24000);

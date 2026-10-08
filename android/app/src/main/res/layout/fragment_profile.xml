@@ -9,7 +9,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:paddingBottom="82dp">
+        android:paddingBottom="104dp">
 
 
         <!-- 用户信息头 -->
@@ -30,7 +30,7 @@
                 android:textSize="28sp"
                 android:textColor="@color/on_primary"
                 android:gravity="center"
-                android:fontFamily="sans-serif-medium"
+                android:fontFamily="@font/harmonyos_sans_sc_medium"
                 android:background="@drawable/bg_avatar_circle" />
 
             <TextView
@@ -41,7 +41,7 @@
                 android:text="张明"
                 android:textSize="22sp"
                 android:textColor="@color/ink"
-                android:fontFamily="sans-serif-medium" />
+                android:fontFamily="@font/harmonyos_sans_sc_medium" />
 
             <TextView
                 android:id="@+id/tv_student_info"
@@ -51,20 +51,20 @@
                 android:text="学号: 20240101001"
                 android:textSize="14sp"
                 android:textColor="@color/ink_subtle"
-                android:fontFamily="sans-serif" />
+                android:fontFamily="@font/harmonyos_sans_sc" />
 
-            <!-- 设置按钮 -->
+            <!-- 设置按钮（44dp 触摸目标） -->
             <TextView
                 android:id="@+id/btn_settings"
                 android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                android:layout_height="44dp"
                 android:layout_gravity="end"
-                android:layout_marginEnd="16dp"
-                android:layout_marginTop="-28dp"
+                android:layout_marginEnd="12dp"
+                android:layout_marginTop="-34dp"
                 android:text="设置"
                 android:textSize="14sp"
                 android:textColor="@color/ink_subtle"
-                android:padding="6dp"
+                android:paddingHorizontal="12dp"
                 android:clickable="true"
                 android:focusable="true" />
         </LinearLayout>
@@ -84,7 +84,7 @@
                 <TextView android:id="@+id/tv_stat_hours" android:layout_width="wrap_content"
                     android:layout_height="wrap_content" android:text="128"
                     android:textSize="24sp" android:textColor="@color/ink"
-                    android:fontFamily="sans-serif" />
+                    android:fontFamily="@font/harmonyos_sans_sc" />
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                     android:layout_marginTop="6dp" android:text="学习时长(分)"
                     android:textSize="12sp" android:textColor="@color/ink_subtle" />
@@ -98,7 +98,7 @@
                 <TextView android:id="@+id/tv_stat_quiz" android:layout_width="wrap_content"
                     android:layout_height="wrap_content" android:text="342"
                     android:textSize="24sp" android:textColor="@color/ink"
-                    android:fontFamily="sans-serif" />
+                    android:fontFamily="@font/harmonyos_sans_sc" />
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                     android:layout_marginTop="6dp" android:text="完成题目"
                     android:textSize="12sp" android:textColor="@color/ink_subtle" />
@@ -112,7 +112,7 @@
                 <TextView android:id="@+id/tv_stat_rate" android:layout_width="wrap_content"
                     android:layout_height="wrap_content" android:text="85.6%"
                     android:textSize="24sp" android:textColor="@color/primary"
-                    android:fontFamily="sans-serif" />
+                    android:fontFamily="@font/harmonyos_sans_sc" />
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                     android:layout_marginTop="6dp" android:text="正确率"
                     android:textSize="12sp" android:textColor="@color/ink_subtle" />
@@ -139,9 +139,12 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="📌 收藏题目"
+                android:text="收藏题目"
                 android:textSize="14sp"
-                android:textColor="@color/ink" />
+                android:textColor="@color/ink"
+                android:drawableStart="@drawable/ic_star"
+                android:drawableTint="@color/primary"
+                android:drawablePadding="8dp" />
 
             <TextView
                 android:id="@+id/tv_bookmark_count"
@@ -151,12 +154,14 @@
                 android:textSize="14sp"
                 android:textColor="@color/primary" />
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="  >"
-                android:textSize="14sp"
-                android:textColor="@color/ink_tertiary" />
+            <ImageView
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:layout_marginStart="4dp"
+                android:src="@drawable/ic_chevron_right"
+                android:tint="@color/ink_tertiary"
+                android:contentDescription="@null"
+                android:importantForAccessibility="no" />
         </LinearLayout>
 
         <!-- 通讯录入口 -->
@@ -178,16 +183,28 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="👥 通讯录"
+                android:text="通讯录"
                 android:textSize="14sp"
-                android:textColor="@color/ink" />
+                android:textColor="@color/ink"
+                android:drawableStart="@drawable/ic_user"
+                android:drawableTint="@color/primary"
+                android:drawablePadding="8dp" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="同班同学 / 任课教师  >"
+                android:text="同班同学 / 任课教师"
                 android:textSize="13sp"
                 android:textColor="@color/ink_subtle" />
+
+            <ImageView
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:layout_marginStart="4dp"
+                android:src="@drawable/ic_chevron_right"
+                android:tint="@color/ink_tertiary"
+                android:contentDescription="@null"
+                android:importantForAccessibility="no" />
         </LinearLayout>
 
         <!-- 我的课程 -->
@@ -205,7 +222,7 @@
                 android:text="我的课程"
                 android:textSize="13sp"
                 android:textColor="@color/ink_subtle"
-                android:fontFamily="sans-serif-medium"
+                android:fontFamily="@font/harmonyos_sans_sc_medium"
                 android:paddingStart="16dp"
                 android:paddingTop="16dp"
                 android:paddingBottom="8dp" />

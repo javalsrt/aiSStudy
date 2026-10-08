@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Card } from '@/components/ui/card'
+import { MathText } from '@/components/rich-text'
 import { Button } from '@/components/ui/button'
 import {
   MessageSquare,
@@ -126,6 +127,33 @@ export function TeacherChatPage() {
       .then(setStudents)
       .catch(() => setStudents([]))
     markTeacherRead(courseName).catch(() => {})
+  }, [activeCourse])
+
+  // 轮询刷新聊天记录（3 秒）：AI 异步回复、学生消息无需刷新页面即可显示
+  useEffect(() => {
+    if (!activeCourse) return
+    const courseName = activeCourse.courseName
+    const timer = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') return
+      getPublicMessages(courseName)
+        .then((list) => {
+          setMsgs((prev) => {
+            const cur = prev || []
+            const next = list || []
+            // 长度和首尾 id 都相同则视为无新消息，跳过更新
+            if (
+              cur.length === next.length &&
+              (next.length === 0 ||
+                (cur[0].id === next[0].id && cur[cur.length - 1].id === next[next.length - 1].id))
+            ) {
+              return prev
+            }
+            return next
+          })
+        })
+        .catch(() => {})
+    }, 3000)
+    return () => window.clearInterval(timer)
   }, [activeCourse])
 
   // 判断用户是否在消息区底部附近
@@ -390,7 +418,13 @@ export function TeacherChatPage() {
                             {parsed.text}
                           </div>
                         ) : (
-                          <div className="whitespace-pre-wrap">{renderTextWithLinks(parsed.text)}</div>
+                          <div className="whitespace-pre-wrap">
+                            {parsed.text.includes('$') ? (
+                              <MathText text={parsed.text} />
+                            ) : (
+                              renderTextWithLinks(parsed.text)
+                            )}
+                          </div>
                         )}
                       </div>
                     </div>

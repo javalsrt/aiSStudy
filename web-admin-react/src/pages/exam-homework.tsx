@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { MathText } from '@/components/rich-text'
 import { SpotlightCard } from '@/components/SpotlightCard'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -1067,12 +1068,14 @@ export function ExamHomeworkPage() {
                       <div className="flex items-start gap-3">
                         <span className="text-sm font-medium text-primary-600 mt-0.5">{idx + 1}.</span>
                         <div className="flex-1">
-                          <p className="text-sm font-medium text-neutral-900">{q.content}</p>
+                          <p className="text-sm font-medium text-neutral-900">
+                            <MathText text={q.content} />
+                          </p>
                           {q.options && q.options.length > 0 && (
                             <div className="mt-2 space-y-1">
                               {q.options.map((opt, i) => (
                                 <div key={i} className="text-sm text-neutral-600 pl-2">
-                                  {String.fromCharCode(65 + i)}. {opt}
+                                  {String.fromCharCode(65 + i)}. <MathText text={opt} />
                                 </div>
                               ))}
                             </div>

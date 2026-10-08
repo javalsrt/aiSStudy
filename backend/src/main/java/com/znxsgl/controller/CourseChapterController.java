@@ -2,6 +2,7 @@ package com.znxsgl.controller;
 
 import com.znxsgl.dto.*;
 import com.znxsgl.service.CourseChapterService;
+import com.znxsgl.service.QuestionGenerationService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -26,9 +27,12 @@ import java.util.Map;
 public class CourseChapterController {
 
     private final CourseChapterService courseChapterService;
+    private final QuestionGenerationService questionGenerationService;
 
-    public CourseChapterController(CourseChapterService courseChapterService) {
+    public CourseChapterController(CourseChapterService courseChapterService,
+                                   QuestionGenerationService questionGenerationService) {
         this.courseChapterService = courseChapterService;
+        this.questionGenerationService = questionGenerationService;
     }
 
     /**
@@ -113,15 +117,35 @@ public class CourseChapterController {
 
     /**
      * AI 一键生成整课程章节（章节+课时+内容）
+     * 可选请求体：{ "chapterCount": 6, "difficulty": "入门|基础|进阶", "notes": "生成范围/内容备注" }
      */
     @PostMapping("/generate/{courseId}")
     @PreAuthorize("hasAuthority('chapter:create') or hasAuthority('chapter:edit:self') or hasAuthority('chapter:edit:all')")
-    public ResponseEntity<?> generateChapters(@PathVariable Long courseId, Authentication auth) {
+    public ResponseEntity<?> generateChapters(@PathVariable Long courseId,
+                                              @RequestBody(required = false) Map<String, Object> body,
+                                              Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
         boolean isAdmin = auth.getAuthorities().stream()
                 .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+        Integer chapterCount = null;
+        String difficulty = null;
+        String notes = null;
+        if (body != null) {
+            if (body.get("chapterCount") instanceof Number n) {
+                chapterCount = n.intValue();
+            }
+            if (body.get("difficulty") != null) {
+                difficulty = body.get("difficulty").toString();
+            }
+            if (body.get("notes") != null) {
+                notes = body.get("notes").toString();
+            }
+        }
         try {
-            Map<String, Object> result = courseChapterService.generateCourseChapters(courseId, userId, isAdmin);
+            Map<String, Object> result = courseChapterService.generateCourseChapters(
+                    courseId, userId, isAdmin, chapterCount, difficulty, notes);
+            // 章节生成成功后，后台预生成题库
+            questionGenerationService.prewarmCourseAsync(courseId);
             return ResponseEntity.ok(Map.of(
                     "message", "生成成功",
                     "data", result
@@ -152,6 +176,8 @@ public class CourseChapterController {
         try (InputStream is = file.getInputStream()) {
             ChapterImportResultDTO result = courseChapterService.importFromExcel(courseId, is, userId, isAdmin);
             boolean allSuccess = result.getFailCount() == 0;
+            // 导入成功后，后台预生成题库
+            questionGenerationService.prewarmCourseAsync(courseId);
             return ResponseEntity.ok(Map.of(
                     "success", allSuccess,
                     "message", allSuccess ? "导入成功" : "导入失败：存在数据校验错误",
@@ -187,6 +213,8 @@ public class CourseChapterController {
         try (InputStream is = file.getInputStream()) {
             ChapterImportResultDTO result = courseChapterService.importFromWord(courseId, is, userId, isAdmin);
             boolean allSuccess = result.getFailCount() == 0;
+            // 导入成功后，后台预生成题库
+            questionGenerationService.prewarmCourseAsync(courseId);
             return ResponseEntity.ok(Map.of(
                     "success", allSuccess,
                     "message", allSuccess ? "导入成功" : "导入失败：存在数据校验错误",

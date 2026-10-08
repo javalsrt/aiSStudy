@@ -12,6 +12,7 @@
         android:gravity="center_horizontal">
 
         <View
+            android:id="@+id/line_lesson_top"
             android:layout_width="2dp"
             android:layout_height="0dp"
             android:layout_weight="1"
@@ -23,6 +24,7 @@
             android:background="@drawable/circle_node_normal" />
 
         <View
+            android:id="@+id/line_lesson_bottom"
             android:layout_width="2dp"
             android:layout_height="0dp"
             android:layout_weight="1"
@@ -31,6 +33,7 @@
 
     <!-- 右侧课时卡片 -->
     <LinearLayout
+        android:id="@+id/ll_lesson_card"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
@@ -46,24 +49,11 @@
             android:orientation="horizontal"
             android:gravity="center_vertical">
 
-            <!-- 资源类型图标 -->
-            <TextView
-                android:id="@+id/tv_lesson_icon"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
-                android:background="@drawable/bg_lesson_type"
-                android:gravity="center"
-                android:text="文"
-                android:textColor="@color/primary"
-                android:textSize="13sp"
-                android:textStyle="bold" />
-
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:orientation="vertical"
-                android:layout_marginStart="12dp">
+                android:orientation="vertical">
 
                 <TextView
                     android:id="@+id/tv_lesson_name"
@@ -82,8 +72,18 @@
                     android:layout_marginTop="2dp"
                     android:text="文档"
                     android:textSize="11sp"
-                    android:textColor="@color/ink_subtle" />
+                    android:textColor="@color/ink_subtle"
+                    android:visibility="gone" />
             </LinearLayout>
+
+            <TextView
+                android:id="@+id/tv_lesson_arrow"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="▼"
+                android:textSize="13sp"
+                android:textColor="@color/ink_subtle" />
         </LinearLayout>
 
         <!-- 课时内容区域（展开后显示） -->

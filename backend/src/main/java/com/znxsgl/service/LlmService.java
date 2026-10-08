@@ -45,6 +45,10 @@ public class LlmService {
     // 按用户限流：每分钟最多 10 次 AI 调用，防止单个用户滥用
     private final ConcurrentHashMap<Long, RateLimiter> userRateLimiters = new ConcurrentHashMap<>();
 
+    /** Redis 分布式限流；为空时自动回退本地 Guava RateLimiter */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private RedisRateLimiterService redisRateLimiterService;
+
     /** 最近一次调用失败的具体原因（供出题等异步任务向用户透出真实错误，如余额不足/Key无效） */
     private static volatile String lastFailure = "";
 
@@ -55,9 +59,7 @@ public class LlmService {
      * 同步调用 AI，返回完整回复文本（全局限流）
      */
     public String chat(String systemPrompt, String userMessage) {
-        if (!globalRateLimiter.tryAcquire()) {
-            throw new RateLimitException("AI 服务繁忙，请稍后再试");
-        }
+        checkGlobalRateLimit();
         return chatInternal(null, systemPrompt, userMessage, 8192);
     }
 
@@ -65,9 +67,7 @@ public class LlmService {
      * 同步调用 AI，指定更大的输出 token 预算（用于生成长文本/大 JSON 的场景）
      */
     public String chat(String systemPrompt, String userMessage, int maxTokens) {
-        if (!globalRateLimiter.tryAcquire()) {
-            throw new RateLimitException("AI 服务繁忙，请稍后再试");
-        }
+        checkGlobalRateLimit();
         return chatInternal(null, systemPrompt, userMessage, maxTokens);
     }
 
@@ -75,16 +75,8 @@ public class LlmService {
      * 同步调用 AI，按用户限流，适合需要防止单个用户滥用的场景。
      */
     public String chat(Long userId, String systemPrompt, String userMessage) {
-        if (userId != null) {
-            RateLimiter userLimiter = userRateLimiters.computeIfAbsent(userId,
-                    k -> RateLimiter.create(10.0 / 60.0)); // 每分钟 10 次
-            if (!userLimiter.tryAcquire()) {
-                throw new RateLimitException("请求过于频繁，请稍后再试");
-            }
-        }
-        if (!globalRateLimiter.tryAcquire()) {
-            throw new RateLimitException("AI 服务繁忙，请稍后再试");
-        }
+        checkUserRateLimit(userId);
+        checkGlobalRateLimit();
         return chatInternal(userId, systemPrompt, userMessage, 8192);
     }
 
@@ -105,6 +97,34 @@ public class LlmService {
         return chatInternal(null, prompt, "请分析以下文件内容", 8192);
     }
 
+    private void checkGlobalRateLimit() {
+        Boolean redisResult = redisRateLimiterService != null
+                ? redisRateLimiterService.tryAcquireGlobal() : null;
+        if (Boolean.FALSE.equals(redisResult)) {
+            throw new RateLimitException("AI 服务繁忙，请稍后再试");
+        }
+        if (redisResult == null && !globalRateLimiter.tryAcquire()) {
+            throw new RateLimitException("AI 服务繁忙，请稍后再试");
+        }
+    }
+
+    private void checkUserRateLimit(Long userId) {
+        if (userId == null) {
+            return;
+        }
+        Boolean redisResult = redisRateLimiterService != null
+                ? redisRateLimiterService.tryAcquireUser(userId) : null;
+        if (Boolean.FALSE.equals(redisResult)) {
+            throw new RateLimitException("请求过于频繁，请稍后再试");
+        }
+        if (redisResult == null) {
+            RateLimiter userLimiter = userRateLimiters.computeIfAbsent(userId,
+                    k -> RateLimiter.create(10.0 / 60.0)); // 每分钟 10 次
+            if (!userLimiter.tryAcquire()) {
+                throw new RateLimitException("请求过于频繁，请稍后再试");
+            }
+        }
+    }
     private String chatInternal(Long userId, String systemPrompt, String userMessage, int maxTokens) {
         try {
             ObjectNode body = mapper.createObjectNode();

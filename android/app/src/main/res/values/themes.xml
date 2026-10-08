@@ -10,32 +10,79 @@
         <item name="colorOnPrimary">@color/on_primary</item>
         <item name="colorSurface">@color/surface_1</item>
         <item name="colorOnSurface">@color/ink</item>
+        <!-- 全局字体：HarmonyOS Sans SC -->
+        <item name="android:fontFamily">@font/harmonyos_sans_sc</item>
+        <item name="fontFamily">@font/harmonyos_sans_sc</item>
+        <!-- 滚动条：圆角胶囊滑块，替代默认直角方块 -->
+        <item name="android:scrollbarThumbVertical">@drawable/scrollbar_thumb</item>
+        <item name="android:scrollbarThumbHorizontal">@drawable/scrollbar_thumb</item>
+        <item name="android:scrollbarSize">4dp</item>
     </style>
 
     <style name="Theme.ZnxsglStudent" parent="Base.Theme.ZnxsglStudent" />
 
-    <!-- 底部导航：去掉 M3 选中胶囊高亮（模仿分段按钮样式） -->
+    <!-- ===== 字号体系（收敛为 5 档：28/22/16/14/12） ===== -->
+    <style name="TextAppearance.App" parent="">
+        <item name="android:fontFamily">@font/harmonyos_sans_sc</item>
+    </style>
+
+    <style name="TextAppearance.App.LargeTitle" parent="TextAppearance.App">
+        <item name="android:textSize">28sp</item>
+        <item name="android:textColor">@color/ink</item>
+        <item name="android:fontFamily">@font/harmonyos_sans_sc_medium</item>
+        <item name="android:letterSpacing">-0.02</item>
+    </style>
+
+    <style name="TextAppearance.App.Title" parent="TextAppearance.App">
+        <item name="android:textSize">22sp</item>
+        <item name="android:textColor">@color/ink</item>
+        <item name="android:fontFamily">@font/harmonyos_sans_sc_medium</item>
+    </style>
+
+    <style name="TextAppearance.App.Headline" parent="TextAppearance.App">
+        <item name="android:textSize">17sp</item>
+        <item name="android:textColor">@color/ink</item>
+        <item name="android:fontFamily">@font/harmonyos_sans_sc_medium</item>
+    </style>
+
+    <style name="TextAppearance.App.Body" parent="TextAppearance.App">
+        <item name="android:textSize">16sp</item>
+        <item name="android:textColor">@color/ink</item>
+    </style>
+
+    <style name="TextAppearance.App.Secondary" parent="TextAppearance.App">
+        <item name="android:textSize">14sp</item>
+        <item name="android:textColor">@color/ink_muted</item>
+    </style>
+
+    <style name="TextAppearance.App.Caption" parent="TextAppearance.App">
+        <item name="android:textSize">12sp</item>
+        <item name="android:textColor">@color/ink_subtle</item>
+    </style>
+
+    <!-- ===== 组件样式 ===== -->
+    <!-- 底部导航：去掉 M3 选中胶囊高亮（显式透明 shape，防止默认灰块回显） -->
     <style name="NavIndicatorTransparent" parent="">
-        <item name="android:background">@android:color/transparent</item>
+        <item name="android:background">@drawable/bg_nav_indicator_transparent</item>
     </style>
 
     <style name="LoginButton" parent="Widget.Material3.Button">
-        <item name="android:textSize">14sp</item>
+        <item name="android:textSize">16sp</item>
         <item name="android:textColor">@color/on_primary</item>
-        <item name="android:fontFamily">sans-serif-medium</item>
-        <item name="cornerRadius">8dp</item>
+        <item name="android:fontFamily">@font/harmonyos_sans_sc_medium</item>
+        <item name="cornerRadius">@dimen/radius_sm</item>
         <item name="backgroundTint">@color/primary</item>
     </style>
 
     <style name="LoginInput" parent="Widget.Material3.TextInputEditText.FilledBox">
-        <item name="android:textSize">15sp</item>
-        <item name="android:fontFamily">sans-serif</item>
+        <item name="android:textSize">16sp</item>
+        <item name="android:fontFamily">@font/harmonyos_sans_sc</item>
         <item name="android:textColor">@color/ink</item>
     </style>
 
     <style name="NavTextStyle" parent="TextAppearance.AppCompat.Caption">
         <item name="android:textSize">11sp</item>
-        <item name="android:fontFamily">sans-serif</item>
+        <item name="android:fontFamily">@font/harmonyos_sans_sc</item>
     </style>
 
     <style name="LoadingDialog" parent="Theme.Material3.Light.Dialog">
@@ -44,5 +91,34 @@
         <item name="android:windowIsFloating">true</item>
         <item name="android:backgroundDimEnabled">true</item>
         <item name="android:backgroundDimAmount">0.45</item>
+    </style>
+
+    <!-- ===== 骨架屏（模仿 Tailwind animate-pulse 占位） ===== -->
+    <style name="SkeletonRow">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:orientation">horizontal</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:layout_marginBottom">24dp</item>
+    </style>
+
+    <style name="SkeletonCircle">
+        <item name="android:layout_width">44dp</item>
+        <item name="android:layout_height">44dp</item>
+        <item name="android:background">@drawable/bg_skeleton</item>
+    </style>
+
+    <style name="SkeletonLines">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:layout_marginStart">14dp</item>
+        <item name="android:orientation">vertical</item>
+    </style>
+
+    <style name="SkeletonBar">
+        <item name="android:layout_height">14dp</item>
+        <item name="android:background">@drawable/bg_skeleton</item>
+        <item name="android:layout_marginBottom">10dp</item>
     </style>
 </resources>

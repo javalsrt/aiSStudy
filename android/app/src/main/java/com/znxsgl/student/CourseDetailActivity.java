@@ -71,7 +71,8 @@ public class CourseDetailActivity extends AppCompatActivity {
     private int streamMsgPos = -1;
     private String streamFullText = "";
     private int streamCharIdx = 0;
-    private static final int STREAM_INTERVAL_MS = 40; // 每字间隔
+    private static final int STREAM_INTERVAL_MS = 15;  // 每次输出间隔（ms）
+    private static final int STREAM_CHARS_PER_TICK = 2; // 每次输出字符数（2000 字约 15 秒完成）
     private boolean isStreaming = false;
 
     // 缓存学生各考试/作业的提交状态（examId -> {submitStatus, score, statusText}）
@@ -118,6 +119,18 @@ public class CourseDetailActivity extends AppCompatActivity {
 
         etInput = findViewById(R.id.et_input);
         setupMentionPopup();
+
+        // 发送按钮：空内容自动置灰（bg_btn_primary 的 state_enabled=false 变浅蓝灰）
+        TextView btnSend = findViewById(R.id.btn_send);
+        btnSend.setEnabled(false);
+        etInput.addTextChangedListener(new android.text.TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int a, int b, int c) {}
+            @Override public void onTextChanged(CharSequence s, int a, int b, int c) {}
+            @Override public void afterTextChanged(android.text.Editable s) {
+                btnSend.setEnabled(s.toString().trim().length() > 0);
+            }
+        });
+
         findViewById(R.id.btn_send).setOnClickListener(v -> handleSend());
         findViewById(R.id.btn_add).setOnClickListener(v -> showAddSheet());
 
@@ -548,7 +561,7 @@ public class CourseDetailActivity extends AppCompatActivity {
                         if (finalPos >= items.size()) return;
                         ChatMsgDto m = (ChatMsgDto) items.get(finalPos);
                         if (streamCharIdx < streamFullText.length()) {
-                            streamCharIdx++;
+                            streamCharIdx = Math.min(streamCharIdx + STREAM_CHARS_PER_TICK, streamFullText.length());
                             m.setContent(streamFullText.substring(0, streamCharIdx) + "▌");
                             if (streamCharIdx == streamFullText.length()) {
                                 m.setCreatedAt(finalCreatedAt);
@@ -797,7 +810,8 @@ public class CourseDetailActivity extends AppCompatActivity {
             return;
         }
         if (streamCharIdx < streamFullText.length()) {
-            String partial = streamFullText.substring(0, streamCharIdx + 1);
+            streamCharIdx = Math.min(streamCharIdx + STREAM_CHARS_PER_TICK, streamFullText.length());
+            String partial = streamFullText.substring(0, streamCharIdx);
             ChatMsgDto m = (ChatMsgDto) items.get(streamMsgPos);
             m.setContent(partial);
             adapter.notifyItemChanged(streamMsgPos);
@@ -805,7 +819,6 @@ public class CourseDetailActivity extends AppCompatActivity {
             if (streamMsgPos == items.size() - 1) {
                 rvChat.scrollToPosition(streamMsgPos);
             }
-            streamCharIdx++;
             streamHandler.postDelayed(this::streamNextChar, STREAM_INTERVAL_MS);
         } else {
             isStreaming = false;
@@ -893,6 +906,9 @@ public class CourseDetailActivity extends AppCompatActivity {
                         v.findViewById(R.id.card_container));
             }
             View v = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_chat_text, parent, false);
+            // 消息气泡最大宽度 = 屏宽 80%（含公式图片的长消息也能尽量利用宽度）
+            TextView msgTv = v.findViewById(R.id.tv_message);
+            msgTv.setMaxWidth((int) (parent.getContext().getResources().getDisplayMetrics().widthPixels * 0.8f));
             return new TextVH(v,
                     v.findViewById(R.id.tv_avatar_left),
                     v.findViewById(R.id.tv_avatar_right),
@@ -1017,7 +1033,7 @@ public class CourseDetailActivity extends AppCompatActivity {
             vh.tvSender.setText(me ? "" : sender);
             vh.tvSender.setVisibility(me ? View.GONE : View.VISIBLE);
             alignMessageContainer(vh.llMsg, me);
-            vh.tv.setText(m.getContent());
+            RichTextRenderer.set(vh.tv, m.getContent());
             vh.tv.setLineSpacing(4f, 1f);
             applyBubbleStyle(vh.tv, me);
 

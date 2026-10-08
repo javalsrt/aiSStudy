@@ -334,6 +334,16 @@ public class AdminUserController {
             return ResponseEntity.badRequest().body(Map.of("error", "请选择角色"));
         }
 
+        // 学生选择班级后，专业和年级以班级信息为准，避免手工填写不一致
+        if (role == 1 && classId != null) {
+            ClassInfo classInfo = classInfoMapper.selectById(classId);
+            if (classInfo == null) {
+                return ResponseEntity.badRequest().body(Map.of("error", "班级不存在"));
+            }
+            major = classInfo.getMajor();
+            grade = classInfo.getGrade();
+        }
+
         // 检查用户名是否已存在
         Long count = userMapper.selectCount(new LambdaQueryWrapper<User>().eq(User::getUsername, username));
         if (count != null && count > 0) {
@@ -412,9 +422,30 @@ public class AdminUserController {
         if (realName != null) user.setRealName(realName);
         if (email != null) user.setEmail(email);
         if (phone != null) user.setPhone(phone);
-        if (classId != null) user.setClassId(classId);
-        if (major != null) user.setMajor(major);
-        if (grade != null) user.setGrade(grade);
+        int targetRole = role != null ? role : user.getRole();
+        if (targetRole == 1) {
+            if (classId != null) {
+                ClassInfo classInfo = classInfoMapper.selectById(classId);
+                if (classInfo == null) {
+                    return ResponseEntity.badRequest().body(Map.of("error", "班级不存在"));
+                }
+                user.setClassId(classId);
+                user.setMajor(classInfo.getMajor());
+                user.setGrade(classInfo.getGrade());
+            } else if (body.containsKey("classId")) {
+                // 学生被清空班级时，同步清空专业和年级
+                user.setClassId(null);
+                user.setMajor(null);
+                user.setGrade(null);
+            } else {
+                if (major != null) user.setMajor(major);
+                if (grade != null) user.setGrade(grade);
+            }
+        } else {
+            if (classId != null) user.setClassId(classId);
+            if (major != null) user.setMajor(major);
+            if (grade != null) user.setGrade(grade);
+        }
         if (status != null) user.setStatus(status);
         if (role != null) user.setRole(role);
 

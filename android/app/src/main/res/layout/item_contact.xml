@@ -19,9 +19,9 @@
         android:background="@drawable/bg_contact_cover"
         android:gravity="center"
         android:text="张"
-        android:textColor="#1D1D1F"
+        android:textColor="@color/ink"
         android:textSize="16sp"
-        android:fontFamily="sans-serif-medium" />
+        android:fontFamily="@font/harmonyos_sans_sc_medium" />
 
     <LinearLayout
         android:layout_width="0dp"
@@ -35,9 +35,9 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="姓名"
-            android:textColor="#1D1D1F"
+            android:textColor="@color/ink"
             android:textSize="15sp"
-            android:fontFamily="sans-serif-medium" />
+            android:fontFamily="@font/harmonyos_sans_sc_medium" />
 
         <TextView
             android:id="@+id/tv_sub"

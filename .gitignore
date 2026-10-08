@@ -64,3 +64,6 @@ test/
 test/__pycache__/
 test/loadtest_results/
 test/screenshots/
+# ===== IDE 会话数据与构建产物 =====
+.codebuddy/
+*.apk

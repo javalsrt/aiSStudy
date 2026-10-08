@@ -83,16 +83,6 @@ public class QuizResultActivity extends AppCompatActivity {
         // 本次错题
         renderWrongAnswers(it.getStringExtra("wrongAnswersJson"));
 
-        findViewById(R.id.btn_wrong_analysis).setOnClickListener(v -> {
-            setResult(RESULT_OK, new Intent().putExtra("action", "wrong_analysis"));
-            finish();
-        });
-
-        findViewById(R.id.btn_review).setOnClickListener(v -> {
-            setResult(RESULT_OK, new Intent().putExtra("action", "review"));
-            finish();
-        });
-
         findViewById(R.id.btn_done).setOnClickListener(v -> finish());
 
         // 提交后先播放揭晓动画，再衔接显示测评报告
@@ -211,7 +201,11 @@ public class QuizResultActivity extends AppCompatActivity {
         LinearLayout container = findViewById(R.id.ll_scores);
         container.removeAllViews();
         if (scores == null || scores.isEmpty()) {
-            findViewById(R.id.card_scores).setVisibility(View.GONE);
+            TextView tv = new TextView(this);
+            tv.setText("本次作答数据不足，未生成能力维度");
+            tv.setTextSize(13);
+            tv.setTextColor(0xFF8E8E93);
+            container.addView(tv);
             return;
         }
         for (Map.Entry<String, Object> e : scores.entrySet()) {
@@ -256,7 +250,7 @@ public class QuizResultActivity extends AppCompatActivity {
             TextView tv = new TextView(this);
             tv.setText(tag);
             tv.setTextSize(13);
-            tv.setTextColor(0xFF5E6AD2);
+            tv.setTextColor(0xFF0A84FF);
             tv.setBackgroundResource(R.drawable.bg_tag_blue);
             tv.setPadding(dp(10), dp(4), dp(10), dp(4));
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
@@ -329,7 +323,7 @@ public class QuizResultActivity extends AppCompatActivity {
             else if ("填空".equals(type)) type = "填空题";
 
             h.tvType.setText(type);
-            h.tvQuestion.setText(item.getOrDefault("question", ""));
+            RichTextRenderer.set(h.tvQuestion, String.valueOf(item.getOrDefault("question", "")));
 
             String ua = item.get("userAnswer");
             if (ua == null || ua.isEmpty() || "不会".equals(ua)) {

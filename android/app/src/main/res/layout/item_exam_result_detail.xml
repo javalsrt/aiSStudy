@@ -19,7 +19,7 @@
             android:layout_height="wrap_content"
             android:text="第 1 题"
             android:textSize="14sp"
-            android:textColor="#1D1D1F"
+            android:textColor="@color/ink"
             android:textStyle="bold" />
 
         <TextView
@@ -29,8 +29,8 @@
             android:layout_marginStart="8dp"
             android:text="单选题"
             android:textSize="11sp"
-            android:textColor="#1890FF"
-            android:background="#E6F7FF"
+            android:textColor="@color/primary"
+            android:background="@color/primary_soft"
             android:paddingHorizontal="8dp"
             android:paddingVertical="2dp" />
 
@@ -52,7 +52,7 @@
         android:layout_marginTop="12dp"
         android:text="题目"
         android:textSize="14sp"
-        android:textColor="#1D1D1F"
+        android:textColor="@color/ink"
         android:lineSpacingMultiplier="1.2" />
 
     <TextView
@@ -62,7 +62,7 @@
         android:layout_marginTop="10dp"
         android:text="你的答案："
         android:textSize="13sp"
-        android:textColor="#666666" />
+        android:textColor="@color/ink_muted" />
 
     <TextView
         android:id="@+id/tv_correct_answer"
@@ -71,5 +71,5 @@
         android:layout_marginTop="4dp"
         android:text="正确答案："
         android:textSize="13sp"
-        android:textColor="#52C41A" />
+        android:textColor="@color/success" />
 </LinearLayout>

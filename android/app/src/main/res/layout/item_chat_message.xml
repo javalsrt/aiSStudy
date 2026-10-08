@@ -19,7 +19,7 @@
             android:layout_height="wrap_content"
             android:text=""
             android:textSize="11sp"
-            android:textColor="#86868B"
+            android:textColor="@color/ink_subtle"
             android:paddingBottom="3dp" />
 
         <TextView
@@ -28,7 +28,7 @@
             android:layout_height="wrap_content"
             android:text="消息内容"
             android:textSize="15sp"
-            android:textColor="#1D1D1F"
+            android:textColor="@color/ink"
             android:maxWidth="260dp" />
     </LinearLayout>
 </LinearLayout>

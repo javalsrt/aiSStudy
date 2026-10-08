@@ -3,7 +3,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="#F5F7FA">
+    android:background="@color/canvas">
 
     <!-- 顶部标题栏 -->
     <LinearLayout
@@ -11,7 +11,7 @@
         android:layout_height="56dp"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:background="#FFFFFF"
+        android:background="@color/surface_1"
         android:paddingHorizontal="16dp"
         android:elevation="2dp">
 
@@ -21,7 +21,7 @@
             android:layout_height="wrap_content"
             android:text="‹ 返回"
             android:textSize="16sp"
-            android:textColor="#666666"
+            android:textColor="@color/ink_muted"
             android:padding="8dp" />
 
         <TextView
@@ -32,7 +32,7 @@
             android:gravity="center"
             android:text="考试结果"
             android:textSize="17sp"
-            android:textColor="#1D1D1F"
+            android:textColor="@color/ink"
             android:textStyle="bold" />
 
         <View
@@ -67,14 +67,14 @@
                     android:text="85"
                     android:textSize="56sp"
                     android:textStyle="bold"
-                    android:textColor="#1890FF" />
+                    android:textColor="@color/primary" />
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="分"
                     android:textSize="14sp"
-                    android:textColor="#86868B" />
+                    android:textColor="@color/ink_subtle" />
 
                 <TextView
                     android:id="@+id/tv_pass_status"
@@ -84,8 +84,8 @@
                     android:text="已通过"
                     android:textSize="14sp"
                     android:textStyle="bold"
-                    android:textColor="#52C41A"
-                    android:background="#F6FFED"
+                    android:textColor="@color/success"
+                    android:background="#E8F8EE"
                     android:paddingHorizontal="16dp"
                     android:paddingVertical="4dp" />
 
@@ -96,7 +96,7 @@
                     android:layout_marginTop="12dp"
                     android:text="满分 100 分，及格 60 分"
                     android:textSize="13sp"
-                    android:textColor="#86868B" />
+                    android:textColor="@color/ink_subtle" />
             </LinearLayout>
 
             <!-- 题目详情标题 -->
@@ -107,7 +107,7 @@
                 android:layout_marginBottom="8dp"
                 android:text="答题详情"
                 android:textSize="15sp"
-                android:textColor="#1D1D1F"
+                android:textColor="@color/ink"
                 android:textStyle="bold" />
 
             <LinearLayout
@@ -124,6 +124,6 @@
         android:layout_height="48dp"
         android:layout_margin="16dp"
         android:text="返回课程"
-        android:textColor="#FFFFFF"
-        android:backgroundTint="#1890FF" />
+        android:textColor="@color/on_primary"
+        android:backgroundTint="@color/primary" />
 </LinearLayout>

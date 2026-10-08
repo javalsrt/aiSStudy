@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- HarmonyOS Sans SC 字体族：常规 400 / 中黑 500 / 粗体 700 -->
+<font-family xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <font android:fontWeight="400" android:fontStyle="normal" android:font="@font/harmonyos_sans_sc_regular"
+        app:font="@font/harmonyos_sans_sc_regular" app:fontStyle="normal" app:fontWeight="400" />
+    <font android:fontWeight="500" android:fontStyle="normal" android:font="@font/harmonyos_sans_sc_medium"
+        app:font="@font/harmonyos_sans_sc_medium" app:fontStyle="normal" app:fontWeight="500" />
+    <font android:fontWeight="700" android:fontStyle="normal" android:font="@font/harmonyos_sans_sc_bold"
+        app:font="@font/harmonyos_sans_sc_bold" app:fontStyle="normal" app:fontWeight="700" />
+</font-family>

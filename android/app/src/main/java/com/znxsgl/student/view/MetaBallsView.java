@@ -62,8 +62,8 @@ public class MetaBallsView extends View {
         ballRadius = RADIUS_DP * density;
         blurRadius = BLUR_RADIUS_DP * density;
 
-        int primary = 0xFF5E6AD2;
-        int secondary = 0xFF8B95E8;
+        int primary = 0xFF0A84FF;
+        int secondary = 0xFF6EB7FF;
         int[] colors = new int[]{primary, secondary, primary, secondary};
 
         for (int i = 0; i < BALL_COUNT; i++) {

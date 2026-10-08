@@ -8,6 +8,7 @@ import android.graphics.Typeface;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -15,7 +16,6 @@ import android.view.ViewGroup;
 import android.view.ViewParent;
 import android.widget.EditText;
 import android.widget.FrameLayout;
-import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -30,6 +30,8 @@ import androidx.fragment.app.Fragment;
 import androidx.viewpager2.widget.ViewPager2;
 
 import com.znxsgl.student.ChapterLearnActivity;
+import com.znxsgl.student.MainActivity;
+import com.znxsgl.student.RichTextRenderer;
 import com.znxsgl.student.QuizPagerAdapter;
 import com.znxsgl.student.R;
 import com.znxsgl.student.model.QuizQuestion;
@@ -69,6 +71,7 @@ public class FocusFragment extends Fragment {
     private List<QuizQuestion> quizQuestions = new ArrayList<>();
     private QuizPagerAdapter quizAdapter;
     private long lastPageEntryTime;
+    private static final int MAX_QUESTION_DURATION_SEC = 600;
     private int lastPageIndex = -1;
     private Long latestSessionId;
     private int quizPollAttempt; // 异步出题轮询次数（上限 90 次 ≈ 3 分钟）
@@ -93,15 +96,9 @@ public class FocusFragment extends Fragment {
             llQuizArea = view.findViewById(R.id.ll_quiz_area);
             viewPagerQuiz = view.findViewById(R.id.viewpager_quiz);
 
-            // 长按提交按钮
-            View btnDone = view.findViewById(R.id.btn_quiz_done);
-            if (btnDone != null) btnDone.setOnLongClickListener(v -> {
-                // 长按动画
-                v.animate().scaleX(0.95f).scaleY(0.95f).setDuration(100).withEndAction(() ->
-                        v.animate().scaleX(1f).scaleY(1f).setDuration(100).start()).start();
-                collectAndSubmit();
-                return true;
-            });
+            // 长按提交按钮：按满触发提交，中途松手会中断动画
+            com.znxsgl.student.widget.HoldSubmitButton btnDone = view.findViewById(R.id.btn_quiz_done);
+            if (btnDone != null) btnDone.setOnHoldSubmitListener(this::collectAndSubmit);
 
             loadStudentCourses(view);
 
@@ -110,7 +107,9 @@ public class FocusFragment extends Fragment {
                 quizAdapter.setOnAnswerListener(new QuizPagerAdapter.OnAnswerListener() {
                     @Override public void onAnswered(int pos, String a) {
                         recordTime(pos);
-                        if (viewPagerQuiz != null && pos + 1 < quizQuestions.size())
+                        // 「题目自动跳转」开启时，选择/判断题作答后自动滑到下一题；关闭则由用户手动滑动
+                        boolean autoJump = prefs == null || prefs.getBoolean("quiz_auto_jump", true);
+                        if (autoJump && viewPagerQuiz != null && pos + 1 < quizQuestions.size())
                             viewPagerQuiz.setCurrentItem(pos + 1, true);
                     }
                     @Override public void onAutoSkip(int pos) {}
@@ -125,7 +124,7 @@ public class FocusFragment extends Fragment {
                                 saveTextAnswer(lastPageIndex);
                                 recordTime(lastPageIndex);
                             }
-                            lastPageIndex = pos; lastPageEntryTime = System.currentTimeMillis();
+                            lastPageIndex = pos; lastPageEntryTime = SystemClock.elapsedRealtime();
                         }
                     });
                 }
@@ -407,7 +406,8 @@ public class FocusFragment extends Fragment {
             if (viewPagerQuiz != null) viewPagerQuiz.setCurrentItem(0, false);
             if (rvQuizPanels != null) rvQuizPanels.setVisibility(View.GONE);
             llQuizArea.setVisibility(View.VISIBLE);
-            lastPageIndex=0; lastPageEntryTime=System.currentTimeMillis();
+            setNavVisible(false);   // 全屏答题：隐藏悬浮导航
+            lastPageIndex=0; lastPageEntryTime=SystemClock.elapsedRealtime();
             quizActive = true;
         });
     }
@@ -471,6 +471,7 @@ public class FocusFragment extends Fragment {
                     quizQuestions.clear(); quizAdapter.notifyDataSetChanged();
                     llQuizArea.setVisibility(View.GONE);
                     if (rvQuizPanels != null) rvQuizPanels.setVisibility(View.VISIBLE);
+                    setNavVisible(true);
                     quizActive = false;
                     if (r.isSuccessful() && r.body() != null) {
                         startQuizResult(r.body(), total);
@@ -486,6 +487,7 @@ public class FocusFragment extends Fragment {
                     quizQuestions.clear(); quizAdapter.notifyDataSetChanged();
                     llQuizArea.setVisibility(View.GONE);
                     if (rvQuizPanels != null) rvQuizPanels.setVisibility(View.VISIBLE);
+                    setNavVisible(true);
                     quizActive = false;
                     Toast.makeText(RetrofitClient.safeContext(getContext()),"提交失败：" + t.getMessage(), Toast.LENGTH_SHORT).show();
                 });
@@ -568,6 +570,14 @@ public class FocusFragment extends Fragment {
         if (quizAdapter != null) quizAdapter.notifyDataSetChanged();
         if (llQuizArea != null) llQuizArea.setVisibility(View.GONE);
         if (rvQuizPanels != null) rvQuizPanels.setVisibility(View.VISIBLE);
+        setNavVisible(true);
+    }
+
+    /** 答题全屏控制：隐藏/恢复悬浮导航 */
+    private void setNavVisible(boolean visible) {
+        if (getActivity() instanceof MainActivity) {
+            ((MainActivity) getActivity()).setBottomNavVisible(visible);
+        }
     }
 
     /**
@@ -676,13 +686,13 @@ public class FocusFragment extends Fragment {
             btn.setTextSize(13);
             btn.setPadding(16, 8, 16, 8);
             btn.setTextColor(Color.parseColor(i == 0 ? "#FFFFFF" : "#6E6E73"));
-            btn.setBackgroundColor(Color.parseColor(i == 0 ? "#5E6AD2" : "#F9F9FB"));
+            btn.setBackgroundColor(Color.parseColor(i == 0 ? "#0A84FF" : "#F9F9FB"));
             final int si = i;
             btn.setOnClickListener(v -> {
                 for (int j = 0; j < llSubjects.getChildCount(); j++) {
                     TextView child = (TextView) llSubjects.getChildAt(j);
                     child.setTextColor(Color.parseColor(j == si ? "#FFFFFF" : "#6E6E73"));
-                    child.setBackgroundColor(Color.parseColor(j == si ? "#5E6AD2" : "#F9F9FB"));
+                    child.setBackgroundColor(Color.parseColor(j == si ? "#0A84FF" : "#F9F9FB"));
                 }
                 vpQuestions.setCurrentItem(subjStarts[si], false);
             });
@@ -699,7 +709,7 @@ public class FocusFragment extends Fragment {
             }
             @Override public void onBindViewHolder(@NonNull RecyclerView.ViewHolder h, int pos) {
                 WrongItem it = allItems.get(pos);
-                ((TextView) h.itemView.findViewById(R.id.tv_question)).setText(it.question);
+                RichTextRenderer.set(h.itemView.findViewById(R.id.tv_question), it.question);
                 ((TextView) h.itemView.findViewById(R.id.tv_error)).setText(it.errorReason);
                 ((TextView) h.itemView.findViewById(R.id.tv_improve)).setText(it.improve);
             }
@@ -724,7 +734,7 @@ public class FocusFragment extends Fragment {
                     for (int j = 0; j < llSubjects.getChildCount(); j++) {
                         TextView child = (TextView) llSubjects.getChildAt(j);
                     child.setTextColor(Color.parseColor(j == si ? "#FFFFFF" : "#6E6E73"));
-                    child.setBackgroundColor(Color.parseColor(j == si ? "#5E6AD2" : "#F9F9FB"));
+                    child.setBackgroundColor(Color.parseColor(j == si ? "#0A84FF" : "#F9F9FB"));
                     }
                 }
                 // 刷新按钮状态
@@ -839,7 +849,7 @@ public class FocusFragment extends Fragment {
         }
         if (bookmarkIdx.contains(pos)) {
             btnB.setText("★ 已收藏");
-            btnB.setTextColor(Color.parseColor("#5E6AD2"));
+            btnB.setTextColor(Color.parseColor("#0A84FF"));
         } else {
             btnB.setText("☆ 收藏");
             btnB.setTextColor(Color.parseColor("#1D1D1F"));
@@ -956,7 +966,11 @@ public class FocusFragment extends Fragment {
     private void recordTime(int pos) {
         if (pos>=0 && pos<quizQuestions.size() && lastPageEntryTime>0) {
             QuizQuestion q = quizQuestions.get(pos);
-            q.setDurationSec(q.getDurationSec()+(int)((System.currentTimeMillis()-lastPageEntryTime)/1000));
+            long elapsedMs = SystemClock.elapsedRealtime() - lastPageEntryTime;
+            int addSec = (int) Math.max(0, Math.min(elapsedMs / 1000, MAX_QUESTION_DURATION_SEC));
+            int totalSec = Math.min(q.getDurationSec() + addSec, MAX_QUESTION_DURATION_SEC);
+            q.setDurationSec(totalSec);
+            lastPageEntryTime = SystemClock.elapsedRealtime();
         }
     }
 

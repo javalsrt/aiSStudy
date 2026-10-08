@@ -6,6 +6,7 @@ import com.znxsgl.dto.StudentScheduleDTO;
 import com.znxsgl.dto.TeacherCourseDTO;
 import com.znxsgl.service.ScheduleService;
 import com.znxsgl.service.SemesterService;
+import com.znxsgl.websocket.ScheduleWebSocketHandler;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -28,11 +29,14 @@ public class ScheduleController {
     private final ScheduleService scheduleService;
     private final SemesterService semesterService;
     private final JdbcTemplate jdbc;
+    private final ScheduleWebSocketHandler wsHandler;
 
-    public ScheduleController(ScheduleService scheduleService, SemesterService semesterService, JdbcTemplate jdbc) {
+    public ScheduleController(ScheduleService scheduleService, SemesterService semesterService,
+                              JdbcTemplate jdbc, ScheduleWebSocketHandler wsHandler) {
         this.scheduleService = scheduleService;
         this.semesterService = semesterService;
         this.jdbc = jdbc;
+        this.wsHandler = wsHandler;
     }
 
     // 教师/管理员：查看课程列表（教师看自己的，管理员看所有）
@@ -108,6 +112,40 @@ public class ScheduleController {
     public ResponseEntity<List<SemesterDTO>> getStudentSemesters(Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
         return ResponseEntity.ok(scheduleService.getStudentSemesters(userId));
+    }
+
+    /**
+     * 学生：同班在线人数（WebSocket 实时在线，排除自己）
+     * 响应：{ "count": 2, "names": ["张三", "李四"] }
+     */
+    @GetMapping("/student/online-classmates")
+    @PreAuthorize("hasRole('STUDENT') or hasRole('ADMIN')")
+    public ResponseEntity<Map<String, Object>> getOnlineClassmates(Authentication auth) {
+        Long userId = (Long) auth.getPrincipal();
+        Map<String, Object> result = new LinkedHashMap<>();
+        List<Map<String, Object>> userRows = jdbc.queryForList(
+            "SELECT class_id FROM user WHERE id = ? AND role = 1", userId);
+        if (userRows.isEmpty() || userRows.get(0).get("class_id") == null) {
+            result.put("count", 0);
+            result.put("names", Collections.emptyList());
+            return ResponseEntity.ok(result);
+        }
+        Long classId = ((Number) userRows.get(0).get("class_id")).longValue();
+        Set<Long> onlineIds = wsHandler.getOnlineStudentIds();
+        List<Map<String, Object>> classmates = jdbc.queryForList(
+            "SELECT id, real_name FROM user WHERE class_id = ? AND role = 1 AND id != ?",
+            classId, userId);
+        List<String> onlineNames = new ArrayList<>();
+        for (Map<String, Object> row : classmates) {
+            Object idObj = row.get("id");
+            Long uid = idObj instanceof Number ? ((Number) idObj).longValue() : null;
+            if (uid != null && onlineIds.contains(uid)) {
+                onlineNames.add(row.get("real_name") != null ? row.get("real_name").toString() : "");
+            }
+        }
+        result.put("count", onlineNames.size());
+        result.put("names", onlineNames);
+        return ResponseEntity.ok(result);
     }
 
     /**

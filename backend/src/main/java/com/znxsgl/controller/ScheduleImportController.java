@@ -52,6 +52,10 @@ public class ScheduleImportController {
     private final CourseImportRecordMapper importRecordMapper;
     private final Path uploadDir;
 
+    /** Redis 分布式导入锁；为空时使用本地锁降级 */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.znxsgl.service.RedisIdempotencyService idempotencyService;
+
     /**
      * 已处理的上架/排课请求幂等键缓存。
      * key=requestId，value=处理时间戳，5 分钟后过期。
@@ -275,10 +279,40 @@ public class ScheduleImportController {
         if (items == null) {
             return ResponseEntity.badRequest().body(Map.of("error", "缺少导入数据"));
         }
-        // 并发导入同一批数据会产生死锁/重复排课：按内容哈希取模互斥串行化
-        Object lock = importLocks[Math.floorMod(buildImportLockKey(items).hashCode(), IMPORT_LOCK_BUCKETS)];
-        synchronized (lock) {
+        // 未启用 Redis 时，使用 JVM 本地锁保证单实例导入串行化。
+        if (idempotencyService == null) {
+            Object lock = importLocks[Math.floorMod(buildImportLockKey(items).hashCode(), IMPORT_LOCK_BUCKETS)];
+            synchronized (lock) {
+                return doConfirm(body, auth);
+            }
+        }
+
+        // 启用 Redis 时，使用分布式锁串行化同一批导入，多实例部署同样有效。
+        String importLockKey = "schedule:import:" + buildImportLockKey(items);
+        boolean locked = false;
+        long deadline = System.currentTimeMillis() + 60_000L;
+        while (System.currentTimeMillis() < deadline) {
+            locked = idempotencyService == null
+                    || idempotencyService.tryAcquire(importLockKey, java.time.Duration.ofMinutes(10));
+            if (locked) {
+                break;
+            }
+            try {
+                Thread.sleep(200L);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+        if (!locked) {
+            return ResponseEntity.status(409).body(Map.of("error", "同一批课表正在导入，请稍后重试"));
+        }
+        try {
             return doConfirm(body, auth);
+        } finally {
+            if (idempotencyService != null) {
+                idempotencyService.release(importLockKey);
+            }
         }
     }
 

@@ -18,11 +18,17 @@ import com.znxsgl.student.fragment.ProfileFragment;
 import com.znxsgl.student.network.RetrofitClient;
 import com.znxsgl.student.network.WebSocketManager;
 
+import java.util.HashMap;
+import java.util.Map;
+
 public class MainActivity extends AppCompatActivity {
 
     private FragmentManager fragmentManager;
     private Fragment currentFragment;
     private FocusFragment focusFragment;
+    private BottomNavigationView bottomNav;
+    /** 各 tab 的 Fragment 缓存：切换只 show/hide，避免每次重建 + 重新请求 */
+    private final Map<Integer, Fragment> fragmentCache = new HashMap<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -34,9 +40,14 @@ public class MainActivity extends AppCompatActivity {
 
         fragmentManager = getSupportFragmentManager();
 
-        BottomNavigationView bottomNav = findViewById(R.id.bottom_nav);
+        bottomNav = findViewById(R.id.bottom_nav);
         bottomNav.setOnItemSelectedListener(item -> {
             int id = item.getItemId();
+            // 进入「我的」即视为已读，清除红点
+            if (id == R.id.nav_profile) {
+                profileUnread = 0;
+                updateProfileBadge();
+            }
             // 答题中切换：先弹窗确认
             if (id != R.id.nav_focus && focusFragment != null && focusFragment.isQuizActive()) {
                 new android.app.AlertDialog.Builder(this)
@@ -66,6 +77,41 @@ public class MainActivity extends AppCompatActivity {
         bottomNav.setSelectedItemId(R.id.nav_schedule);
     }
 
+    /** 答题时隐藏悬浮导航（全屏答题），结束后恢复 */
+    public void setBottomNavVisible(boolean visible) {
+        if (bottomNav == null) return;
+        if (visible) {
+            bottomNav.setVisibility(android.view.View.VISIBLE);
+            bottomNav.animate().alpha(1f).setDuration(180L).start();
+        } else {
+            bottomNav.animate().alpha(0f).setDuration(180L)
+                    .withEndAction(() -> bottomNav.setVisibility(android.view.View.INVISIBLE))
+                    .start();
+        }
+    }
+
+    // ========== 「我的」未读红点 ==========
+    private int profileUnread = 0;
+
+    /** 收到新消息时累加红点（供 WebSocket 回调调用） */
+    public void incrementProfileUnread() {
+        profileUnread++;
+        updateProfileBadge();
+    }
+
+    private void updateProfileBadge() {
+        if (bottomNav == null) return;
+        if (profileUnread > 0) {
+            com.google.android.material.badge.BadgeDrawable badge =
+                    bottomNav.getOrCreateBadge(R.id.nav_profile);
+            badge.setVisible(true);
+            badge.setMaxCharacterCount(3);
+            badge.setNumber(Math.min(profileUnread, 99));
+        } else {
+            bottomNav.removeBadge(R.id.nav_profile);
+        }
+    }
+
     private void connectWebSocket() {
         SharedPreferences prefs = getSharedPreferences("znxsgl", 0);
         long userId = prefs.getLong("userId", 0);
@@ -75,6 +121,8 @@ public class MainActivity extends AppCompatActivity {
         ws.setListener((courseName, content, scheduleInfo) -> {
             runOnUiThread(() -> {
                 showScheduleToast(content);
+                // 「我的」tab 累加未读红点
+                incrementProfileUnread();
                 // 通知 ProfileFragment 刷新课程列表（红点状态）
                 if (currentFragment instanceof ProfileFragment) {
                     ((ProfileFragment) currentFragment).loadCoursesIfAdded();
@@ -132,13 +180,19 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private Fragment getFragmentById(int id) {
-        if (id == R.id.nav_schedule) return new ScheduleFragment();
-        if (id == R.id.nav_profile) return new ProfileFragment();
-        if (id == R.id.nav_focus) {
+        // 复用已创建的实例：切换 tab 不重建视图、不重新请求后端
+        Fragment cached = fragmentCache.get(id);
+        if (cached != null) return cached;
+
+        Fragment fragment;
+        if (id == R.id.nav_schedule) fragment = new ScheduleFragment();
+        else if (id == R.id.nav_profile) fragment = new ProfileFragment();
+        else {
             if (focusFragment == null) focusFragment = new FocusFragment();
-            return focusFragment;
+            fragment = focusFragment;
         }
-        return new FocusFragment();
+        fragmentCache.put(id, fragment);
+        return fragment;
     }
 
     private void switchFragment(Fragment fragment) {

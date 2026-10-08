@@ -3,7 +3,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="#FFFFFF">
+    android:background="@color/surface_1">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -11,7 +11,7 @@
         android:gravity="center_vertical"
         android:orientation="horizontal"
         android:paddingHorizontal="8dp"
-        android:background="#FFFFFF">
+        android:background="@color/surface_1">
 
         <TextView
             android:id="@+id/btn_back"
@@ -19,7 +19,7 @@
             android:layout_height="40dp"
             android:text="‹"
             android:textSize="28sp"
-            android:textColor="#0A84FF"
+            android:textColor="@color/primary"
             android:gravity="center"
             android:clickable="true"
             android:focusable="true" />
@@ -31,7 +31,7 @@
             android:layout_weight="1"
             android:text="章节学习"
             android:textSize="17sp"
-            android:textColor="#1D1D1F"
+            android:textColor="@color/ink"
             android:textStyle="bold"
             android:gravity="center"
             android:maxLines="1"
@@ -40,7 +40,7 @@
         <View android:layout_width="40dp" android:layout_height="1dp" />
     </LinearLayout>
 
-    <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#E5E7EB" />
+    <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/hairline" />
 
     <TextView
         android:id="@+id/tv_progress"
@@ -48,11 +48,11 @@
         android:layout_height="wrap_content"
         android:text="已完成 0/0 课时"
         android:textSize="13sp"
-        android:textColor="#0A84FF"
+        android:textColor="@color/primary"
         android:textStyle="bold"
         android:paddingHorizontal="16dp"
         android:paddingVertical="10dp"
-        android:background="#F5F5F7" />
+        android:background="@color/surface_3" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/rv_chapters"

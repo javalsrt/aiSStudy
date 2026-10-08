@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 聊天内考试/作业卡片：白底、10dp 圆角（cookie-card 风格，阴影由 elevation 提供） -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/surface_1" />
+    <corners android:radius="10dp" />
+</shape>

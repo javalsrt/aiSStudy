@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 考试/作业状态卡片：状态标签 + 说明 + 信息行 + 返回按钮 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/bg_dialog_card"
+    android:padding="20dp">
+
+    <!-- 状态标签（已完成 / 尚未开考 / 已结束…） -->
+    <TextView
+        android:id="@+id/tv_status_tag"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="已完成"
+        android:textSize="12sp"
+        android:fontFamily="@font/harmonyos_sans_sc_medium"
+        android:paddingHorizontal="12dp"
+        android:paddingVertical="5dp"
+        android:background="@drawable/bg_tag" />
+
+    <!-- 说明（含得分等） -->
+    <TextView
+        android:id="@+id/tv_status_reason"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:text="已完成作答"
+        android:textSize="16sp"
+        android:fontFamily="@font/harmonyos_sans_sc_medium"
+        android:textColor="@color/ink"
+        android:lineSpacingMultiplier="1.3" />
+
+    <!-- 考试名称 -->
+    <TextView
+        android:id="@+id/tv_status_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:text="英语测试1"
+        android:textSize="13sp"
+        android:textColor="@color/ink_subtle"
+        android:visibility="gone" />
+
+    <!-- 分割线 -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/hairline"
+        android:layout_marginTop="14dp"
+        android:layout_marginBottom="4dp" />
+
+    <!-- 信息行（题量/总分/时长/开始/截止），由代码填充 -->
+    <LinearLayout
+        android:id="@+id/ll_status_info"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical" />
+
+    <!-- 返回按钮 -->
+    <TextView
+        android:id="@+id/btn_status_back"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:layout_marginTop="18dp"
+        android:gravity="center"
+        android:text="返回我的课程"
+        android:textSize="15sp"
+        android:fontFamily="@font/harmonyos_sans_sc_medium"
+        android:textColor="@color/on_primary"
+        android:background="@drawable/bg_btn_primary"
+        android:clickable="true"
+        android:focusable="true" />
+</LinearLayout>

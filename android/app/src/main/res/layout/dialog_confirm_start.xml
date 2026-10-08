@@ -15,7 +15,7 @@
         android:text="提示"
         android:textSize="14sp"
         android:textColor="@color/primary"
-        android:fontFamily="sans-serif-medium" />
+        android:fontFamily="@font/harmonyos_sans_sc_medium" />
 
     <TextView
         android:id="@+id/tv_title"
@@ -25,7 +25,7 @@
         android:text="是否确认？"
         android:textSize="22sp"
         android:textColor="@color/ink"
-        android:fontFamily="sans-serif-medium"
+        android:fontFamily="@font/harmonyos_sans_sc_medium"
         android:lineSpacingMultiplier="1.1" />
 
     <TextView
@@ -36,7 +36,7 @@
         android:text=""
         android:textSize="13sp"
         android:textColor="@color/ink_muted"
-        android:fontFamily="sans-serif" />
+        android:fontFamily="@font/harmonyos_sans_sc" />
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -55,7 +55,7 @@
             android:text="取消"
             android:textSize="15sp"
             android:textColor="@color/ink"
-            android:fontFamily="sans-serif-medium" />
+            android:fontFamily="@font/harmonyos_sans_sc_medium" />
 
         <View
             android:layout_width="12dp"
@@ -71,6 +71,6 @@
             android:text="确认"
             android:textSize="15sp"
             android:textColor="@color/white"
-            android:fontFamily="sans-serif-medium" />
+            android:fontFamily="@font/harmonyos_sans_sc_medium" />
     </LinearLayout>
 </LinearLayout>

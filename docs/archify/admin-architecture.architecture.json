@@ -1,0 +1,203 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "管理端运行时架构",
+    "output": "docs/archify/admin-architecture.html",
+    "visual_preset": "blueprint",
+    "animation": "trace",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/javalsrt/aiSStudy.git",
+      "revision": "f16e96c212bf224701157d9ea5470939a6dc5ee3"
+    },
+    "views": [
+      {
+        "id": "load-path",
+        "label": "首屏加载路径",
+        "focus": ["actor", "nginx", "spa", "guards"],
+        "note": "从打开 :8081 到按角色渲染菜单。"
+      },
+      {
+        "id": "api-trust",
+        "label": "API 信任边界",
+        "focus": ["spa", "nginx", "api", "store"],
+        "note": "JWT 如何随每次请求穿过反向代理。"
+      },
+      {
+        "id": "data-ai",
+        "label": "数据与 AI 出口",
+        "focus": ["api", "mysql", "redis", "deepseek", "embedding"],
+        "note": "持久化与 AI 能力都收口在后端。"
+      }
+    ]
+  },
+  "layout": {
+    "mode": "grid",
+    "origin": [46, 92],
+    "cols": 5,
+    "gapX": 40,
+    "gapY": 50,
+    "cellW": 150,
+    "cellH": 62
+  },
+  "components": [
+    {
+      "id": "actor",
+      "type": "external",
+      "label": "管理员 / 教师",
+      "sublabel": "浏览器桌面端",
+      "row": 1,
+      "col": 0
+    },
+    {
+      "id": "spa",
+      "type": "frontend",
+      "label": "React 管理端 SPA",
+      "sublabel": "React 18 · TS · Vite 5",
+      "tag": "13 个 API 模块",
+      "row": 1,
+      "col": 1,
+      "sources": [
+        { "path": "web-admin-react/src/main.tsx" },
+        { "path": "web-admin-react/src/api/request.ts" }
+      ]
+    },
+    {
+      "id": "nginx",
+      "type": "security",
+      "label": "Nginx :8081",
+      "sublabel": "静态托管 + 反向代理",
+      "row": 1,
+      "col": 2,
+      "sources": [
+        { "path": "nginx/nginx.conf" },
+        { "path": "Dockerfile.frontend" }
+      ]
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "Spring Boot :8080",
+      "sublabel": "单体 API · Java 17",
+      "row": 1,
+      "col": 3,
+      "sources": [{ "path": "docker-compose.yml" }]
+    },
+    {
+      "id": "mysql",
+      "type": "database",
+      "label": "MySQL 8.0",
+      "sublabel": "znxsglTest · 约 47 表",
+      "row": 1,
+      "col": 4,
+      "sources": [{ "path": "init-db/znxsgltest.sql" }]
+    },
+    {
+      "id": "guards",
+      "type": "security",
+      "label": "路由与角色守卫",
+      "sublabel": "Protected / Admin / Teacher",
+      "row": 0,
+      "col": 1,
+      "sources": [
+        { "path": "web-admin-react/src/router/index.tsx" },
+        { "path": "web-admin-react/src/hooks/use-role.ts" }
+      ]
+    },
+    {
+      "id": "store",
+      "type": "frontend",
+      "label": "Zustand 认证状态",
+      "sublabel": "token · roles · permissions",
+      "row": 2,
+      "col": 1,
+      "sources": [{ "path": "web-admin-react/src/store/auth.ts" }]
+    },
+    {
+      "id": "redis",
+      "type": "database",
+      "label": "Redis",
+      "sublabel": "缓存 / 幂等 / 限流",
+      "row": 2,
+      "col": 3,
+      "sources": [{ "path": "docker-compose.yml" }]
+    },
+    {
+      "id": "deepseek",
+      "type": "external",
+      "label": "DeepSeek API",
+      "sublabel": "大模型生成",
+      "row": 0,
+      "col": 3,
+      "sources": [{ "path": "README.md" }]
+    },
+    {
+      "id": "embedding",
+      "type": "backend",
+      "label": "本地向量服务",
+      "sublabel": "FastAPI · BGE-M3 :8000",
+      "row": 2,
+      "col": 4,
+      "sources": [{ "path": "embedding-service/requirements.txt" }]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "security-group",
+      "label": "浏览器运行时(客户端)",
+      "wraps": ["spa", "guards", "store"]
+    },
+    {
+      "kind": "region",
+      "label": "Docker Compose 单机部署",
+      "wraps": ["nginx", "api", "mysql", "redis", "embedding"]
+    }
+  ],
+  "connections": [
+    { "from": "actor", "to": "spa", "label": "① 打开管理端", "variant": "emphasis" },
+    {
+      "from": "nginx",
+      "to": "spa",
+      "label": "② dist/ 静态资源",
+      "labelAt": [391, 182]
+    },
+    { "from": "spa", "to": "nginx", "label": "③ /api · /uploads", "variant": "emphasis", "labelAt": [391, 278] },
+    { "from": "spa", "to": "guards", "label": "按角色分流" },
+    { "from": "store", "to": "spa", "label": "登录态 + JWT" },
+    { "from": "nginx", "to": "api", "label": "④ proxy_pass", "variant": "emphasis" },
+    { "from": "api", "to": "mysql", "label": "MyBatis-Plus" },
+    { "from": "api", "to": "redis", "label": "缓存 · 幂等 · 限流", "labelAt": [676, 290] },
+    { "from": "api", "to": "deepseek", "label": "AI 生成", "variant": "dashed" },
+    { "from": "api", "to": "embedding", "label": "向量化", "variant": "dashed" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "管理端运行时",
+      "items": [
+        "React 18 + TS + Vite 5 单页应用,由 Nginx :8081 托管 dist/",
+        "路由守卫按角色分流:管理员 9 项菜单、教师 6 项菜单",
+        "全应用只有一个 Zustand 认证 store,登录态持久化到 localStorage"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "信任边界与鉴权",
+      "items": [
+        "Axios baseURL 固定为 /api,请求拦截器注入 Bearer JWT",
+        "401 清除 token 并跳转 /login;403 保留登录态",
+        "管理端不用 WebSocket,教师通知靠 30 秒轮询 /chat/teacher/unread"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "数据与 AI 出口",
+      "items": [
+        "MySQL 8.0 承载持久化;Redis 承载缓存、分布式幂等与限流(该改动尚未提交)",
+        "AI 由后端统一调用:DeepSeek 生成 + 本地 BGE-M3 向量化",
+        "管理端 src 内无任何第三方 SaaS 直连,全部经后端"
+      ]
+    }
+  ]
+}

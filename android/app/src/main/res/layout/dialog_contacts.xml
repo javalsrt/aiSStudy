@@ -18,9 +18,9 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="通讯录"
-            android:textColor="#1D1D1F"
+            android:textColor="@color/ink"
             android:textSize="17sp"
-            android:fontFamily="sans-serif-medium" />
+            android:fontFamily="@font/harmonyos_sans_sc_medium" />
 
         <TextView
             android:id="@+id/btn_close"
@@ -54,7 +54,7 @@
                 android:text="任课教师"
                 android:textColor="@color/primary"
                 android:textSize="13sp"
-                android:fontFamily="sans-serif-medium" />
+                android:fontFamily="@font/harmonyos_sans_sc_medium" />
 
             <LinearLayout
                 android:id="@+id/ll_teachers"
@@ -81,7 +81,7 @@
                 android:text="同班同学"
                 android:textColor="@color/primary"
                 android:textSize="13sp"
-                android:fontFamily="sans-serif-medium" />
+                android:fontFamily="@font/harmonyos_sans_sc_medium" />
 
             <LinearLayout
                 android:id="@+id/ll_classmates"
