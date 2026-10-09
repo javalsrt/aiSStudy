@@ -66,12 +66,12 @@ export function Header() {
     navigate('/login')
   }
 
-  const handleNotiClick = (courseName: string) => {
+  const handleNotiClick = (courseName: string, courseId?: number) => {
     setNotiOpen(false)
     // 立即从本地通知列表移除该课程相关提示
     setNotifications((prev) => prev.filter((n) => n.courseName !== courseName))
-    // 同步标记后端已读
-    markTeacherRead(courseName).catch(() => {})
+    // 同步标记后端已读：优先用 courseId（同名课程隔离），无ID时退回课程名
+    markTeacherRead(courseId ?? courseName).catch(() => {})
     navigate(`/teacher-chat?course=${encodeURIComponent(courseName)}`)
   }
 
@@ -140,7 +140,7 @@ export function Header() {
                   {notifications.map((n) => (
                     <button
                       key={n.id}
-                      onClick={() => handleNotiClick(n.courseName)}
+                      onClick={() => handleNotiClick(n.courseName, n.courseId)}
                       className="w-full text-left px-4 py-3 hover:bg-neutral-50 transition-colors border-b border-neutral-50 last:border-0"
                     >
                       <div className="flex items-start gap-3">

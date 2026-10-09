@@ -60,11 +60,16 @@ public interface ApiService {
     Call<Map<String, Object>> getStudentContacts(
             @Header("Authorization") String token);
 
-    // 聊天
+    // 聊天（房间键：优先 courseId，同名课程互相隔离；courseName 接口保留兼容）
     @GET("/api/chat/{courseName}")
     Call<List<ChatMsgDto>> getChatMessages(
             @Header("Authorization") String token,
             @Path("courseName") String courseName);
+
+    @GET("/api/chat/by-course/{courseId}")
+    Call<List<ChatMsgDto>> getChatMessagesById(
+            @Header("Authorization") String token,
+            @Path("courseId") long courseId);
 
     @POST("/api/chat/send")
     Call<ChatMsgDto> sendChatMessage(
@@ -97,7 +102,8 @@ public interface ApiService {
     Call<Map<String, String>> uploadChatFile(
             @Header("Authorization") String token,
             @Part MultipartBody.Part file,
-            @Part("courseName") RequestBody courseName);
+            @Part("courseName") RequestBody courseName,
+            @Part("courseId") RequestBody courseId);
 
     // 专注模式
     @POST("/api/focus/save")

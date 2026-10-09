@@ -16,7 +16,7 @@
       <view class="course-name-row">
         <text class="course-name">{{ c.courseName }}</text>
         <text v-if="getSemesterTag(c.semester)" class="semester-tag" :class="getSemesterTagClass(c.semester)">{{ getSemesterTag(c.semester) }}</text>
-        <text v-if="unreadMap[c.courseName] > 0" class="badge">{{ unreadMap[c.courseName] > 99 ? '99+' : unreadMap[c.courseName] }}</text>
+        <text v-if="unreadMap[c.courseId] > 0" class="badge">{{ unreadMap[c.courseId] > 99 ? '99+' : unreadMap[c.courseId] }}</text>
       </view>
       <text class="course-detail">{{ c.scheduleInfo || c.teacherName || '暂无排课信息' }}</text>
     </view>
@@ -61,7 +61,8 @@ export default {
         ])
         this.courses = courses || []
         this.unreadMap = {}
-        ;(unread || []).forEach(r => { this.unreadMap[r.courseName] = r.count })
+        // 未读按课程ID索引：同名课程互不干扰
+        ;(unread || []).forEach(r => { this.unreadMap[r.courseId] = r.count })
         this.loading = false
       } catch (e) {
         this.loading = false
@@ -69,8 +70,9 @@ export default {
       onChatUpdate(this.onWsMsg)
     },
     onWsMsg(data) {
-      if (data.courseName) {
-        this.unreadMap[data.courseName] = (this.unreadMap[data.courseName] || 0) + 1
+      const key = data.courseId != null ? data.courseId : data.courseName
+      if (key != null) {
+        this.unreadMap[key] = (this.unreadMap[key] || 0) + 1
         this.$forceUpdate()
       }
     },

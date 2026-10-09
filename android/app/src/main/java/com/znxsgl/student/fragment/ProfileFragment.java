@@ -59,7 +59,8 @@ public class ProfileFragment extends Fragment implements WebSocketManager.OnChat
     private SharedPreferences prefs;
     private boolean isFirstResume = true;
     private TextView tvStatHours, tvStatQuiz, tvStatRate;
-    private final Map<String, Integer> unreadMap = new HashMap<>();
+    /** 未读数按课程ID索引：同名课程（多门「英语」）必须互不干扰 */
+    private final Map<Long, Integer> unreadMap = new HashMap<>();
 
     // 学习时长实时刷新
     private final Runnable refreshFocusTotal = new Runnable() {
@@ -621,8 +622,8 @@ public class ProfileFragment extends Fragment implements WebSocketManager.OnChat
                 holder.semesterTag.setVisibility(View.GONE);
             }
 
-            // 未读红点（从unreadMap实时获取）
-            int unread = unreadMap.getOrDefault(c.getCourseName(), 0);
+            // 未读红点（从unreadMap实时获取，按课程ID匹配）
+            int unread = unreadMap.getOrDefault(c.getCourseId(), 0);
             if (unread > 0) {
                 holder.badge.setVisibility(View.VISIBLE);
                 holder.badge.setText(unread > 99 ? "99+" : String.valueOf(unread));
@@ -835,9 +836,11 @@ public class ProfileFragment extends Fragment implements WebSocketManager.OnChat
                 if (!isAdded() || resp.body() == null) return;
                 unreadMap.clear();
                 for (Map<String, Object> row : resp.body()) {
-                    String cn = (String) row.get("courseName");
+                    Object id = row.get("courseId");
+                    if (!(id instanceof Number)) continue;
                     Object cnt = row.get("count");
-                    unreadMap.put(cn, cnt instanceof Number ? ((Number) cnt).intValue() : 0);
+                    unreadMap.put(((Number) id).longValue(),
+                            cnt instanceof Number ? ((Number) cnt).intValue() : 0);
                 }
                 if (adapter != null) adapter.notifyDataSetChanged();
             }

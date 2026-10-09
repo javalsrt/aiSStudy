@@ -62,6 +62,8 @@ public class CourseDetailActivity extends AppCompatActivity {
     private RecyclerView rvChat;
     private ChatAdapter adapter;
     private String courseName;
+    /** 聊天室唯一键：同名课程（如多门「英语」）必须按课程ID隔离 */
+    private long courseId;
     private String token;
     private final List<Object> items = new ArrayList<>();
     private File cameraFile;
@@ -104,6 +106,14 @@ public class CourseDetailActivity extends AppCompatActivity {
 
         courseName = getIntent().getStringExtra("course_name");
         if (courseName == null) courseName = "课程详情";
+        courseId = getIntent().getLongExtra("course_id", 0L);
+        if (courseId <= 0) { // 兼容以字符串形式传入的 course_id
+            try {
+                String raw = getIntent().getStringExtra("course_id");
+                if (raw != null && !raw.isEmpty()) courseId = Long.parseLong(raw.trim());
+            } catch (NumberFormatException ignored) {
+            }
+        }
 
         SharedPreferences prefs = getSharedPreferences("znxsgl", 0);
         token = "Bearer " + prefs.getString("token", "");
@@ -215,9 +225,20 @@ public class CourseDetailActivity extends AppCompatActivity {
         });
     }
 
+    /** 房间键：有课程ID就用 ID（同名课程隔离），否则退回课程名让服务端按身份收敛 */
+    private Map<String, String> courseBody() {
+        Map<String, String> body = new HashMap<>();
+        if (courseId > 0) body.put("courseId", String.valueOf(courseId));
+        body.put("courseName", courseName);
+        return body;
+    }
+
     private void loadMessages() {
         ApiService api = RetrofitClient.getInstance().create(ApiService.class);
-        api.getChatMessages(token, courseName).enqueue(new Callback<List<ChatMsgDto>>() {
+        Call<List<ChatMsgDto>> call = courseId > 0
+                ? api.getChatMessagesById(token, courseId)
+                : api.getChatMessages(token, courseName);
+        call.enqueue(new Callback<List<ChatMsgDto>>() {
             @Override
             public void onResponse(Call<List<ChatMsgDto>> call, retrofit2.Response<List<ChatMsgDto>> resp) {
                 if (resp.isSuccessful() && resp.body() != null) buildItems(resp.body());
@@ -226,9 +247,7 @@ public class CourseDetailActivity extends AppCompatActivity {
             public void onFailure(Call<List<ChatMsgDto>> call, Throwable t) {}
         });
         // 标记已读
-        Map<String, String> body = new HashMap<>();
-        body.put("courseName", courseName);
-        api.markAsRead(token, body).enqueue(new Callback<Map<String, String>>() {
+        api.markAsRead(token, courseBody()).enqueue(new Callback<Map<String, String>>() {
             @Override public void onResponse(Call<Map<String, String>> c, retrofit2.Response<Map<String, String>> r) {}
             @Override public void onFailure(Call<Map<String, String>> c, Throwable t) {}
         });
@@ -476,8 +495,7 @@ public class CourseDetailActivity extends AppCompatActivity {
         rvChat.scrollToPosition(localPos);
         etInput.setText("");
 
-        Map<String, String> body = new HashMap<>();
-        body.put("courseName", courseName);
+        Map<String, String> body = courseBody();
         body.put("content", text);
         body.put("senderRole", "student");
 
@@ -515,8 +533,7 @@ public class CourseDetailActivity extends AppCompatActivity {
     private void sendToAI(String text) {
         addStudentAndAiPlaceholder(text);
 
-        Map<String, String> body = new HashMap<>();
-        body.put("courseName", courseName);
+        Map<String, String> body = courseBody();
         body.put("content", text);
 
         ApiService api = RetrofitClient.getInstance().create(ApiService.class);
@@ -727,10 +744,13 @@ public class CourseDetailActivity extends AppCompatActivity {
                 RequestBody fileBody = RequestBody.create(bytes, MediaType.parse(mime));
                 MultipartBody.Part filePart = MultipartBody.Part.createFormData("file", fileName, fileBody);
                 RequestBody coursePart = RequestBody.create(courseName, MediaType.parse("text/plain"));
+                RequestBody courseIdPart = courseId > 0
+                        ? RequestBody.create(String.valueOf(courseId), MediaType.parse("text/plain")) : null;
 
-                // 1. 上传文件获取 URL
+                // 1. 上传文件获取 URL（目录按课程ID隔离，同名课程不互相覆盖）
                 ApiService api = RetrofitClient.getInstance().create(ApiService.class);
-                retrofit2.Response<Map<String, String>> uploadResp = api.uploadChatFile(token, filePart, coursePart).execute();
+                retrofit2.Response<Map<String, String>> uploadResp =
+                        api.uploadChatFile(token, filePart, coursePart, courseIdPart).execute();
 
                 if (!uploadResp.isSuccessful() || uploadResp.body() == null) {
                     throw new RuntimeException("文件上传失败: " + uploadResp.code());
@@ -743,8 +763,7 @@ public class CourseDetailActivity extends AppCompatActivity {
                 String content = isImage ? "[image]" + fileUrl : "[file]" + finalFileName + "|" + fileUrl;
 
                 // 2. 作为普通图片/文件消息发送到群聊
-                Map<String, String> body = new HashMap<>();
-                body.put("courseName", courseName);
+                Map<String, String> body = courseBody();
                 body.put("content", content);
                 body.put("senderRole", "student");
                 retrofit2.Response<ChatMsgDto> sendResp = api.sendChatMessage(token, body).execute();
@@ -829,10 +848,8 @@ public class CourseDetailActivity extends AppCompatActivity {
 
     /** 标记当前课程消息为已读（消除红点） */
     private void markReadForCurrentCourse() {
-        Map<String, String> body = new HashMap<>();
-        body.put("courseName", courseName);
         ApiService api = RetrofitClient.getInstance().create(ApiService.class);
-        api.markAsRead(token, body).enqueue(new Callback<Map<String, String>>() {
+        api.markAsRead(token, courseBody()).enqueue(new Callback<Map<String, String>>() {
             @Override public void onResponse(Call<Map<String, String>> c, retrofit2.Response<Map<String, String>> r) {}
             @Override public void onFailure(Call<Map<String, String>> c, Throwable t) {}
         });

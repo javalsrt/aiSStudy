@@ -2,11 +2,9 @@ package com.znxsgl.controller;
 
 import com.znxsgl.dto.ChatMessageDTO;
 import com.znxsgl.dto.StudentAskStatsDTO;
-import com.znxsgl.dto.TeacherCourseDTO;
 import com.znxsgl.service.ChatService;
 import com.znxsgl.service.LlmService;
 import com.znxsgl.service.RagService;
-import com.znxsgl.service.ScheduleService;
 import com.znxsgl.websocket.ScheduleWebSocketHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,8 +12,8 @@ import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.http.ResponseEntity;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -25,8 +23,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
-import java.util.stream.Collectors;
 
+/**
+ * 课程聊天接口。
+ * <p>
+ * 聊天室唯一键为 <b>courseId</b>。为兼容已发布的客户端，旧接口（按 courseName）继续可用，
+ * 但服务端会按调用者身份把课程名收敛为该调用者自己的唯一课程ID，因此同名课程不再串号。
+ */
 @RestController
 @RequestMapping("/api/chat")
 public class ChatController {
@@ -38,49 +41,65 @@ public class ChatController {
     private final RagService ragService;
     private final ScheduleWebSocketHandler wsHandler;
     private final JdbcTemplate jdbc;
-    private final ScheduleService scheduleService;
 
     public ChatController(ChatService chatService, LlmService llmService,
                           RagService ragService, ScheduleWebSocketHandler wsHandler,
-                          JdbcTemplate jdbc, ScheduleService scheduleService) {
+                          JdbcTemplate jdbc) {
         this.chatService = chatService;
         this.llmService = llmService;
         this.ragService = ragService;
         this.wsHandler = wsHandler;
         this.jdbc = jdbc;
-        this.scheduleService = scheduleService;
     }
 
-    // 获取课程聊天记录（个人：学生看自己的AI对话，按userId过滤）
-    @GetMapping("/{courseName}")
-    public ResponseEntity<List<ChatMessageDTO>> getMessages(
-            @PathVariable String courseName, Authentication auth) {
+    // ==================== 房间读写（courseId 精确接口） ====================
+
+    /** 课程聊天记录（学生：自己的消息 + 公开消息 + @自己的消息 + AI回复） */
+    @GetMapping("/by-course/{courseId}")
+    public ResponseEntity<?> getMessagesById(@PathVariable Long courseId, Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
-        return ResponseEntity.ok(chatService.getMessages(courseName, userId));
+        if (!chatService.canAccess(userId, courseId)) {
+            return ResponseEntity.status(403).body(Map.of("error", "无权访问该课程聊天"));
+        }
+        return ResponseEntity.ok(chatService.getMessages(courseId, userId));
     }
 
-    // 获取课程公开聊天（群聊：教师/学生都能看到所有人的消息）
-    @GetMapping("/{courseName}/public")
-    public ResponseEntity<List<ChatMessageDTO>> getPublicMessages(@PathVariable String courseName) {
-        return ResponseEntity.ok(chatService.getPublicMessages(courseName));
+    /** 课程群聊记录（教师/学生都能看到课程内全部消息） */
+    @GetMapping("/by-course/{courseId}/public")
+    public ResponseEntity<?> getPublicMessagesById(@PathVariable Long courseId, Authentication auth) {
+        Long userId = (Long) auth.getPrincipal();
+        if (!chatService.canAccess(userId, courseId)) {
+            return ResponseEntity.status(403).body(Map.of("error", "无权访问该课程聊天"));
+        }
+        return ResponseEntity.ok(chatService.getPublicMessages(courseId));
     }
 
-    // 发送消息（支持 @mention 和 @AI）
+    /** 课程学生列表（@ 点名，仅教师本人课程） */
+    @GetMapping("/by-course/{courseId}/students")
+    public ResponseEntity<?> getCourseStudentsById(@PathVariable Long courseId, Authentication auth) {
+        Long userId = (Long) auth.getPrincipal();
+        if (!ownsCourse(userId, courseId)) {
+            return ResponseEntity.status(403).body(Map.of("error", "无权限"));
+        }
+        return ResponseEntity.ok(chatService.getCourseStudents(courseId));
+    }
+
+    /** 发送消息（支持 @mention 和 @AI）；body 传 courseId（推荐）或 courseName */
     @PostMapping("/send")
-    public ResponseEntity<ChatMessageDTO> sendMessage(
-            @RequestBody Map<String, String> body, Authentication auth) {
+    public ResponseEntity<?> sendMessage(@RequestBody Map<String, String> body, Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
-        String courseName = body.get("courseName");
+        Long courseId = resolveRoom(body, userId);
+        if (courseId == null) return ResponseEntity.badRequest().body(Map.of("error", "课程不存在"));
         String content = body.get("content");
         String senderRole = body.getOrDefault("senderRole", "student");
+        String courseName = safeCourseName(courseId);
 
-        // 检测 @mention
-        Long mentionUserId = null;
-        if (content != null && content.contains("@")) {
-            mentionUserId = chatService.parseMention(courseName, content);
-        }
+        // @ 提及：只在课程班级内匹配，避免给非本课程学生发私密消息
+        Long mentionUserId = content != null && content.contains("@")
+                ? chatService.parseMention(courseId, content)
+                : null;
 
-        ChatMessageDTO msg = chatService.sendMessage(courseName, userId, content, senderRole, mentionUserId);
+        ChatMessageDTO msg = chatService.sendMessage(courseId, userId, content, senderRole, mentionUserId);
 
         // 如果 @了AI，触发AI回复
         if (content != null && (content.contains("@AI") || content.contains("@ai"))) {
@@ -90,145 +109,160 @@ public class ChatController {
                 if (aiReply == null || aiReply.trim().isEmpty()) {
                     aiReply = "AI 服务暂时不可用，请稍后重试。";
                 }
-                chatService.sendMessage(courseName, userId, aiReply, "ai", mentionUserId);
+                chatService.sendMessage(courseId, userId, aiReply, "ai", mentionUserId);
             } catch (Exception e) {
-                log.warn("AI 回复失败：course={}, userId={}", courseName, userId, e);
+                log.warn("AI 回复失败：courseId={}, userId={}", courseId, userId, e);
             }
         }
 
-        // WebSocket推送：@消息只推送给被@的人
+        // WebSocket 推送：@消息只推送给被@的人，否则推给本课程全部学生
         try {
-            String preview;
-            if (content != null && content.startsWith("[image]")) preview = "📷 [图片]";
-            else if (content != null && content.startsWith("[file]")) {
-                String fn = content.substring(6); int ps = fn.indexOf('|');
-                preview = "📄 [文件] " + (ps > 0 ? fn.substring(0, Math.min(ps, 20)) : fn.substring(0, 20));
-            } else preview = content != null && content.length() > 60 ? content.substring(0, 60) + "..." : (content != null ? content : "");
-
+            String preview = buildChatPreview(content);
             if (mentionUserId != null) {
-                // @消息只推送给目标学生
-                Map<String, Object> data = new LinkedHashMap<>();
-                data.put("courseName", courseName);
-                data.put("senderName", msg.getSenderName());
-                data.put("content", preview);
-                data.put("senderRole", senderRole);
+                Map<String, Object> data = chatMessagePushData(courseId, courseName, msg.getSenderName(), preview, senderRole);
                 wsHandler.sendToUser(mentionUserId, "chat_update", data);
             } else {
-                // 公开消息推送给所有学生
-                List<Long> studentIds = jdbc.queryForList(
-                    "SELECT DISTINCT u.id FROM user u " +
-                    "JOIN course_class cc ON cc.class_id = u.class_id " +
-                    "JOIN course c ON c.id = cc.course_id " +
-                    "WHERE c.course_name = ? AND u.role = 1 AND u.id != ?",
-                    Long.class, courseName, userId);
-                for (Long sid : studentIds) {
-                    Map<String, Object> data = new LinkedHashMap<>();
-                    data.put("courseName", courseName);
-                    data.put("senderName", msg.getSenderName());
-                    data.put("content", preview);
-                    data.put("senderRole", senderRole);
+                for (Long sid : chatService.studentIdsOf(courseId, userId)) {
+                    Map<String, Object> data = chatMessagePushData(courseId, courseName, msg.getSenderName(), preview, senderRole);
                     wsHandler.sendToUser(sid, "chat_update", data);
                 }
             }
         } catch (Exception e) {
-            log.warn("WebSocket 推送失败：course={}, userId={}", courseName, userId, e);
+            log.warn("WebSocket 推送失败：courseId={}, userId={}", courseId, userId, e);
         }
 
         return ResponseEntity.ok(msg);
     }
 
-    // RAG 对话（自动检索课程知识库）
-    @PostMapping("/rag")
-    public ResponseEntity<ChatMessageDTO> ragChat(@RequestBody Map<String, String> body, Authentication auth) {
+    /** 标记该学生在指定课程的消息为已读 */
+    @PostMapping("/read")
+    public ResponseEntity<Map<String, String>> markAsRead(@RequestBody Map<String, String> body,
+                                                          Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
-        String courseName = body.get("courseName");
-        String content = body.get("content");
-
-        // 1. 保存学生消息
-        chatService.sendMessage(courseName, userId, content, "student");
-
-        // 2. RAG 检索相关知识（表不存在时优雅降级）
-        String ragContext = "";
-        try {
-            ragContext = ragService.retrieveContext(courseName, content);
-        } catch (Exception e) {
-            log.warn("RAG 检索失败（可能表未创建）：course={}", courseName, e);
-        }
-
-        // 3. 调用 AI
-        String aiReply = llmService.chat(buildSystemPrompt(courseName, ragContext), content);
-        if (aiReply == null || aiReply.trim().isEmpty()) {
-            aiReply = "AI 服务暂时不可用，请稍后重试。";
-        }
-        return ResponseEntity.ok(chatService.sendMessage(courseName, userId, aiReply, "ai"));
+        chatService.markAsRead(resolveRoom(body, userId), userId);
+        return ResponseEntity.ok(Map.of("msg", "已读"));
     }
 
-    // 上传文件并 AI 分析
-    @PostMapping("/upload")
-    public ResponseEntity<ChatMessageDTO> uploadFile(
-            @RequestParam("file") MultipartFile file,
-            @RequestParam("courseName") String courseName,
-            Authentication auth) {
+    /** 教师进入课程聊天时，标记该课程下所有非教师消息为已读 */
+    @PostMapping("/teacher/read")
+    public ResponseEntity<Map<String, String>> markTeacherRead(@RequestBody Map<String, String> body,
+                                                               Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
-
-        // 1. 保存用户消息（文件上传提示）
-        String hint = "📎 正在分析《" + file.getOriginalFilename() + "》...";
-        chatService.sendMessage(courseName, userId, hint, "student");
-
-        // 2. 分析文件
-        String analysisResult = ragService.uploadAndAnalyze(courseName, file);
-
-        // 3. 保存分析结果
-        return ResponseEntity.ok(chatService.sendMessage(courseName, userId, analysisResult, "ai"));
+        Long courseId = resolveRoom(body, userId);
+        if (courseId == null) {
+            return ResponseEntity.badRequest().body(Map.of("msg", "课程不存在"));
+        }
+        int rows = chatService.markTeacherRead(courseId);
+        log.info("教师已读标记: courseId={}, rows={}", courseId, rows);
+        return ResponseEntity.ok(Map.of("msg", "已读", "rows", String.valueOf(rows)));
     }
 
-    // 教师查看学生提问统计
+    // ==================== 旧接口（按 courseName，服务端收敛到调用者自己的课程） ====================
+
+    @GetMapping("/{courseName}")
+    public ResponseEntity<List<ChatMessageDTO>> getMessages(@PathVariable String courseName, Authentication auth) {
+        Long userId = (Long) auth.getPrincipal();
+        Long courseId = chatService.resolveCourseId(userId, courseName);
+        if (courseId == null) return ResponseEntity.ok(Collections.emptyList());
+        return ResponseEntity.ok(chatService.getMessages(courseId, userId));
+    }
+
+    @GetMapping("/{courseName}/public")
+    public ResponseEntity<List<ChatMessageDTO>> getPublicMessages(@PathVariable String courseName, Authentication auth) {
+        Long userId = (Long) auth.getPrincipal();
+        Long courseId = chatService.resolveCourseId(userId, courseName);
+        if (courseId == null) return ResponseEntity.ok(Collections.emptyList());
+        return ResponseEntity.ok(chatService.getPublicMessages(courseId));
+    }
+
+    /** 获取课程学生列表（用于@mention，仅课程归属教师可见） */
+    @GetMapping("/{courseName}/students")
+    public ResponseEntity<?> getCourseStudents(@PathVariable String courseName, Authentication auth) {
+        Long userId = (Long) auth.getPrincipal();
+        Long courseId = chatService.resolveCourseId(userId, courseName);
+        if (courseId == null || !ownsCourse(userId, courseId)) {
+            return ResponseEntity.status(403).body(Map.of("error", "无权限"));
+        }
+        return ResponseEntity.ok(chatService.getCourseStudents(courseId));
+    }
+
+    /** 教师查看学生提问统计 */
     @GetMapping("/stats/{courseName}")
-    public ResponseEntity<?> getAskStats(
-            @PathVariable String courseName,
-            @RequestParam(required = false) Long classId,
-            Authentication auth) {
+    public ResponseEntity<?> getAskStats(@PathVariable String courseName,
+                                         @RequestParam(required = false) Long classId,
+                                         Authentication auth) {
         Long teacherUserId = (Long) auth.getPrincipal();
         try {
-            List<StudentAskStatsDTO> stats = chatService.getAskStats(courseName, teacherUserId, classId);
+            Long courseId = chatService.resolveCourseId(teacherUserId, courseName);
+            if (courseId == null) {
+                return ResponseEntity.status(403).body(Map.of("error", "无权查看该课程的统计数据"));
+            }
+            List<StudentAskStatsDTO> stats = chatService.getAskStats(courseId, teacherUserId, classId);
             return ResponseEntity.ok(stats);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(403).body(Map.of("error", e.getMessage()));
         }
     }
 
-    /** 学生进入课程详情时，标记该课程所有教师消息为已读 */
-    @PostMapping("/read")
-    public ResponseEntity<Map<String, String>> markAsRead(@RequestBody Map<String, String> body,
-                                                           Authentication auth) {
-        String courseName = body.get("courseName");
+    // ==================== RAG 对话 / 文件上传 ====================
+
+    /** RAG 对话（自动检索课程知识库） */
+    @PostMapping("/rag")
+    public ResponseEntity<?> ragChat(@RequestBody Map<String, String> body, Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
-        chatService.markAsRead(courseName, userId);
-        return ResponseEntity.ok(Map.of("msg", "已读"));
+        Long courseId = resolveRoom(body, userId);
+        if (courseId == null) return ResponseEntity.badRequest().body(Map.of("error", "课程不存在"));
+        String courseName = safeCourseName(courseId);
+        String content = body.get("content");
+
+        chatService.sendMessage(courseId, userId, content, "student", null);
+
+        String ragContext = "";
+        try {
+            ragContext = ragService.retrieveContext(courseName, content);
+        } catch (Exception e) {
+            log.warn("RAG 检索失败（可能表未创建）：courseId={}", courseId, e);
+        }
+
+        String aiReply = llmService.chat(buildSystemPrompt(courseName, ragContext), content);
+        if (aiReply == null || aiReply.trim().isEmpty()) {
+            aiReply = "AI 服务暂时不可用，请稍后重试。";
+        }
+        return ResponseEntity.ok(chatService.sendMessage(courseId, userId, aiReply, "ai", null));
     }
 
-    /** 教师进入课程聊天时，标记该课程下所有非教师消息为已读 */
-    @PostMapping("/teacher/read")
-    public ResponseEntity<Map<String, String>> markTeacherRead(@RequestBody Map<String, String> body) {
-        String courseName = body.get("courseName");
-        if (courseName == null || courseName.isEmpty()) {
-            return ResponseEntity.badRequest().body(Map.of("msg", "courseName 不能为空"));
-        }
-        int rows = jdbc.update(
-                "UPDATE chat_message SET is_read = 1 " +
-                        "WHERE course_name = ? AND sender_role != 'teacher' AND is_read = 0",
-                courseName);
-        log.info("教师已读标记: courseName={}, rows={}", courseName, rows);
-        return ResponseEntity.ok(Map.of("msg", "已读", "rows", String.valueOf(rows)));
+    /** 上传文件并 AI 分析 */
+    @PostMapping("/upload")
+    public ResponseEntity<?> uploadFile(@RequestParam("file") MultipartFile file,
+                                        @RequestParam(value = "courseName", required = false) String courseName,
+                                        @RequestParam(value = "courseId", required = false) Long courseIdParam,
+                                        Authentication auth) {
+        Long userId = (Long) auth.getPrincipal();
+        Long courseId = courseIdParam != null ? courseIdParam : chatService.resolveCourseId(userId, courseName);
+        if (courseId == null) return ResponseEntity.badRequest().body(Map.of("error", "课程不存在"));
+        String resolvedName = safeCourseName(courseId);
+
+        String hint = "📎 正在分析《" + file.getOriginalFilename() + "》...";
+        chatService.sendMessage(courseId, userId, hint, "student", null);
+
+        String analysisResult = ragService.uploadAndAnalyze(resolvedName, file);
+        return ResponseEntity.ok(chatService.sendMessage(courseId, userId, analysisResult, "ai", null));
     }
 
     /** 简单文件上传（图片/文档），返回可访问 URL */
     @PostMapping("/upload-file")
     public ResponseEntity<Map<String, String>> uploadChatFile(
             @RequestParam("file") MultipartFile file,
-            @RequestParam("courseName") String courseName) {
+            @RequestParam(value = "courseName", required = false) String courseName,
+            @RequestParam(value = "courseId", required = false) Long courseIdParam,
+            Authentication auth) {
+        Long userId = (Long) auth.getPrincipal();
+        Long courseId = courseIdParam != null ? courseIdParam : chatService.resolveCourseId(userId, courseName);
+        // 目录用课程ID，彻底避免同名课程文件互相覆盖；旧消息里的历史路径不受影响
+        String folder = courseId != null ? String.valueOf(courseId)
+                : (courseName != null ? courseName : "common");
         try {
-            String uploadDir = System.getProperty("user.dir") + "/uploads/chat/" + courseName;
+            String uploadDir = System.getProperty("user.dir") + "/uploads/chat/" + folder;
             File dir = new File(uploadDir);
             if (!dir.exists()) dir.mkdirs();
 
@@ -236,11 +270,10 @@ public class ChatController {
             Path filePath = Paths.get(uploadDir, filename);
             Files.write(filePath, file.getBytes());
 
-            String relPath = "/uploads/chat/" + courseName + "/" + filename;
-            // 返回相对路径，由前端根据自身 base URL 拼接，避免硬编码 localhost 导致真机/生产环境失效
+            String relPath = "/uploads/chat/" + folder + "/" + filename;
             String downloadUrl = "/api/chat/download-file?url=" +
                     java.net.URLEncoder.encode(relPath, java.nio.charset.StandardCharsets.UTF_8);
-            log.info("聊天文件上传成功: courseName={}, fileName={}, downloadUrl={}", courseName, filename, downloadUrl);
+            log.info("聊天文件上传成功: courseId={}, fileName={}, downloadUrl={}", courseId, filename, downloadUrl);
             return ResponseEntity.ok(Map.of("url", downloadUrl, "fileName", filename));
         } catch (Exception e) {
             log.error("聊天文件上传失败", e);
@@ -272,6 +305,80 @@ public class ChatController {
         }
     }
 
+    // ==================== 未读 ====================
+
+    /** 学生各课程未读消息数量（含 courseId，同名课程不再合并） */
+    @GetMapping("/unread")
+    public ResponseEntity<List<Map<String, Object>>> getUnreadCount(Authentication auth) {
+        Long userId = (Long) auth.getPrincipal();
+        return ResponseEntity.ok(chatService.unreadByCourse(userId));
+    }
+
+    /** 教师未读聊天通知（学生和 AI 发送的消息，按 course_id 隔离） */
+    @GetMapping("/teacher/unread")
+    public ResponseEntity<List<Map<String, Object>>> getTeacherUnreadNotifications(Authentication auth) {
+        Long userId = (Long) auth.getPrincipal();
+        List<Map<String, Object>> rows = chatService.teacherUnread(userId);
+        for (Map<String, Object> row : rows) {
+            row.put("preview", buildChatPreview(String.valueOf(row.getOrDefault("content", ""))));
+        }
+        return ResponseEntity.ok(rows);
+    }
+
+    // ==================== 私有辅助方法 ====================
+
+    /** 解析房间ID：优先 body 里的 courseId，其次按调用者身份解析 courseName */
+    private Long resolveRoom(Map<String, String> body, Long userId) {
+        if (body == null) return null;
+        String id = body.get("courseId");
+        if (id != null && !id.trim().isEmpty()) {
+            try {
+                return Long.valueOf(id.trim());
+            } catch (NumberFormatException ignored) {
+                // 非法 courseId 时回退按课程名解析
+            }
+        }
+        return chatService.resolveCourseId(userId, body.get("courseName"));
+    }
+
+    /** 调用者是否为该课程的任课教师 */
+    private boolean ownsCourse(Long userId, Long courseId) {
+        Integer n = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM course c " +
+                        "JOIN teacher t ON t.id = c.teacher_id " +
+                        "JOIN user u ON u.real_name = t.real_name " +
+                        "WHERE c.id = ? AND u.id = ?",
+                Integer.class, courseId, userId);
+        return n != null && n > 0;
+    }
+
+    private String safeCourseName(Long courseId) {
+        String name = chatService.courseNameOf(courseId);
+        return name != null ? name : "";
+    }
+
+    private Map<String, Object> chatMessagePushData(Long courseId, String courseName,
+                                                    String senderName, String preview, String senderRole) {
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("courseId", courseId);
+        data.put("courseName", courseName);
+        data.put("senderName", senderName);
+        data.put("content", preview);
+        data.put("senderRole", senderRole);
+        return data;
+    }
+
+    private String buildChatPreview(String content) {
+        if (content == null) return "";
+        if (content.startsWith("[image]")) return "📷 [图片]";
+        if (content.startsWith("[file]")) {
+            String fn = content.substring(6);
+            int ps = fn.indexOf('|');
+            return "📄 [文件] " + (ps > 0 ? fn.substring(0, Math.min(ps, 20)) : fn.substring(0, 20));
+        }
+        return content.length() > 60 ? content.substring(0, 60) + "..." : content;
+    }
+
     private String determineContentType(String filename) {
         String lower = filename.toLowerCase();
         if (lower.endsWith(".png")) return "image/png";
@@ -285,116 +392,6 @@ public class ChatController {
         if (lower.endsWith(".docx")) return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
         return "application/octet-stream";
     }
-
-    /** 获取课程所有学生（用于@mention） */
-    @GetMapping("/{courseName}/students")
-    public ResponseEntity<?> getCourseStudents(
-            @PathVariable String courseName, Authentication auth) {
-        Long userId = (Long) auth.getPrincipal();
-        // 校验课程归属当前教师
-        Long teacherId = resolveTeacherId(userId);
-        if (teacherId == null) {
-            return ResponseEntity.status(403).body(Map.of("error", "无权限"));
-        }
-        Integer count = jdbc.queryForObject(
-            "SELECT COUNT(*) FROM course WHERE course_name = ? AND teacher_id = ?",
-            Integer.class, courseName, teacherId);
-        if (count == null || count == 0) {
-            return ResponseEntity.status(403).body(Map.of("error", "无权限"));
-        }
-        List<Map<String, Object>> list = jdbc.queryForList(
-            "SELECT DISTINCT u.id, u.real_name AS realName FROM user u " +
-            "JOIN course_class cc ON cc.class_id = u.class_id " +
-            "JOIN course c ON c.id = cc.course_id " +
-            "WHERE c.course_name = ? AND u.role = 1 ORDER BY u.real_name",
-            courseName);
-        return ResponseEntity.ok(list);
-    }
-
-    /** 通过 userId 反查 teacher 表的 id（依据 real_name 关联） */
-    private Long resolveTeacherId(Long userId) {
-        try {
-            List<Long> ids = jdbc.queryForList(
-                "SELECT t.id FROM teacher t " +
-                "JOIN user u ON u.real_name = t.real_name " +
-                "WHERE u.id = ? LIMIT 1", Long.class, userId);
-            return ids.isEmpty() ? null : ids.get(0);
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    /** 获取学生各课程未读消息数量 */
-    @GetMapping("/unread")
-    public ResponseEntity<List<Map<String, Object>>> getUnreadCount(Authentication auth) {
-        Long userId = (Long) auth.getPrincipal();
-        // 统计“发给当前学生”的未读消息：
-        // 1) user_id = 当前学生 且 发送者不是学生自己（教师通知/回复、AI 回复等）
-        // 2) @提及当前学生的私密消息
-        List<Map<String, Object>> result = jdbc.queryForList(
-            "SELECT cm.course_name AS courseName, COUNT(*) AS count " +
-            "FROM chat_message cm " +
-            "WHERE cm.is_read = 0 " +
-            "  AND (" +
-            "    (cm.user_id = ? AND cm.sender_role != 'student') " +
-            "    OR cm.mention_user_id = ?" +
-            "  ) " +
-            "  AND cm.course_name IN (SELECT c.course_name FROM course c " +
-            "    JOIN course_class cc ON cc.course_id = c.id " +
-            "    JOIN user u ON u.class_id = cc.class_id WHERE u.id = ?) " +
-            "GROUP BY cm.course_name",
-            userId, userId, userId);
-        return ResponseEntity.ok(result);
-    }
-
-    /** 获取教师未读聊天通知（学生和 AI 发送的消息） */
-    @GetMapping("/teacher/unread")
-    public ResponseEntity<List<Map<String, Object>>> getTeacherUnreadNotifications(Authentication auth) {
-        Long userId = (Long) auth.getPrincipal();
-        List<TeacherCourseDTO> courses = scheduleService.getTeacherCourses(userId);
-        if (courses.isEmpty()) {
-            return ResponseEntity.ok(Collections.emptyList());
-        }
-
-        List<String> courseNames = courses.stream()
-                .map(TeacherCourseDTO::getCourseName)
-                .filter(Objects::nonNull)
-                .distinct()
-                .collect(Collectors.toList());
-
-        // 构建 IN 占位符
-        String placeholders = String.join(",", Collections.nCopies(courseNames.size(), "?"));
-        String sql = "SELECT cm.id, cm.course_name AS courseName, " +
-                "cm.sender_name AS senderName, cm.sender_role AS senderRole, " +
-                "cm.content, cm.created_at AS createdAt " +
-                "FROM chat_message cm " +
-                "WHERE cm.is_read = 0 " +
-                "  AND cm.sender_role != 'teacher' " +
-                "  AND cm.course_name IN (" + placeholders + ") " +
-                "ORDER BY cm.created_at DESC " +
-                "LIMIT 50";
-
-        List<Map<String, Object>> rows = jdbc.queryForList(sql, courseNames.toArray());
-        for (Map<String, Object> row : rows) {
-            String content = String.valueOf(row.getOrDefault("content", ""));
-            row.put("preview", buildChatPreview(content));
-        }
-        return ResponseEntity.ok(rows);
-    }
-
-    private String buildChatPreview(String content) {
-        if (content == null) return "";
-        if (content.startsWith("[image]")) return "[图片]";
-        if (content.startsWith("[file]")) {
-            String rest = content.substring(6);
-            int ps = rest.indexOf('|');
-            String name = ps > 0 ? rest.substring(0, ps) : rest;
-            return "[文件] " + (name.length() > 20 ? name.substring(0, 20) + "..." : name);
-        }
-        return content.length() > 60 ? content.substring(0, 60) + "..." : content;
-    }
-
-    // ========== 私有辅助方法 ==========
 
     /** 构建统一 system prompt */
     private String buildSystemPrompt(String courseName, String ragContext) {

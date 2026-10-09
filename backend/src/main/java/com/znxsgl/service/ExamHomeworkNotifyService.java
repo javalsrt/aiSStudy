@@ -117,9 +117,9 @@ public class ExamHomeworkNotifyService {
                 try {
                     int upd = jdbc.update(
                             "INSERT IGNORE INTO chat_message " +
-                                    "(user_id, course_name, content, sender_role, sender_name, is_read, created_at, biz_type, biz_id) " +
-                                    "VALUES (?, ?, ?, 'teacher', '系统通知', 0, NOW(), 'exam_publish', ?)",
-                            sid, courseName != null ? courseName : "", cardContent, examId);
+                                    "(user_id, course_name, course_id, content, sender_role, sender_name, is_read, created_at, biz_type, biz_id) " +
+                                    "VALUES (?, ?, ?, ?, 'teacher', '系统通知', 0, NOW(), 'exam_publish', ?)",
+                            sid, courseName != null ? courseName : "", courseId, cardContent, examId);
                     if (upd > 0) {
                         inserted++;
                         EXAM_NOTIFY_DEDUP.put(dedupKey, now);

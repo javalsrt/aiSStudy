@@ -569,26 +569,26 @@ public class ScheduleService {
                 Integer.class, dto.getCourseName(), classId);
             dto.setPublished(publishedCount > 0);
 
-            // 查询该学生在此课程的未读消息数（仅 is_read=0）
+            // 查询该学生在此课程的未读消息数（按 course_id 隔离，同名课程不合并）
             int unread = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM chat_message " +
-                "WHERE course_name = ? AND user_id = ? AND sender_role = 'teacher' AND is_read = 0",
-                Integer.class, dto.getCourseName(), userId);
+                "WHERE course_id = ? AND user_id = ? AND sender_role = 'teacher' AND is_read = 0",
+                Integer.class, dto.getCourseId(), userId);
             dto.setUnreadCount(unread);
 
             // 查询该学生可见的最后一条聊天消息摘要
             try {
                 List<Map<String, Object>> lastMsgs = jdbc.queryForList(
                     "SELECT content, sender_role, sender_name FROM chat_message " +
-                    "WHERE course_name = ? AND sender_role != 'student' " +
+                    "WHERE course_id = ? AND sender_role != 'student' " +
                     "  AND (user_id = ? OR mention_user_id IS NULL OR mention_user_id = ?) " +
                     "ORDER BY created_at DESC, id DESC LIMIT 1",
-                    dto.getCourseName(), userId, userId);
+                    dto.getCourseId(), userId, userId);
                 if (!lastMsgs.isEmpty()) {
                     dto.setLastMessage(buildLastMessagePreview(lastMsgs.get(0)));
                 }
             } catch (Exception e) {
-                log.warn("查询课程最后一条消息失败: courseName={}, userId={}", dto.getCourseName(), userId, e);
+                log.warn("查询课程最后一条消息失败: courseId={}, userId={}", dto.getCourseId(), userId, e);
             }
 
             // 检查本班级是否有排课

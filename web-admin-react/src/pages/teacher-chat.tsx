@@ -110,12 +110,13 @@ export function TeacherChatPage() {
   }, [])
 
   // 切换课程时加载聊天记录与学生列表，并标记该课程消息已读
+  // 房间键优先用 courseId：同名课程（如 4 门「英语」）必须按课程ID隔离
   useEffect(() => {
     if (!activeCourse) return
-    const courseName = activeCourse.courseName
+    const courseKey = activeCourse.courseId ?? activeCourse.courseName
     setMsgs([])
     setError('')
-    getPublicMessages(courseName)
+    getPublicMessages(courseKey)
       .then((list) => {
         setMsgs(list || [])
         lastMsgCountRef.current = (list || []).length
@@ -123,19 +124,19 @@ export function TeacherChatPage() {
         requestAnimationFrame(() => scrollToBottom(true))
       })
       .catch(() => setError('聊天记录加载失败'))
-    getCourseStudents(courseName)
+    getCourseStudents(courseKey)
       .then(setStudents)
       .catch(() => setStudents([]))
-    markTeacherRead(courseName).catch(() => {})
+    markTeacherRead(courseKey).catch(() => {})
   }, [activeCourse])
 
   // 轮询刷新聊天记录（3 秒）：AI 异步回复、学生消息无需刷新页面即可显示
   useEffect(() => {
     if (!activeCourse) return
-    const courseName = activeCourse.courseName
+    const courseKey = activeCourse.courseId ?? activeCourse.courseName
     const timer = window.setInterval(() => {
       if (document.visibilityState !== 'visible') return
-      getPublicMessages(courseName)
+      getPublicMessages(courseKey)
         .then((list) => {
           setMsgs((prev) => {
             const cur = prev || []
@@ -198,11 +199,14 @@ export function TeacherChatPage() {
     }
   }, [msgs])
 
+  // 房间键：优先课程ID（同名课程互相隔离），无ID时退回课程名
+  const roomKey = activeCourse ? activeCourse.courseId ?? activeCourse.courseName : ''
+
   const doSend = async (content: string) => {
     if (!activeCourse || !content.trim()) return
     setSending(true)
     try {
-      const msg = await sendChatMessage(activeCourse.courseName, content.trim(), 'teacher')
+      const msg = await sendChatMessage(roomKey, content.trim(), 'teacher')
       setMsgs((prev) => [...prev, msg])
       setInput('')
     } catch (e: any) {
@@ -221,7 +225,7 @@ export function TeacherChatPage() {
     if (!activeCourse) return
     setUploading(true)
     try {
-      const { url, fileName } = await uploadChatFile(activeCourse.courseName, file)
+      const { url, fileName } = await uploadChatFile(roomKey, file)
       const isImage = file.type.startsWith('image/')
       const content = isImage ? `[image]${url}` : `[file]${fileName}|${url}`
       await doSendRaw(content)
@@ -236,7 +240,7 @@ export function TeacherChatPage() {
     if (!activeCourse) return
     setSending(true)
     try {
-      const msg = await sendChatMessage(activeCourse.courseName, content, 'teacher')
+      const msg = await sendChatMessage(roomKey, content, 'teacher')
       setMsgs((prev) => [...prev, msg])
     } catch (e: any) {
       setError(e.response?.data?.error || '消息发送失败')

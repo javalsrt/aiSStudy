@@ -14,6 +14,9 @@ public class ChatMessage {
     private Long id;
     private String courseName;
 
+    /** 聊天室唯一键：课程ID（同名课程互相隔离，courseName 仅用于展示） */
+    private Long courseId;
+
     /** 发送者用户ID */
     private Long userId;
     private String senderName;

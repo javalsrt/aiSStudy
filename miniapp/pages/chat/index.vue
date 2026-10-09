@@ -32,10 +32,12 @@ const BASE = 'http://192.168.0.146:8080'
 let timer = null
 export default {
   data() {
-    return { courseName: '', msgs: [], inputText: '', loading: true, toView: '' }
+    return { courseName: '', courseId: 0, msgs: [], inputText: '', loading: true, toView: '' }
   },
   onLoad(options) {
     this.courseName = decodeURIComponent(options.courseName || '课程聊天')
+    // 聊天室键优先用 courseId：同名课程（如多门「英语」）必须互相隔离
+    this.courseId = Number(options.courseId || 0) || 0
     const pages = getCurrentPages()
     const page = pages[pages.length-1]
     if (page) {
@@ -48,9 +50,18 @@ export default {
   },
   onUnload() { if (timer) clearInterval(timer) },
   methods: {
+    /** 房间键：有课程ID用 by-course 精确接口，否则退回课程名由服务端按身份收敛 */
+    roomKey() {
+      return this.courseId
+        ? { courseId: this.courseId, courseName: this.courseName }
+        : { courseName: this.courseName }
+    },
     load() {
       const api = require('@/utils/api.js')
-      api.request('/api/chat/' + encodeURIComponent(this.courseName)).then(data => {
+      const url = this.courseId
+        ? '/api/chat/by-course/' + this.courseId
+        : '/api/chat/' + encodeURIComponent(this.courseName)
+      api.request(url).then(data => {
         const msgs = (data || []).map(m => this.parseMsg(m))
         const items = this.buildItems(msgs)
         this.msgs = items
@@ -92,14 +103,14 @@ export default {
     },
     markRead() {
       const api = require('@/utils/api.js')
-      api.request('/api/chat/read', 'POST', { courseName: this.courseName })
+      api.request('/api/chat/read', 'POST', this.roomKey())
     },
     sendText() {
       const text = this.inputText.trim()
       if (!text) return
       this.inputText = ''
       const api = require('@/utils/api.js')
-      api.request('/api/chat/rag', 'POST', { courseName: this.courseName, content: text }).then(() => this.load())
+      api.request('/api/chat/rag', 'POST', { ...this.roomKey(), content: text }).then(() => this.load())
     },
     pickImage() {
       uni.chooseImage({
@@ -109,15 +120,15 @@ export default {
             url: BASE + '/api/chat/upload-file',
             filePath: res.tempFilePaths[0],
             name: 'file',
-            formData: { courseName: this.courseName },
+            formData: this.roomKey(),
             header: { 'Authorization': 'Bearer ' + uni.getStorageSync('token') },
             success: (up) => {
               try {
                 const data = JSON.parse(up.data)
                 if (data.url) {
-                  const url = '/uploads/chat/' + encodeURIComponent(this.courseName) + '/' + encodeURIComponent(data.fileName)
+                  // 直接用服务端返回的下载地址（上传目录按课程ID隔离，不能再自行拼接）
                   const api = require('@/utils/api.js')
-                  api.request('/api/chat/send', 'POST', { courseName: this.courseName, content: '[image]'+url, senderRole:'student' }).then(() => this.load())
+                  api.request('/api/chat/send', 'POST', { ...this.roomKey(), content: '[image]' + data.url, senderRole: 'student' }).then(() => this.load())
                 }
               } catch (e) {}
             }

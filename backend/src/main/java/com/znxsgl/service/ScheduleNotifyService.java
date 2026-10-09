@@ -79,6 +79,19 @@ public class ScheduleNotifyService {
                 teacherName = "教师";
             }
 
+            // 解析课程ID（聊天室键）：同名课程必须按「课程名 + 班级 + 教师」定位到唯一课程
+            Long courseId = firstLong(
+                    "SELECT c.id FROM course c " +
+                    "JOIN course_class cc ON cc.course_id = c.id " +
+                    "JOIN class_info ci ON ci.id = cc.class_id " +
+                    "WHERE c.course_name = ? AND ci.class_name = ? AND c.teacher_id = ? LIMIT 1",
+                    courseName, className, teacherId);
+            if (courseId == null) {
+                courseId = firstLong(
+                        "SELECT id FROM course WHERE course_name = ? AND teacher_id = ? ORDER BY id LIMIT 1",
+                        courseName, teacherId);
+            }
+
             // 生成排课摘要
             String scheduleSummary = buildScheduleSummary(slots);
             // 【课程通知】作为统一前缀，便于后续清理同一课程的历史通知，避免红点累积
@@ -138,9 +151,9 @@ public class ScheduleNotifyService {
 
                     // 第三层去重：数据库最近 5 分钟是否有完全相同内容的通知
                     Integer recentCount = jdbc.queryForObject(
-                            "SELECT COUNT(*) FROM chat_message WHERE course_name = ? AND user_id = ? " +
+                            "SELECT COUNT(*) FROM chat_message WHERE course_id <=> ? AND user_id = ? " +
                             "AND sender_role = 'teacher' AND content = ? AND created_at >= DATE_SUB(NOW(), INTERVAL 5 MINUTE)",
-                            Integer.class, courseName, sid, dbContent);
+                            Integer.class, courseId, sid, dbContent);
                     if (recentCount != null && recentCount > 0) {
                         System.out.println("=== 排课通知数据库去重跳过: sid=" + sid + ", recentCount=" + recentCount);
                         recentNotifyCache.put(cacheKey, now);
@@ -152,8 +165,8 @@ public class ScheduleNotifyService {
                     // 诊断：先打印该学生该课程下所有教师消息的内容前缀，便于排查异常数据
                     try {
                         List<String> oldContents = jdbc.queryForList(
-                                "SELECT content FROM chat_message WHERE course_name = ? AND user_id = ? " +
-                                "AND sender_role = 'teacher' LIMIT 50", String.class, courseName, sid);
+                                "SELECT content FROM chat_message WHERE course_id <=> ? AND user_id = ? " +
+                                "AND sender_role = 'teacher' LIMIT 50", String.class, courseId, sid);
                         if (oldContents.size() > 1) {
                             System.out.println("=== 排课通知诊断: sid=" + sid + ", 旧教师消息数=" + oldContents.size());
                             for (int i = 0; i < Math.min(oldContents.size(), 5); i++) {
@@ -167,20 +180,21 @@ public class ScheduleNotifyService {
                     }
 
                     int deleted = jdbc.update(
-                            "DELETE FROM chat_message WHERE course_name = ? AND user_id = ? " +
+                            "DELETE FROM chat_message WHERE course_id <=> ? AND user_id = ? " +
                             "AND sender_role = 'teacher' " +
                             "AND (content LIKE '%【课程通知】%' OR content LIKE '%排课已更新%' OR content LIKE '课程「%')",
-                            courseName, sid);
+                            courseId, sid);
                     // 插入新的排课通知
                     int inserted = jdbc.update(
-                            "INSERT INTO chat_message (course_name, user_id, sender_name, sender_role, content, created_at) " +
-                            "VALUES (?, ?, ?, 'teacher', ?, NOW())",
-                            courseName, sid, teacherName, dbContent);
+                            "INSERT INTO chat_message (course_name, course_id, user_id, sender_name, sender_role, content, created_at) " +
+                            "VALUES (?, ?, ?, ?, 'teacher', ?, NOW())",
+                            courseName, courseId, sid, teacherName, dbContent);
                     dbInserted += inserted;
                     System.out.println("=== 排课通知已落库: sid=" + sid + ", deletedOld=" + deleted + ", inserted=" + inserted);
 
                     // WebSocket 实时推送
                     Map<String, Object> wsData = new LinkedHashMap<>();
+                    wsData.put("courseId", courseId);
                     wsData.put("courseName", courseName);
                     wsData.put("content", toastContent);
                     wsData.put("scheduleInfo", scheduleSummary);
@@ -344,5 +358,11 @@ public class ScheduleNotifyService {
         }
         sb.append("周");
         return sb.toString();
+    }
+
+    /** 取首行首列（Long），无结果返回 null */
+    private Long firstLong(String sql, Object... args) {
+        List<Long> rows = jdbc.queryForList(sql, Long.class, args);
+        return rows.isEmpty() ? null : rows.get(0);
     }
 }
