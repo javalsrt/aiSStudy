@@ -5,11 +5,15 @@ import android.animation.AnimatorListenerAdapter;
 import android.animation.ObjectAnimator;
 import android.animation.ValueAnimator;
 import android.app.Dialog;
+import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
+import android.location.Location;
+import android.location.LocationListener;
+import android.location.LocationManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -28,6 +32,8 @@ import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 
 import com.znxsgl.student.R;
@@ -61,6 +67,7 @@ import retrofit2.Response;
 public class ScheduleFragment extends Fragment {
 
     private TextView tvWeekLabel, tvWeatherInfo, tvOnlineInfo, btnToday;
+    private HorizontalScrollView scrollWeeks;
     private LinearLayout containerWeeks, gridBody;
     private LinearLayout rowHeader;
     private HorizontalScrollView scrollGrid;
@@ -71,6 +78,24 @@ public class ScheduleFragment extends Fragment {
     private int maxWeekCount = 18;
     private int todayDayOfWeek = 1; // 1=周一 ... 7=周日
     private boolean isAnimating = false;
+    private Runnable weekAnimTimeout;
+
+    /** 统一减速插值（复用同一实例，避免反复 new） */
+    private static final android.view.animation.Interpolator DECELERATE =
+            new android.view.animation.DecelerateInterpolator();
+    /** 周次 → 课表数据缓存：切周秒开 + 相邻周预取；简易 LRU，容量 8 周 */
+    private static final int CACHE_LIMIT = 8;
+    private final java.util.Map<Integer, List<ScheduleItem>> weekCache =
+            java.util.Collections.synchronizedMap(new java.util.LinkedHashMap<>());
+
+    private void putCache(int week, List<ScheduleItem> data) {
+        synchronized (weekCache) {
+            weekCache.put(week, data);
+            if (weekCache.size() > CACHE_LIMIT) {
+                weekCache.remove(weekCache.keySet().iterator().next());
+            }
+        }
+    }
     private List<ScheduleItem> apiScheduleData = new ArrayList<>();
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -140,6 +165,7 @@ public class ScheduleFragment extends Fragment {
         tvOnlineInfo = view.findViewById(R.id.tv_online_info);
         btnToday = view.findViewById(R.id.btn_today);
         containerWeeks = view.findViewById(R.id.container_weeks);
+        scrollWeeks = view.findViewById(R.id.scroll_weeks);
         gridBody = view.findViewById(R.id.grid_body);
         rowHeader = view.findViewById(R.id.row_header);
         scrollGrid = view.findViewById(R.id.scroll_grid);
@@ -167,13 +193,13 @@ public class ScheduleFragment extends Fragment {
         // 加载当地天气（IP 定位 + Open-Meteo，30 分钟缓存）
         loadWeather();
 
-        // 边缘感知滑动切换周次：
-        // 平时横向滑动 = 正常滚动课表（周日也能看到）；
-        // 只有当课表已经滚到对应尽头（最左/最右）时再滑，才切换上一周/下一周。
+        // 周切换手势：边缘感知 + 跟手拖动。
+        // 平时横向滑动 = 正常滚动课表；课表滚到尽头后继续滑 = 内容跟手平移，
+        // 松手超过阈值即提交切周（整屏滑出 → 新课表同方向滑入），不足则弹回。
         scrollGrid.setOnTouchListener(new View.OnTouchListener() {
             private float startX, startY;
-            private boolean startAtRightEdge = false;
-            private boolean startAtLeftEdge = false;
+            private boolean dragEngaged = false;
+            private int dragDirection = 0; // 1=下一周(左滑) -1=上一周(右滑)
 
             @Override
             public boolean onTouch(View v, MotionEvent event) {
@@ -181,25 +207,77 @@ public class ScheduleFragment extends Fragment {
                     case MotionEvent.ACTION_DOWN:
                         startX = event.getX();
                         startY = event.getY();
-                        // 记录按下时表格是否已在尽头（-1=向左滚到头，1=向右滚到头）
-                        startAtRightEdge = !scrollGrid.canScrollHorizontally(1);
-                        startAtLeftEdge = !scrollGrid.canScrollHorizontally(-1);
+                        dragEngaged = false;
+                        dragDirection = 0;
                         break;
-                    case MotionEvent.ACTION_UP:
-                    case MotionEvent.ACTION_CANCEL:
-                        float totalDx = event.getX() - startX;
-                        float totalDy = event.getY() - startY;
-                        // 横向明显大于纵向才算滑动意图，避免误触
-                        if (Math.abs(totalDx) > 80 && Math.abs(totalDx) > Math.abs(totalDy) * 1.5f) {
-                            if (totalDx < 0 && startAtRightEdge && currentWeek < maxWeekCount) {
-                                animateWeekChange(1);   // 在最右端继续左滑 → 下一周
-                            } else if (totalDx > 0 && startAtLeftEdge && currentWeek > 1) {
-                                animateWeekChange(-1);  // 在最左端继续右滑 → 上一周
+                    case MotionEvent.ACTION_MOVE: {
+                        if (isAnimating) break;
+                        float dx = event.getX() - startX;
+                        float dy = event.getY() - startY;
+                        if (!dragEngaged) {
+                            if (Math.abs(dx) < dp(24) || Math.abs(dx) <= Math.abs(dy)) break;
+                            boolean atRightEdge = !scrollGrid.canScrollHorizontally(1);
+                            boolean atLeftEdge = !scrollGrid.canScrollHorizontally(-1);
+                            if (dx < 0 && atRightEdge) dragDirection = 1;
+                            else if (dx > 0 && atLeftEdge) dragDirection = -1;
+                            if (dragDirection != 0) {
+                                dragEngaged = true;
+                                View c0 = scrollGrid.getChildAt(0);
+                                if (c0 != null) c0.animate().cancel();
                             }
+                        } else {
+                            // 跟手：前 1/4 屏宽线性，之后阻尼衰减到 35%，形成"拉不动"的边界感
+                            View content = scrollGrid.getChildAt(0);
+                            if (content == null) break;
+                            float raw = dx * 0.6f;
+                            float limit = scrollGrid.getWidth() * 0.25f;
+                            float tx = Math.abs(raw) <= limit ? raw
+                                    : Math.signum(raw) * (limit + (Math.abs(raw) - limit) * 0.35f);
+                            content.setTranslationX(tx);
+                            float p = Math.min(1f, Math.abs(tx) / Math.max(1, scrollGrid.getWidth()));
+                            content.setAlpha(1f - 0.3f * p);
                         }
                         break;
+                    }
+                    case MotionEvent.ACTION_UP:
+                    case MotionEvent.ACTION_CANCEL: {
+                        float totalDx = event.getX() - startX;
+                        float totalDy = event.getY() - startY;
+                        if (dragEngaged) {
+                            View content = scrollGrid.getChildAt(0);
+                            if (content != null) {
+                                int w = scrollGrid.getWidth();
+                                float tx = content.getTranslationX();
+                                boolean valid = dragDirection > 0 ? currentWeek < maxWeekCount : currentWeek > 1;
+                                if (valid && Math.abs(tx) > w * 0.2f) {
+                                    commitWeekChange(dragDirection, tx);
+                                } else {
+                                    // 未达阈值：弹回原位，时长随位移自适应（拖得少回得快）
+                                    long backMs = Math.round(120 + 80 * Math.min(1f,
+                                            Math.abs(tx) / Math.max(1f, w * 0.25f)));
+                                    content.animate().translationX(0f).alpha(1f)
+                                            .setDuration(backMs)
+                                            .setInterpolator(DECELERATE)
+                                            .start();
+                                }
+                            }
+                        } else if (Math.abs(totalDx) > 80
+                                && Math.abs(totalDx) > Math.abs(totalDy) * 1.5f) {
+                            // 未进入跟手（不在边缘）但意图明确：保留轻扫快速切换
+                            boolean atRightEdge = !scrollGrid.canScrollHorizontally(1);
+                            boolean atLeftEdge = !scrollGrid.canScrollHorizontally(-1);
+                            if (totalDx < 0 && atRightEdge && currentWeek < maxWeekCount) {
+                                commitWeekChange(1, 0);
+                            } else if (totalDx > 0 && atLeftEdge && currentWeek > 1) {
+                                commitWeekChange(-1, 0);
+                            }
+                        }
+                        dragEngaged = false;
+                        dragDirection = 0;
+                        break;
+                    }
                 }
-                // 始终不消费事件，把滚动交还给 HorizontalScrollView
+                // 始终不消费事件，滚动仍由 HorizontalScrollView 处理（在边缘时它自然不动）
                 return false;
             }
         });
@@ -214,10 +292,14 @@ public class ScheduleFragment extends Fragment {
         loadOnlineInfo();
     }
 
-    // ========== 滑动切换动画 ==========
-    private void animateWeekChange(int direction) {
+    // ========== 周切换动画（滑出 → 换数据 → 整屏同方向滑入） ==========
+    private void commitWeekChange(int direction, float startTx) {
         if (isAnimating || scrollGrid == null || scrollGrid.getWidth() <= 0) {
-            // 降级：无动画
+            // 降级：无动画，但需复位内容位置/透明度，避免残留半路动画
+            if (scrollGrid != null && scrollGrid.getChildAt(0) != null) {
+                scrollGrid.getChildAt(0).setTranslationX(0);
+                scrollGrid.getChildAt(0).setAlpha(1f);
+            }
             currentWeek += direction;
             refreshAll();
             scrollGrid.post(() -> scrollGrid.scrollTo(0, 0));
@@ -227,22 +309,63 @@ public class ScheduleFragment extends Fragment {
         View content = scrollGrid.getChildAt(0);
         int w = scrollGrid.getWidth();
 
+        // 兜底超时：任何环节异常都不让手势锁死
+        if (weekAnimTimeout != null) mainHandler.removeCallbacks(weekAnimTimeout);
+        weekAnimTimeout = () -> {
+            isAnimating = false;
+            resetContent();
+        };
+        mainHandler.postDelayed(weekAnimTimeout, 3000);
+
+        // 滑出时长随已拖动距离衰减
+        float progress = Math.min(1f, Math.abs(startTx) / Math.max(1, w));
+        long outDuration = Math.max(120L, Math.round(220L * (1f - progress)));
+
         content.animate()
-            .translationX(-direction * w * 0.5f)
-            .alpha(0.3f)
-            .setDuration(120)
+            .translationX(-direction * w)
+            .alpha(0f)
+            .setDuration(outDuration)
+            .setInterpolator(DECELERATE)
             .setListener(new AnimatorListenerAdapter() {
                 @Override public void onAnimationEnd(Animator a) {
+                    content.animate().setListener(null);
                     currentWeek += direction;
                     buildHeader();
                     buildWeekSelector();
-                    // 预置到对面
-                    content.setTranslationX(direction * w * 0.5f);
-                    fetchScheduleAnimated(currentWeek, content, direction, w);
-                    // 切周后回到最左（周一），避免停留在边缘导致反向滑动误判
-                    scrollGrid.post(() -> scrollGrid.smoothScrollTo(0, 0));
+                    // 新课表从滑动方向的对侧整屏预备，瞬时回到周一列
+                    content.setTranslationX(direction * w);
+                    content.setAlpha(1f);
+                    scrollGrid.scrollTo(0, 0);
+                    // 整屏滑入：滑入结束即解锁手势，数据晚到只替换格子
+                    content.animate()
+                            .translationX(0)
+                            .setDuration(240)
+                            .setInterpolator(DECELERATE)
+                            .setListener(new AnimatorListenerAdapter() {
+                                @Override public void onAnimationEnd(Animator a) {
+                                    content.animate().setListener(null);
+                                    isAnimating = false;
+                                    if (weekAnimTimeout != null) mainHandler.removeCallbacks(weekAnimTimeout);
+                                }
+                            }).start();
+                    // 缓存命中 → 立即渲染真实数据（零等待）；未命中 → 数据到位后淡入
+                    List<ScheduleItem> cached = weekCache.get(currentWeek);
+                    if (cached != null) {
+                        apiScheduleData = cached;
+                        buildScheduleGrid();
+                    }
+                    loadWeek(currentWeek, false, cached == null);
                 }
             }).start();
+    }
+
+    /** 复位内容位移/透明度（异常兜底） */
+    private void resetContent() {
+        View content = scrollGrid == null ? null : scrollGrid.getChildAt(0);
+        if (content == null) return;
+        content.animate().cancel();
+        content.setTranslationX(0);
+        content.setAlpha(1f);
     }
 
     // ========== API 请求 ==========
@@ -352,28 +475,85 @@ public class ScheduleFragment extends Fragment {
     }
 
     private void fetchSchedule(int week) {
-        fetchScheduleAnimated(week, null, 0, 0);
+        loadWeek(week, true, false);
     }
 
-    private void fetchScheduleAnimated(int week, View content, int direction, int width) {
-        // 进入加载态：非切周动画时展示骨架屏（切周有滑动过渡，不叠加骨架）
-        showSkeleton(content == null);
-        SharedPreferences prefs = requireActivity().getSharedPreferences("znxsgl", 0);
-        String token = prefs.getString("token", "");
-
+    /**
+     * 加载指定周次课表。
+     * @param withSkeleton 展示骨架屏（首次进入 / 手动刷新）
+     * @param fadeIn       数据到位后格子淡入（切周且无缓存时用，避免"跳一下"）
+     */
+    private void loadWeek(int week, boolean withSkeleton, boolean fadeIn) {
+        showSkeleton(withSkeleton);
+        String token = requireActivity().getSharedPreferences("znxsgl", 0).getString("token", "");
         ApiService api = RetrofitClient.getInstance().create(ApiService.class);
-        // 先取作息（按当前周单双周解析），再取课表，保证节次轴与课程一致
+        // 先取作息（按周解析单双周），再取课表，保证节次轴与课程一致
         api.getBellToday("Bearer " + token, week).enqueue(new Callback<Map<String, Object>>() {
             @Override
             public void onResponse(Call<Map<String, Object>> call, Response<Map<String, Object>> resp) {
                 parseBellPeriods(resp.body());
-                fetchScheduleInner(week, content, direction, width, token, api);
+                loadSchedule(week, token, api, fadeIn);
             }
             @Override
             public void onFailure(Call<Map<String, Object>> call, Throwable t) {
-                fetchScheduleInner(week, content, direction, width, token, api);
+                loadSchedule(week, token, api, fadeIn);
             }
         });
+    }
+
+    private void loadSchedule(int week, String token, ApiService api, boolean fadeIn) {
+        api.getStudentSchedule("Bearer " + token, week, currentSemester)
+            .enqueue(new Callback<List<ScheduleItem>>() {
+                @Override
+                public void onResponse(Call<List<ScheduleItem>> call, Response<List<ScheduleItem>> resp) {
+                    List<ScheduleItem> data = resp.isSuccessful() && resp.body() != null
+                            ? resp.body() : new ArrayList<>();
+                    applyWeekData(week, data, fadeIn);
+                    prefetchAdjacent(week, token, api);
+                }
+                @Override
+                public void onFailure(Call<List<ScheduleItem>> call, Throwable t) {
+                    Toast.makeText(RetrofitClient.safeContext(getContext()), "无法连接服务器",
+                            Toast.LENGTH_SHORT).show();
+                    applyWeekData(week, new ArrayList<>(), false);
+                }
+            });
+    }
+
+    /** 数据落地：先入缓存；非当前周的响应只入缓存不渲染（避免快速连续切周时被过期数据覆盖） */
+    private void applyWeekData(int week, List<ScheduleItem> data, boolean fadeIn) {
+        putCache(week, data);
+        if (week != currentWeek) return;
+        mainHandler.post(() -> {
+            if (week != currentWeek) return;
+            apiScheduleData = data;
+            buildScheduleGrid();
+            showSkeleton(false);
+            if (fadeIn) fadeInGrid();
+        });
+    }
+
+    /** 预取相邻周：用户滑动前数据已在缓存中，实现秒切 */
+    private void prefetchAdjacent(int week, String token, ApiService api) {
+        for (int w : new int[]{week - 1, week + 1}) {
+            if (w < 1 || w > maxWeekCount || weekCache.containsKey(w)) continue;
+            api.getStudentSchedule("Bearer " + token, w, currentSemester)
+                .enqueue(new Callback<List<ScheduleItem>>() {
+                    @Override
+                    public void onResponse(Call<List<ScheduleItem>> call, Response<List<ScheduleItem>> resp) {
+                        if (resp.isSuccessful() && resp.body() != null) putCache(w, resp.body());
+                    }
+                    @Override public void onFailure(Call<List<ScheduleItem>> call, Throwable t) { }
+                });
+        }
+    }
+
+    /** 数据到位后的柔和替换（旧格子占位 → 新数据淡入，消除"跳变"） */
+    private void fadeInGrid() {
+        View content = scrollGrid == null ? null : scrollGrid.getChildAt(0);
+        if (content == null) return;
+        content.setAlpha(0.65f);
+        content.animate().alpha(1f).setDuration(120).setInterpolator(DECELERATE).start();
     }
 
     /** 解析作息接口的 periods，动态生成节次轴 */
@@ -400,49 +580,6 @@ public class ScheduleFragment extends Fragment {
             slots = Arrays.copyOfRange(arr, 0, idx);
         } catch (Exception ignored) {
         }
-    }
-
-    private void fetchScheduleInner(int week, View content, int direction, int width,
-                                    String token, ApiService api) {
-        api.getStudentSchedule("Bearer " + token, week, currentSemester).enqueue(new Callback<List<ScheduleItem>>() {
-            @Override
-            public void onResponse(Call<List<ScheduleItem>> call, Response<List<ScheduleItem>> resp) {
-                if (resp.isSuccessful() && resp.body() != null) {
-                    apiScheduleData = resp.body();
-                } else {
-                    apiScheduleData = new ArrayList<>();
-                }
-                mainHandler.post(() -> {
-                    buildScheduleGrid();
-                    showSkeleton(false);
-                    if (content != null) {
-                        content.animate()
-                            .translationX(0).alpha(1f)
-                            .setDuration(150)
-                            .setListener(new AnimatorListenerAdapter() {
-                                @Override public void onAnimationEnd(Animator a) {
-                                    isAnimating = false;
-                                }
-                            }).start();
-                    }
-                });
-            }
-            @Override
-            public void onFailure(Call<List<ScheduleItem>> call, Throwable t) {
-                apiScheduleData = new ArrayList<>();
-                mainHandler.post(() -> {
-                    Toast.makeText(RetrofitClient.safeContext(getContext()), "无法连接服务器", Toast.LENGTH_SHORT).show();
-                    buildScheduleGrid();
-                    showSkeleton(false);
-                    if (content != null) {
-                        content.animate().translationX(0).alpha(1f).setDuration(150)
-                            .setListener(new AnimatorListenerAdapter() {
-                                @Override public void onAnimationEnd(Animator a) { isAnimating = false; }
-                            }).start();
-                    }
-                });
-            }
-        });
     }
 
     // ========== 计算当前周 ==========
@@ -476,24 +613,28 @@ public class ScheduleFragment extends Fragment {
     // ========== 表头 ==========
     private void buildHeader() {
         rowHeader.removeAllViews();
+        // 与课表行相同的左右内边距，保证列对齐
+        rowHeader.setPadding(dp(2), 0, dp(2), 0);
         int todayIdx = todayDayOfWeek - 1; // 0索引
         // 节次列
         TextView timeHeader = createHeaderCell("节次", 0xFF8E8E93, dp(36));
         timeHeader.setBackgroundColor(0xFFF5F5F7);
         rowHeader.addView(timeHeader);
-        
+
         // 周一到周日，带日期和高亮
         // 日期锚定开学日所在自然周的周一 + 当前周次，对齐真实星期几，与上传/查看日期无关
         Calendar cal = getWeekMonday(currentWeek);
         SimpleDateFormat sdf = new SimpleDateFormat("M/d", Locale.CHINA);
-        
+
         for (int i = 0; i < 7; i++) {
             String dateStr = sdf.format(cal.getTime());
             String label = DAY_NAMES[i] + "\n" + dateStr;
             boolean isToday = isTodayInWeek(currentWeek) && (i == todayIdx);
-            
+
             LinearLayout cell = new LinearLayout(getContext());
-            cell.setLayoutParams(new LinearLayout.LayoutParams(0, dp(36), 1));
+            LinearLayout.LayoutParams hlp = new LinearLayout.LayoutParams(0, dp(36), 1);
+            hlp.setMargins(dp(2), 0, dp(2), 0); // 与课格左右间距一致，列列对齐
+            cell.setLayoutParams(hlp);
             cell.setOrientation(LinearLayout.VERTICAL);
             cell.setGravity(Gravity.CENTER);
             cell.setBackgroundColor(isToday ? 0xFFE8F0FE : 0x00000000);
@@ -602,6 +743,16 @@ public class ScheduleFragment extends Fragment {
             tv.setOnClickListener(v -> { currentWeek = week; refreshAll(); });
             containerWeeks.addView(tv);
         }
+
+        // 自动滚动到当前周，保证蓝色圆框完整可见（居中显示）
+        if (scrollWeeks != null) {
+            scrollWeeks.post(() -> {
+                View sel = containerWeeks.getChildAt(Math.max(0, currentWeek - 1));
+                if (sel == null) return;
+                int target = sel.getLeft() + sel.getWidth() / 2 - scrollWeeks.getWidth() / 2;
+                scrollWeeks.smoothScrollTo(Math.max(0, target), 0);
+            });
+        }
     }
 
     // ========== 课表网格 ==========
@@ -654,6 +805,8 @@ public class ScheduleFragment extends Fragment {
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1);
         rp.setMargins(0, dp(2), 0, dp(2));
         row.setLayoutParams(rp); row.setOrientation(LinearLayout.HORIZONTAL);
+        // 左右各 2dp，与表头/休息分隔条对齐，保证两侧边距一致
+        row.setPadding(dp(2), 0, dp(2), 0);
 
         // 时间列
         LinearLayout timeCol = new LinearLayout(getContext());
@@ -688,7 +841,7 @@ public class ScheduleFragment extends Fragment {
         LinearLayout cell = new LinearLayout(getContext());
         LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0,
                 LinearLayout.LayoutParams.MATCH_PARENT, 1);
-        cp.setMargins(dp(1), 0, dp(1), 0);
+        cp.setMargins(dp(2), 0, dp(2), 0);
         cell.setLayoutParams(cp);
         cell.setOrientation(LinearLayout.VERTICAL);
         cell.setGravity(Gravity.CENTER);
@@ -741,8 +894,10 @@ public class ScheduleFragment extends Fragment {
                 cell.addView(tvRoom);
             }
         } else {
+            // 空格子：淡灰可见但不抢眼；今天列用浅蓝高亮（覆盖前避免丢失）
             GradientDrawable bg = new GradientDrawable();
-            bg.setColor(0xFFFAFAFA); bg.setCornerRadius(dp(6));
+            bg.setColor(isToday ? 0xFFE5F1FF : 0xFFF5F6F8);
+            bg.setCornerRadius(dp(6));
             cell.setBackground(bg);
         }
         return cell;
@@ -754,7 +909,7 @@ public class ScheduleFragment extends Fragment {
                 LinearLayout.LayoutParams.MATCH_PARENT, dp(26)));
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(4), 0, dp(8), 0);
+        row.setPadding(dp(2), 0, dp(2), 0);
 
         View spacer = new View(getContext());
         spacer.setLayoutParams(new LinearLayout.LayoutParams(dp(36), dp(1)));
@@ -922,6 +1077,7 @@ public class ScheduleFragment extends Fragment {
                 } else {
                     maxWeekCount = 18;
                 }
+                weekCache.clear(); // 缓存的课表数据属于旧学期，必须失效
                 currentWeek = getCurrentWeek();
                 buildWeekSelector();
                 buildHeader();
@@ -954,6 +1110,9 @@ public class ScheduleFragment extends Fragment {
     private static long cachedWeatherAt = 0L;
     private static final long WEATHER_CACHE_MS = 30 * 60 * 1000L;
 
+    /** 是否已发起过定位权限申请（每次会话只弹一次） */
+    private boolean locationAsked = false;
+
     private void loadWeather() {
         if (tvWeatherInfo == null) return;
         long now = System.currentTimeMillis();
@@ -962,8 +1121,26 @@ public class ScheduleFragment extends Fragment {
             return;
         }
         tvWeatherInfo.setText(dayGreeting());
+        // 定位策略：手机系统定位（GPS/网络，区县级精准）优先；无权限或无定位结果时降级 IP 定位
+        ensureLocationPermission();
+        final Context appCtx = isAdded() ? requireContext().getApplicationContext() : null;
         executor.execute(() -> {
-            String text = fetchWeatherText();
+            // 只显示温度：定位链（系统定位 → pconline IP → ip-api → 默认北京）用于保证温度与实际所在地匹配
+            double lat, lon;
+            double[] dev = appCtx != null ? getDeviceLocation(appCtx) : null;
+            if (dev != null) {
+                lat = dev[0]; lon = dev[1];
+            } else {
+                String[] ip = locateByIpChina();
+                if (ip == null) ip = locateByIp();
+                if (ip != null) {
+                    lat = Double.parseDouble(ip[0]);
+                    lon = Double.parseDouble(ip[1]);
+                } else {
+                    lat = 39.9042; lon = 116.4074;
+                }
+            }
+            String text = fetchWeatherText(lat, lon);
             if (text != null) {
                 cachedWeatherText = text;
                 cachedWeatherAt = System.currentTimeMillis();
@@ -973,6 +1150,81 @@ public class ScheduleFragment extends Fragment {
                 if (tvWeatherInfo != null && isAdded()) tvWeatherInfo.setText(finalText);
             });
         });
+    }
+
+    /** 首次进入申请粗定位权限（用于天气地名精准到区县） */
+    private void ensureLocationPermission() {
+        if (locationAsked || !isAdded()) return;
+        locationAsked = true;
+        if (ContextCompat.checkSelfPermission(requireContext(),
+                android.Manifest.permission.ACCESS_COARSE_LOCATION)
+                != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(requireActivity(),
+                    new String[]{android.Manifest.permission.ACCESS_COARSE_LOCATION}, 9001);
+        }
+    }
+
+    /**
+     * 手机系统定位：优先取 30 分钟内的最近缓存位置（网络/GPS/被动），
+     * 无缓存时现场请求一次网络单次定位，最多等 3 秒。失败返回 null（走 IP 兜底）。
+     */
+    private double[] getDeviceLocation(Context ctx) {
+        try {
+            if (ContextCompat.checkSelfPermission(ctx,
+                    android.Manifest.permission.ACCESS_COARSE_LOCATION)
+                    != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                return null;
+            }
+            LocationManager lm = (LocationManager) ctx.getSystemService(Context.LOCATION_SERVICE);
+            if (lm == null) return null;
+            long fresh = System.currentTimeMillis() - 30 * 60 * 1000L;
+            Location best = null;
+            for (String provider : new String[]{
+                    LocationManager.NETWORK_PROVIDER, LocationManager.GPS_PROVIDER, LocationManager.PASSIVE_PROVIDER}) {
+                try {
+                    Location l = lm.getLastKnownLocation(provider);
+                    if (l != null && l.getTime() > fresh && (best == null || l.getTime() > best.getTime())) {
+                        best = l;
+                    }
+                } catch (Exception ignored) {
+                }
+            }
+            if (best != null) return new double[]{best.getLatitude(), best.getLongitude()};
+            // 无缓存位置：单次定位，3 秒超时
+            final java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
+            final Location[] box = new Location[1];
+            final LocationListener[] listenerBox = new LocationListener[1];
+            try {
+                listenerBox[0] = l -> {
+                    box[0] = l;
+                    latch.countDown();
+                };
+                lm.requestSingleUpdate(LocationManager.NETWORK_PROVIDER, listenerBox[0], Looper.getMainLooper());
+            } catch (Exception ignored) {
+            }
+            try {
+                latch.await(3, java.util.concurrent.TimeUnit.SECONDS);
+            } catch (InterruptedException ignored) {
+            }
+            try {
+                if (listenerBox[0] != null) lm.removeUpdates(listenerBox[0]);
+            } catch (Exception ignored) {
+            }
+            if (box[0] != null) return new double[]{box[0].getLatitude(), box[0].getLongitude()};
+            return null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        // 授权成功后立刻刷新一次天气（改为系统定位）
+        if (requestCode == 9001) {
+            cachedWeatherAt = 0;
+            loadWeather();
+        }
     }
 
     /** 按当前时段返回问候语：早上 / 中午 / 下午 / 半晚 / 夜晚 */
@@ -993,13 +1245,9 @@ public class ScheduleFragment extends Fragment {
         return android.graphics.Color.rgb(r, g, b);
     }
 
-    /** 请求 Open-Meteo 当前天气，返回如「南宁武鸣区 ☀️ 33°C」；失败返回 null */
-    private String fetchWeatherText() {
+    /** 用给定经纬度请求天气，返回如「33°C」；失败返回 null */
+    private String fetchWeatherText(double lat, double lon) {
         try {
-            String[] loc = locateByIp();
-            double lat = loc != null ? Double.parseDouble(loc[0]) : 39.9042;
-            double lon = loc != null ? Double.parseDouble(loc[1]) : 116.4074;
-            String fallbackCity = loc != null && loc.length > 2 ? loc[2] : "";
             URL url = new URL("https://api.open-meteo.com/v1/forecast?latitude=" + lat
                     + "&longitude=" + lon
                     + "&current=temperature_2m,weather_code&timezone=auto");
@@ -1010,20 +1258,84 @@ public class ScheduleFragment extends Fragment {
                 JSONObject obj = new JSONObject(readAll(conn));
                 JSONObject cur = obj.getJSONObject("current");
                 double temp = cur.getDouble("temperature_2m");
-                int code = cur.optInt("weather_code", -1);
-                String place = fetchDistrictName(lat, lon, fallbackCity);
-                String icon = weatherEmoji(code);
-                StringBuilder sb = new StringBuilder();
-                if (!place.isEmpty()) sb.append(place).append(" ");
-                if (!icon.isEmpty()) sb.append(icon).append(" ");
-                sb.append(Math.round(temp)).append("°C");
-                return sb.toString();
+                return Math.round(temp) + "°C";
             } finally {
                 conn.disconnect();
             }
         } catch (Exception e) {
             return null;
         }
+    }
+
+    /** 国内可达的 IP 定位：pconline 返回省/市名，open-meteo 地理编码换经纬度。
+     *  返回 {lat, lon, 城市地名}，失败返回 null */
+    private String[] locateByIpChina() {
+        try {
+            URL url = new URL("https://whois.pconline.com.cn/ipJson.jsp?json=true");
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setConnectTimeout(4000);
+            conn.setReadTimeout(4000);
+            String pro = "", city = "", region = "";
+            try {
+                // pconline 返回 GBK 编码
+                BufferedReader br = new BufferedReader(
+                        new InputStreamReader(conn.getInputStream(), "GBK"));
+                StringBuilder sb = new StringBuilder();
+                String line;
+                while ((line = br.readLine()) != null) sb.append(line);
+                JSONObject obj = new JSONObject(sb.toString());
+                pro = obj.optString("pro", "");
+                city = obj.optString("city", "");
+                region = obj.optString("region", "");
+            } finally {
+                conn.disconnect();
+            }
+
+            String cityName = !city.isEmpty() ? city
+                    : (pro.endsWith("省") || pro.endsWith("市") ? pro.substring(0, pro.length() - 1) : pro);
+            if (cityName.isEmpty()) return null;
+            String place = cityName + region;
+
+            double[] xy = geocodeCity(cityName);
+            if (xy == null) xy = geocodeCity(pro);
+            if (xy == null) return null;
+            return new String[]{String.valueOf(xy[0]), String.valueOf(xy[1]), place};
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /** open-meteo 地理编码：城市/区县名 → 经纬度；区县名搜不到时去掉"区/县/市"后缀重试 */
+    private double[] geocodeCity(String name) {
+        if (name == null || name.isEmpty()) return null;
+        double[] r = geocodeCityOnce(name);
+        if (r == null && (name.endsWith("区") || name.endsWith("县") || name.endsWith("市"))) {
+            r = geocodeCityOnce(name.substring(0, name.length() - 1));
+        }
+        return r;
+    }
+
+    private double[] geocodeCityOnce(String name) {
+        if (name == null || name.isEmpty()) return null;
+        try {
+            URL url = new URL("https://geocoding-api.open-meteo.com/v1/search?name="
+                    + java.net.URLEncoder.encode(name, "UTF-8") + "&count=1&language=zh&format=json");
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setConnectTimeout(4000);
+            conn.setReadTimeout(4000);
+            try {
+                JSONObject obj = new JSONObject(readAll(conn));
+                org.json.JSONArray results = obj.optJSONArray("results");
+                if (results != null && results.length() > 0) {
+                    JSONObject first = results.getJSONObject(0);
+                    return new double[]{first.getDouble("latitude"), first.getDouble("longitude")};
+                }
+            } finally {
+                conn.disconnect();
+            }
+        } catch (Exception ignored) {
+        }
+        return null;
     }
 
     /** 通过 IP 粗定位获取经纬度与城市名（无需定位权限），失败返回 null */

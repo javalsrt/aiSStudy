@@ -737,6 +737,11 @@ a { color: inherit; text-decoration: none; }
 .am-opt { font-size: 10px; line-height: 1.5; color: var(--ink); background: #fff;
   border: 1px solid #e8eaf1; border-radius: 9px; padding: 8px 11px; margin-bottom: 7px; }
 .am-opt.on { background: #5b58ff; border-color: #5b58ff; color: #fff; box-shadow: 0 6px 16px rgba(91,88,255,.35); }
+/* 简答题解析卡片 */
+.am-ans { background: #eef2ff; border-radius: 9px; padding: 9px 11px; margin-bottom: 7px; }
+.am-ans b { display: block; font-size: 10px; color: #5b58ff; margin-bottom: 4px; }
+.am-ans p { font-size: 10px; line-height: 1.6; color: var(--ink); margin: 0 0 4px; }
+.am-ans p:last-child { margin-bottom: 0; }
 .am-submit { margin-top: auto; padding: 11px 0; text-align: center; border-radius: 999px;
   background: #5b58ff; color: #fff; font-size: 12px; font-weight: 600; letter-spacing: 2px;
   box-shadow: 0 8px 20px rgba(91,88,255,.35); }

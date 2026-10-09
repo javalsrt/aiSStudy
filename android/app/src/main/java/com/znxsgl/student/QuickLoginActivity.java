@@ -43,7 +43,7 @@ public class QuickLoginActivity extends AppCompatActivity {
     private static final String KEY_SAVED_PASSWORD = "saved_password";
 
     private TextView tvBrandName, tvBrandDesc, tvUsername, tvAvatar, tvAgree, tvSwitchAccount;
-    private Button btnQuickLogin;
+    private View cardQuickLogin;
     private ProgressBar progressBar;
     private CheckBox cbAgree;
     private ApiService apiService;
@@ -84,7 +84,7 @@ public class QuickLoginActivity extends AppCompatActivity {
         tvAvatar.setText(displayName.isEmpty() ? "学" : String.valueOf(displayName.charAt(0)));
         tvAgree = findViewById(R.id.tv_agree);
         tvSwitchAccount = findViewById(R.id.tv_switch_account);
-        btnQuickLogin = findViewById(R.id.btn_quick_login);
+        cardQuickLogin = findViewById(R.id.card_quick_login);
         progressBar = findViewById(R.id.progress_bar);
         cbAgree = findViewById(R.id.cb_agree);
 
@@ -95,14 +95,11 @@ public class QuickLoginActivity extends AppCompatActivity {
 
         tvUsername.setText(savedUsername);
 
-        // 协议未勾选时一键登录按钮禁用
-        btnQuickLogin.setEnabled(false);
-        updateQuickLoginButtonState();
-        cbAgree.setOnCheckedChangeListener((buttonView, isChecked) -> updateQuickLoginButtonState());
-
+        // 协议默认勾选；未勾选时点击卡片会提示
         setupAgreementText();
 
-        btnQuickLogin.setOnClickListener(v -> attemptQuickLogin());
+        // 点击卡片即一键登录
+        cardQuickLogin.setOnClickListener(v -> attemptQuickLogin());
         tvSwitchAccount.setOnClickListener(v -> {
             // 清空记住的账号密码，进入普通登录页
             prefs.edit()
@@ -115,10 +112,9 @@ public class QuickLoginActivity extends AppCompatActivity {
         });
     }
 
-    private void updateQuickLoginButtonState() {
-        boolean checked = cbAgree.isChecked();
-        btnQuickLogin.setEnabled(checked);
-        btnQuickLogin.setAlpha(checked ? 1f : 0.55f);
+    private void updateQuickLoginCardState() {
+        cardQuickLogin.setEnabled(cbAgree.isChecked());
+        cardQuickLogin.setAlpha(cbAgree.isChecked() ? 1f : 0.6f);
     }
 
     private void setupAgreementText() {
@@ -179,18 +175,16 @@ public class QuickLoginActivity extends AppCompatActivity {
             return;
         }
 
-        btnQuickLogin.setEnabled(false);
-        btnQuickLogin.setText(R.string.quick_login_loading);
+        cardQuickLogin.setEnabled(false); // 防止连点
         progressBar.setVisibility(View.VISIBLE);
 
         LoginRequest request = new LoginRequest(savedUsername, savedPassword);
         apiService.login(request).enqueue(new Callback<LoginResponse>() {
             @Override
             public void onResponse(Call<LoginResponse> call, retrofit2.Response<LoginResponse> response) {
-                btnQuickLogin.setEnabled(true);
-                btnQuickLogin.setText(R.string.quick_login_btn);
+                cardQuickLogin.setEnabled(true);
                 progressBar.setVisibility(View.GONE);
-                updateQuickLoginButtonState();
+                updateQuickLoginCardState();
 
                 if (response.isSuccessful() && response.body() != null) {
                     LoginResponse data = response.body();
@@ -225,10 +219,9 @@ public class QuickLoginActivity extends AppCompatActivity {
 
             @Override
             public void onFailure(Call<LoginResponse> call, Throwable t) {
-                btnQuickLogin.setEnabled(true);
-                btnQuickLogin.setText(R.string.quick_login_btn);
+                cardQuickLogin.setEnabled(true);
                 progressBar.setVisibility(View.GONE);
-                updateQuickLoginButtonState();
+                updateQuickLoginCardState();
                 Toast.makeText(QuickLoginActivity.this,
                         R.string.error_network + ": " + t.getMessage(), Toast.LENGTH_SHORT).show();
             }
