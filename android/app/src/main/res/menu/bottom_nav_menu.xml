@@ -6,7 +6,11 @@
     <item android:id="@+id/nav_focus"
         android:icon="@drawable/ic_focus"
         android:title="学习" />
+    <item android:id="@+id/nav_news"
+        android:icon="@drawable/ic_news"
+        android:title="资讯" />
     <item android:id="@+id/nav_profile"
         android:icon="@drawable/ic_profile"
         android:title="我的" />
+
 </menu>

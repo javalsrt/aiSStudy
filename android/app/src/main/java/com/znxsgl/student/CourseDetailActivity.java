@@ -93,10 +93,11 @@ public class CourseDetailActivity extends AppCompatActivity {
     };
 
     // WebSocket 聊天更新监听：教师/其他学生发消息实时刷新聊天记录
-    private final WebSocketManager.OnChatUpdateListener chatListener = (cn, senderName, content) -> {
-        if (courseName != null && courseName.equals(cn)) {
-            runOnUiThread(() -> loadMessages());
-        }
+    private final WebSocketManager.OnChatUpdateListener chatListener = (cid, cn, senderName, content) -> {
+        boolean mine = courseId > 0
+                ? (cid != null && cid == courseId)
+                : (courseName != null && courseName.equals(cn));
+        if (mine) runOnUiThread(() -> loadMessages());
     };
 
     @Override
@@ -154,8 +155,18 @@ public class CourseDetailActivity extends AppCompatActivity {
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        // 进入/返回该聊天窗口：声明"正在查看"（抑制红点与提示），并立即标记已读消除红点
+        MainActivity.setActiveChatCourse(courseId > 0 ? courseId : null);
+        markReadForCurrentCourse();
+    }
+
+    @Override
     protected void onDestroy() {
         super.onDestroy();
+        // 离开聊天页：恢复红点统计
+        MainActivity.setActiveChatCourse(null);
         // 取消当前页面的 WebSocket 监听
         WebSocketManager.getInstance().removeListener(wsListener);
         WebSocketManager.getInstance().removeChatListener(chatListener);

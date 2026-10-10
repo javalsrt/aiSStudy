@@ -37,7 +37,8 @@ public class WebSocketManager {
     }
 
     public interface OnChatUpdateListener {
-        void onChatUpdate(String courseName, String senderName, String content);
+        /** @param courseId 课程ID（聊天室唯一键，可能为 null）；courseName 仅用于展示 */
+        void onChatUpdate(Long courseId, String courseName, String senderName, String content);
     }
 
     private final List<OnScheduleUpdateListener> listeners = new ArrayList<>();
@@ -123,12 +124,14 @@ public class WebSocketManager {
                         }
                     } else if ("chat_update".equals(msgType)) {
                         Map<String, Object> data = (Map<String, Object>) msg.get("data");
+                        Object cidObj = data.get("courseId");
+                        Long courseId = cidObj instanceof Number ? ((Number) cidObj).longValue() : null;
                         String courseName = (String) data.get("courseName");
                         String senderName = (String) data.get("senderName");
                         String content = (String) data.get("content");
                         synchronized (chatListeners) {
                             for (OnChatUpdateListener l : chatListeners) {
-                                mainHandler.post(() -> l.onChatUpdate(courseName, senderName, content));
+                                mainHandler.post(() -> l.onChatUpdate(courseId, courseName, senderName, content));
                             }
                         }
                     }

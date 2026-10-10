@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 资讯条目：标题 + 分类/置顶 + 来源 · 日期 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="10dp"
+    android:orientation="vertical"
+    android:background="@drawable/bg_card_entry"
+    android:paddingHorizontal="16dp"
+    android:paddingVertical="14dp"
+    android:clickable="true"
+    android:focusable="true">
+
+    <TextView
+        android:id="@+id/tv_news_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="15sp"
+        android:textColor="@color/ink"
+        android:lineSpacingMultiplier="1.25"
+        android:maxLines="3"
+        android:ellipsize="end"
+        android:fontFamily="sans-serif-medium" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/tv_news_category"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingHorizontal="6dp"
+            android:paddingVertical="2dp"
+            android:textSize="10sp"
+            android:textColor="@color/primary"
+            android:background="@drawable/bg_tag_blue"
+            android:fontFamily="sans-serif-medium" />
+
+        <TextView
+            android:id="@+id/tv_news_top"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:paddingHorizontal="6dp"
+            android:paddingVertical="2dp"
+            android:text="置顶"
+            android:textSize="10sp"
+            android:textColor="@color/warning"
+            android:background="@drawable/bg_tag_orange"
+            android:visibility="gone"
+            android:fontFamily="sans-serif-medium" />
+
+        <TextView
+            android:id="@+id/tv_news_meta"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="8dp"
+            android:textSize="11sp"
+            android:textColor="@color/ink_subtle"
+            android:maxLines="1"
+            android:ellipsize="end" />
+    </LinearLayout>
+</LinearLayout>

@@ -60,6 +60,13 @@ public interface ApiService {
     Call<Map<String, Object>> getStudentContacts(
             @Header("Authorization") String token);
 
+    // 资讯：职教政策列表（标题 + 官方原文链接，点击外链跳转）
+    @GET("/api/news")
+    Call<com.znxsgl.student.model.NewsPage> getNews(
+            @Header("Authorization") String token,
+            @Query("page") int page,
+            @Query("size") int size);
+
     // 聊天（房间键：优先 courseId，同名课程互相隔离；courseName 接口保留兼容）
     @GET("/api/chat/{courseName}")
     Call<List<ChatMsgDto>> getChatMessages(

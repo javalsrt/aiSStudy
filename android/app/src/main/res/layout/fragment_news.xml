@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 「资讯」页：职教政策列表（标题 + 来源 + 官方原文外链） -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/canvas">
+
+    <!-- 页头 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="20dp"
+        android:paddingEnd="12dp"
+        android:paddingTop="18dp"
+        android:paddingBottom="10dp">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="资讯"
+                android:textSize="26sp"
+                android:textColor="@color/ink"
+                android:fontFamily="sans-serif-medium" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="职教政策 · 来源官方，点击看原文"
+                android:textSize="12sp"
+                android:textColor="@color/ink_subtle" />
+        </LinearLayout>
+
+        <ImageView
+            android:id="@+id/btn_refresh"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:padding="12dp"
+            android:src="@drawable/ic_refresh"
+            android:tint="@color/ink_subtle"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="刷新资讯"
+            android:clickable="true"
+            android:focusable="true" />
+    </LinearLayout>
+
+    <!-- 列表 / 加载 / 空态 -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rv_news"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:paddingHorizontal="16dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="104dp"
+            android:clipToPadding="false"
+            android:scrollbars="none"
+            android:overScrollMode="never" />
+
+        <ProgressBar
+            android:id="@+id/news_loading"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:layout_gravity="center"
+            android:visibility="gone"
+            android:indeterminateTint="@color/primary" />
+
+        <LinearLayout
+            android:id="@+id/news_empty"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:paddingHorizontal="40dp"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/tv_empty_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="暂无最新政策"
+                android:textSize="15sp"
+                android:textColor="@color/ink_muted"
+                android:fontFamily="sans-serif-medium" />
+
+            <TextView
+                android:id="@+id/tv_empty_hint"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:text="服务端会每 6 小时自动同步官方发布，稍后再来看看"
+                android:textSize="12sp"
+                android:textColor="@color/ink_subtle"
+                android:gravity="center" />
+        </LinearLayout>
+    </FrameLayout>
+</LinearLayout>

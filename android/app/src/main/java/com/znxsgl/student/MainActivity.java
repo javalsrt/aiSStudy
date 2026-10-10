@@ -11,15 +11,23 @@ import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentTransaction;
 
+import com.google.android.material.badge.BadgeDrawable;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.znxsgl.student.fragment.FocusFragment;
+import com.znxsgl.student.fragment.NewsFragment;
 import com.znxsgl.student.fragment.ScheduleFragment;
 import com.znxsgl.student.fragment.ProfileFragment;
+import com.znxsgl.student.network.ApiService;
 import com.znxsgl.student.network.RetrofitClient;
 import com.znxsgl.student.network.WebSocketManager;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -43,11 +51,7 @@ public class MainActivity extends AppCompatActivity {
         bottomNav = findViewById(R.id.bottom_nav);
         bottomNav.setOnItemSelectedListener(item -> {
             int id = item.getItemId();
-            // 进入「我的」即视为已读，清除红点
-            if (id == R.id.nav_profile) {
-                profileUnread = 0;
-                updateProfileBadge();
-            }
+            // 注意：不在切到「我的」时清红点——红点表示真实未读，进入对应课程聊天后才会消除
             // 答题中切换：先弹窗确认
             if (id != R.id.nav_focus && focusFragment != null && focusFragment.isQuizActive()) {
                 new android.app.AlertDialog.Builder(this)
@@ -74,6 +78,10 @@ public class MainActivity extends AppCompatActivity {
             return true;
         });
 
+        // 红点：聊天推送 + 未读接口统一驱动
+        registerChatBadgeListener();
+        refreshUnread();
+
         bottomNav.setSelectedItemId(R.id.nav_schedule);
     }
 
@@ -90,26 +98,88 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    // ========== 「我的」未读红点 ==========
-    private int profileUnread = 0;
+    // ========== 「我的」未读红点（唯一数据源：服务端 /api/chat/unread） ==========
+    private int unreadTotal = 0;
+    private WebSocketManager.OnChatUpdateListener chatBadgeListener;
 
-    /** 收到新消息时累加红点（供 WebSocket 回调调用） */
-    public void incrementProfileUnread() {
-        profileUnread++;
-        updateProfileBadge();
+    /**
+     * 当前正在查看的聊天课程ID。
+     * 非空表示用户已经在该课程的聊天窗口里，此时收到的消息不再计入红点、也不再弹提示。
+     */
+    private static Long activeChatCourseId = null;
+
+    /** 由课程聊天页在 onResume/onPause 调用 */
+    public static void setActiveChatCourse(Long courseId) {
+        activeChatCourseId = courseId;
     }
 
-    private void updateProfileBadge() {
+    public static Long getActiveChatCourseId() {
+        return activeChatCourseId;
+    }
+
+    /** 更新「我的」tab 红点（number = 未读消息总数） */
+    public void setUnreadTotal(int total) {
+        unreadTotal = Math.max(0, total);
         if (bottomNav == null) return;
-        if (profileUnread > 0) {
-            com.google.android.material.badge.BadgeDrawable badge =
-                    bottomNav.getOrCreateBadge(R.id.nav_profile);
+        if (unreadTotal > 0) {
+            BadgeDrawable badge = bottomNav.getOrCreateBadge(R.id.nav_profile);
             badge.setVisible(true);
             badge.setMaxCharacterCount(3);
-            badge.setNumber(Math.min(profileUnread, 99));
+            badge.setNumber(Math.min(unreadTotal, 99));
         } else {
             bottomNav.removeBadge(R.id.nav_profile);
         }
+    }
+
+    /**
+     * 拉取未读数：同时更新「我的」红点与课程列表红点。
+     * 进入/离开聊天页、收到聊天推送、回到 App 时都会调用，保证本地与服务端一致。
+     */
+    public void refreshUnread() {
+        String token = "Bearer " + getSharedPreferences("znxsgl", 0).getString("token", "");
+        ApiService api = RetrofitClient.getInstance().create(ApiService.class);
+        api.getUnreadChatCount(token).enqueue(new Callback<List<Map<String, Object>>>() {
+            @Override
+            public void onResponse(Call<List<Map<String, Object>>> call,
+                                   Response<List<Map<String, Object>>> resp) {
+                Map<Long, Integer> counts = new HashMap<>();
+                int total = 0;
+                if (resp.isSuccessful() && resp.body() != null) {
+                    for (Map<String, Object> row : resp.body()) {
+                        Object idObj = row.get("courseId");
+                        if (!(idObj instanceof Number)) continue;
+                        Object cnt = row.get("count");
+                        int n = cnt instanceof Number ? ((Number) cnt).intValue() : 0;
+                        counts.put(((Number) idObj).longValue(), n);
+                        total += n;
+                    }
+                }
+                setUnreadTotal(total);
+                ProfileFragment profile = findProfileFragment();
+                if (profile != null) profile.applyUnreadCounts(counts);
+            }
+
+            @Override
+            public void onFailure(Call<List<Map<String, Object>>> call, Throwable t) {
+            }
+        });
+    }
+
+    private ProfileFragment findProfileFragment() {
+        Fragment f = fragmentCache.get(R.id.nav_profile);
+        return f instanceof ProfileFragment ? (ProfileFragment) f : null;
+    }
+
+    /** 聊天推送：不在对应窗口时才刷新红点与课程列表 */
+    private void registerChatBadgeListener() {
+        chatBadgeListener = (courseId, courseName, senderName, content) -> runOnUiThread(() -> {
+            Long active = activeChatCourseId;
+            if (active != null && active.equals(courseId)) return; // 用户正在该聊天窗口，无需红点/提示
+            refreshUnread();
+            ProfileFragment profile = findProfileFragment();
+            if (profile != null) profile.loadCoursesIfAdded();
+        });
+        WebSocketManager.getInstance().addChatListener(chatBadgeListener);
     }
 
     private void connectWebSocket() {
@@ -121,9 +191,7 @@ public class MainActivity extends AppCompatActivity {
         ws.setListener((courseName, content, scheduleInfo) -> {
             runOnUiThread(() -> {
                 showScheduleToast(content);
-                // 「我的」tab 累加未读红点
-                incrementProfileUnread();
-                // 通知 ProfileFragment 刷新课程列表（红点状态）
+                // 通知 ProfileFragment 刷新课程列表（排课信息变化）
                 if (currentFragment instanceof ProfileFragment) {
                     ((ProfileFragment) currentFragment).loadCoursesIfAdded();
                 }
@@ -159,11 +227,16 @@ public class MainActivity extends AppCompatActivity {
         super.onResume();
         // 恢复状态栏颜色（防止系统重置）
         applyStatusBarForCurrentFragment();
+        // 从聊天页返回时同步未读（对应课程红点应已消除）
+        refreshUnread();
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        if (chatBadgeListener != null) {
+            WebSocketManager.getInstance().removeChatListener(chatBadgeListener);
+        }
         WebSocketManager.getInstance().disconnect();
     }
 
@@ -187,6 +260,7 @@ public class MainActivity extends AppCompatActivity {
         Fragment fragment;
         if (id == R.id.nav_schedule) fragment = new ScheduleFragment();
         else if (id == R.id.nav_profile) fragment = new ProfileFragment();
+        else if (id == R.id.nav_news) fragment = new NewsFragment();
         else {
             if (focusFragment == null) focusFragment = new FocusFragment();
             fragment = focusFragment;

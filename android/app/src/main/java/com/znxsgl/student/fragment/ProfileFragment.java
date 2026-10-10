@@ -20,6 +20,8 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.znxsgl.student.MainActivity;
+
 import com.znxsgl.student.widget.IOSSwitch;
 
 import androidx.annotation.NonNull;
@@ -826,35 +828,26 @@ public class ProfileFragment extends Fragment implements WebSocketManager.OnChat
         }
     }
 
-    /** 加载未读消息数 */
+    /** 刷新未读数：统一由 MainActivity 拉取后下发，避免重复请求 */
     private void loadUnreadCounts() {
-        String token = "Bearer " + prefs.getString("token", "");
-        ApiService api = RetrofitClient.getInstance().create(ApiService.class);
-        api.getUnreadChatCount(token).enqueue(new Callback<List<Map<String, Object>>>() {
-            @Override public void onResponse(Call<List<Map<String, Object>>> call,
-                                              Response<List<Map<String, Object>>> resp) {
-                if (!isAdded() || resp.body() == null) return;
-                unreadMap.clear();
-                for (Map<String, Object> row : resp.body()) {
-                    Object id = row.get("courseId");
-                    if (!(id instanceof Number)) continue;
-                    Object cnt = row.get("count");
-                    unreadMap.put(((Number) id).longValue(),
-                            cnt instanceof Number ? ((Number) cnt).intValue() : 0);
-                }
-                if (adapter != null) adapter.notifyDataSetChanged();
-            }
-            @Override public void onFailure(Call<List<Map<String, Object>>> call, Throwable t) {}
-        });
+        if (getActivity() instanceof MainActivity) {
+            ((MainActivity) getActivity()).refreshUnread();
+        }
+    }
+
+    /** 由 MainActivity 下发的最新未读数（key = 课程ID），同时驱动课程卡片红点 */
+    public void applyUnreadCounts(Map<Long, Integer> counts) {
+        unreadMap.clear();
+        if (counts != null) unreadMap.putAll(counts);
+        if (adapter != null) adapter.notifyDataSetChanged();
     }
 
     @Override
-    public void onChatUpdate(String courseName, String senderName, String content) {
-        // 收到实时推送后重新从服务端拉取未读数和课程列表，避免本地状态与后端不一致
-        loadUnreadCounts();
-        loadCourses();
-        // 可选：显示Toast提示
-        mainHandler.post(() ->
-            Toast.makeText(RetrofitClient.safeContext(getContext()), courseName + " 新消息: " + content, Toast.LENGTH_SHORT).show());
+    public void onChatUpdate(Long courseId, String courseName, String senderName, String content) {
+        // 用户正在该课程聊天窗口里：不弹提示（红点与列表由 MainActivity 统一处理）
+        Long active = MainActivity.getActiveChatCourseId();
+        if (active != null && active.equals(courseId)) return;
+        mainHandler.post(() -> Toast.makeText(RetrofitClient.safeContext(getContext()),
+                courseName + " 新消息: " + content, Toast.LENGTH_SHORT).show());
     }
 }
