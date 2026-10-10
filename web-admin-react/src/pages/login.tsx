@@ -207,6 +207,42 @@ export function LoginPage() {
               cycles={6}
             />
           </div>
+
+          {/* 底部合规信息：ICP备案 · 公安备案 · 举报邮箱 */}
+          <div className="mt-7 flex flex-col items-center gap-1 text-[11px] leading-5 text-neutral-400">
+            <a
+              href="https://beian.miit.gov.cn/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-neutral-600 transition-colors"
+            >
+              桂ICP备2026021376号
+            </a>
+            <a
+              href="https://beian.mps.gov.cn/#/query/webSearch?code=45070202002848"
+              rel="noreferrer"
+              target="_blank"
+              className="inline-flex items-center gap-1 hover:text-neutral-600 transition-colors"
+            >
+              <img
+                src="/gongan.png"
+                alt="公安备案图标"
+                width={14}
+                height={14}
+                className="block"
+              />
+              桂公网安备45070202002848号
+            </a>
+            <span>
+              举报邮箱：
+              <a
+                href="mailto:j2647046805@163.com"
+                className="hover:text-neutral-600 transition-colors"
+              >
+                j2647046805@163.com
+              </a>
+            </span>
+          </div>
         </div>
       </div>
     </div>

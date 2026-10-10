@@ -160,5 +160,8 @@
             android:textColor="@color/primary"
             android:fontFamily="@font/harmonyos_sans_sc_medium" />
 
+        <!-- 底部合规信息：ICP备案 · 公安备案 · 举报邮箱 -->
+        <include layout="@layout/include_login_legal" />
+
     </LinearLayout>
 </ScrollView>

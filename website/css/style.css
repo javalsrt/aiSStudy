@@ -456,6 +456,9 @@ a { color: inherit; text-decoration: none; }
 .footer-beian a:hover { color: rgba(255,255,255,.75); }
 .footer-beian .footer-mail { color: rgba(255,255,255,.4); margin: 0 10px; }
 .footer-beian .footer-mail a { margin: 0; }
+/* 公安备案：徽标 + 编号同行居中 */
+.footer-beian .footer-gongan { display: inline-flex; align-items: center; gap: 4px; vertical-align: middle; }
+.footer-beian .footer-badge { width: 20px; height: 20px; display: block; }
 
 /* ===== 滚动渐入 ===== */
 .reveal { opacity: 0; transform: translateY(28px); transition: opacity .7s ease, transform .7s ease; }

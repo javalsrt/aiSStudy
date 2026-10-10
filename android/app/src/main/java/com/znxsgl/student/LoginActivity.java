@@ -27,6 +27,7 @@ import com.znxsgl.student.model.LoginRequest;
 import com.znxsgl.student.model.LoginResponse;
 import com.znxsgl.student.network.ApiService;
 import com.znxsgl.student.network.RetrofitClient;
+import com.znxsgl.student.util.LegalLinks;
 
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -102,6 +103,9 @@ public class LoginActivity extends AppCompatActivity {
         cbAgree.setOnCheckedChangeListener((buttonView, isChecked) -> updateLoginButtonState());
 
         setupAgreementText();
+
+        // 底部合规信息（ICP备案 / 公安备案 / 举报邮箱）点击跳转
+        LegalLinks.bind(this);
 
         btnLogin.setOnClickListener(v -> attemptLogin());
     }

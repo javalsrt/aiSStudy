@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 登录页底部合规信息：ICP备案号 · 公安备案号（含徽标） · 举报邮箱
+     点击行为统一由 com.znxsgl.student.util.LegalLinks#bind 绑定 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="14dp"
+    android:orientation="vertical"
+    android:gravity="center_horizontal">
+
+    <TextView
+        android:id="@+id/tv_legal_icp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:padding="6dp"
+        android:text="桂ICP备2026021376号"
+        android:textSize="11sp"
+        android:textColor="@color/text_tertiary"
+        android:fontFamily="@font/harmonyos_sans_sc"
+        android:clickable="true"
+        android:focusable="true" />
+
+    <LinearLayout
+        android:id="@+id/layout_legal_gongan"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:padding="6dp"
+        android:clickable="true"
+        android:focusable="true">
+
+        <ImageView
+            android:layout_width="14dp"
+            android:layout_height="14dp"
+            android:src="@drawable/gongan_beian"
+            android:scaleType="fitCenter"
+            android:contentDescription="@null"
+            android:importantForAccessibility="no" />
+
+        <TextView
+            android:id="@+id/tv_legal_gongan"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:text="桂公网安备45070202002848号"
+            android:textSize="11sp"
+            android:textColor="@color/text_tertiary"
+            android:fontFamily="@font/harmonyos_sans_sc" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/tv_legal_mail"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:padding="6dp"
+        android:text="举报邮箱：j2647046805@163.com"
+        android:textSize="11sp"
+        android:textColor="@color/text_tertiary"
+        android:fontFamily="@font/harmonyos_sans_sc"
+        android:clickable="true"
+        android:focusable="true" />
+
+</LinearLayout>
