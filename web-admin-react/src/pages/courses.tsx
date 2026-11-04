@@ -78,12 +78,42 @@ const formatTime = (course: CourseItem) => {
   return parts.join(' ')
 }
 
-/** 时段字符串 → 紧凑标签：去掉秒、最多展示 2 个时段，其余折叠为 "+N 个时段"（悬停看全部） */
+/** 元信息：小号标签 + 值，超长省略，绝不换行堆叠 */
+function MetaItem({
+  label,
+  value,
+  chip,
+}: {
+  label: string
+  value?: string | null
+  chip?: boolean
+}) {
+  const text = value && String(value).trim() ? String(value) : '-'
+  return (
+    <div className="flex min-w-0 items-baseline gap-1.5">
+      <span className="shrink-0 text-[11px] text-neutral-400">{label}</span>
+      <span
+        className={
+          chip
+            ? 'truncate rounded-md bg-neutral-100 px-1.5 py-0.5 text-xs text-neutral-600 tabular-nums'
+            : 'max-w-[180px] truncate text-[13px] text-neutral-700'
+        }
+        title={text}
+      >
+        {text}
+      </span>
+    </div>
+  )
+}
+
+/** 时段字符串 → 紧凑标签：去掉秒与「等 N 个时段」后缀，最多展示 2 个时段，其余折叠 */
 function ScheduleCell({ text }: { text?: string }) {
   if (!text || text === '-') {
     return <span className="text-neutral-400">-</span>
   }
-  const items = text
+  // 后端 scheduleInfo 可能带「等 N 个时段」/「等N个时段」后缀，先剥离，避免污染标签
+  const cleaned = text.replace(/[，,]?\s*等\s*\d+\s*个?时段\s*$/, '').trim()
+  const items = cleaned
     .split(/[；;、]/)
     .map((s) => s.trim())
     .filter(Boolean)
@@ -454,168 +484,101 @@ export function CoursesPage() {
         <TabsContent value={activeTab} className="mt-6">
           {viewMode === 'list' ? (
             <Card>
-              <div className="overflow-x-auto">
+              <div className="overflow-hidden">
                 {/* 固定列宽 + table-fixed：避免表头/内容被挤压成竖排文字 */}
-                <table className="w-full table-fixed" style={{ minWidth: 1080 }}>
-                  <colgroup>
-                    <col style={{ width: 260 }} />
-                    {isAdmin && <col style={{ width: 96 }} />}
-                    <col style={{ width: 112 }} />
-                    <col style={{ width: 112 }} />
-                    <col />
-                    <col style={{ width: 108 }} />
-                    <col style={{ width: 124 }} />
-                    <col style={{ width: 168 }} />
-                  </colgroup>
-                  <thead>
-                    <tr className="border-b border-neutral-200 bg-neutral-50/60">
-                      <th className="text-left px-5 py-3 text-[11px] font-medium tracking-wide text-neutral-400 whitespace-nowrap">
-                        课程
-                      </th>
-                      {isAdmin && (
-                        <th className="text-left px-5 py-3 text-[11px] font-medium tracking-wide text-neutral-400 whitespace-nowrap">
-                          教师
-                        </th>
-                      )}
-                      <th className="text-left px-5 py-3 text-[11px] font-medium tracking-wide text-neutral-400 whitespace-nowrap">
-                        班级
-                      </th>
-                      <th className="text-left px-5 py-3 text-[11px] font-medium tracking-wide text-neutral-400 whitespace-nowrap">
-                        教室
-                      </th>
-                      <th className="text-left px-5 py-3 text-[11px] font-medium tracking-wide text-neutral-400 whitespace-nowrap">
-                        上课时间
-                      </th>
-                      <th className="text-left px-5 py-3 text-[11px] font-medium tracking-wide text-neutral-400 whitespace-nowrap">
-                        学期
-                      </th>
-                      <th className="text-left px-5 py-3 text-[11px] font-medium tracking-wide text-neutral-400 whitespace-nowrap">
-                        状态
-                      </th>
-                      <th className="text-right px-5 py-3 text-[11px] font-medium tracking-wide text-neutral-400 whitespace-nowrap">
-                        操作
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pagedCourses.map((course, idx) => {
-                      const active = course.status === 1
-                      const key = `${course.courseName}-${idx}`
-                      return (
-                        <tr
-                          key={key}
-                          className="border-b border-neutral-100 last:border-0 hover:bg-neutral-50/80 transition-colors"
-                        >
-                          <td className="px-5 py-3.5">
-                            <div className="flex items-center gap-3 min-w-0">
-                              <div
-                                className={`w-10 h-10 shrink-0 rounded-xl bg-gradient-to-br ${getCoverGradient(
-                                  course.courseName || ''
-                                )} flex items-center justify-center text-white font-bold text-sm`}
-                              >
-                                {course.courseName?.charAt(0) || '?'}
-                              </div>
-                              <div className="min-w-0">
-                                <div
-                                  className="font-medium text-[13.5px] text-neutral-900 truncate"
-                                  title={course.courseName || ''}
-                                  data-testid="course-name"
-                                >
-                                  {course.courseName || '-'}
-                                </div>
-                                {course.hours != null && (
-                                  <div className="text-[11px] text-neutral-400 mt-0.5">
-                                    {course.hours} 课时
-                                  </div>
-                                )}
-                              </div>
+                {/* 卡片行布局：不依赖表格列宽机制，任何屏幕宽度下都不会竖排/挤压 */}
+                <div className="divide-y divide-neutral-100">
+                  {pagedCourses.map((course, idx) => {
+                    const active = course.status === 1
+                    return (
+                      <div
+                        key={`${course.courseName}-${idx}`}
+                        className="flex flex-col gap-3 px-5 py-4 transition-colors hover:bg-neutral-50/70 lg:flex-row lg:items-center"
+                      >
+                        {/* 课程 */}
+                        <div className="flex min-w-0 items-center gap-3 lg:w-[230px] lg:shrink-0">
+                          <div
+                            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${getCoverGradient(
+                              course.courseName || ''
+                            )} text-sm font-bold text-white`}
+                          >
+                            {course.courseName?.charAt(0) || '?'}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div
+                              className="truncate text-[13.5px] font-medium text-neutral-900"
+                              title={course.courseName || ''}
+                              data-testid="course-name"
+                            >
+                              {course.courseName || '-'}
                             </div>
-                          </td>
-                          {isAdmin && (
-                            <td className="px-5 py-3.5 text-[13px] text-neutral-700">
-                              <span className="block truncate" title={course.teacherName || ''}>
-                                {course.teacherName || '-'}
-                              </span>
-                            </td>
-                          )}
-                          <td className="px-5 py-3.5 text-[13px] text-neutral-700">
-                            <span className="block truncate" title={course.className || ''}>
-                              {course.className || '-'}
-                            </span>
-                          </td>
-                          <td className="px-5 py-3.5 text-[13px] text-neutral-700">
-                            <span className="block truncate" title={course.classroom || ''}>
-                              {course.classroom || '-'}
-                            </span>
-                          </td>
-                          <td className="px-5 py-3.5">
-                            <ScheduleCell text={formatTime(course)} />
-                          </td>
-                          <td className="px-5 py-3.5">
-                            {course.semester ? (
-                              <span className="inline-block rounded-md bg-neutral-100 px-2 py-0.5 text-xs text-neutral-600 whitespace-nowrap tabular-nums">
-                                {course.semester}
-                              </span>
-                            ) : (
-                              <span className="text-neutral-400 text-[13px]">-</span>
+                            {course.hours != null && (
+                              <div className="mt-0.5 text-[11px] text-neutral-400">
+                                {course.hours} 课时
+                              </div>
                             )}
-                          </td>
-                          <td className="px-5 py-3.5">
-                            <div className="flex items-center gap-2 whitespace-nowrap">
-                              <Switch
-                                checked={active}
-                                onCheckedChange={(checked) =>
-                                  handleToggleStatus(course, checked)
-                                }
-                              />
-                              <span
-                                className={`text-xs font-medium ${
-                                  active ? 'text-success' : 'text-neutral-400'
-                                }`}
-                              >
-                                {active ? '已上架' : '已下架'}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="px-5 py-3.5 text-right">
-                            <div className="flex items-center justify-end gap-2 whitespace-nowrap">
+                          </div>
+                        </div>
+
+                        {/* 教师 / 班级 / 教室 / 学期 */}
+                        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-5 gap-y-1.5">
+                          {isAdmin && <MetaItem label="教师" value={course.teacherName} />}
+                          <MetaItem label="班级" value={course.className} />
+                          <MetaItem label="教室" value={course.classroom} />
+                          {course.semester && <MetaItem label="学期" value={course.semester} chip />}
+                        </div>
+
+                        {/* 上课时间 */}
+                        <div className="lg:w-[300px] lg:shrink-0">
+                          <div className="mb-1 text-[11px] text-neutral-400 lg:hidden">上课时间</div>
+                          <ScheduleCell text={formatTime(course)} />
+                        </div>
+
+                        {/* 状态 + 操作 */}
+                        <div className="flex items-center justify-between gap-4 lg:w-[232px] lg:shrink-0 lg:justify-end">
+                          <div className="flex items-center gap-2 whitespace-nowrap">
+                            <Switch
+                              checked={active}
+                              onCheckedChange={(checked) => handleToggleStatus(course, checked)}
+                            />
+                            <span
+                              className={`text-xs font-medium ${
+                                active ? 'text-success' : 'text-neutral-400'
+                              }`}
+                            >
+                              {active ? '已上架' : '已下架'}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 whitespace-nowrap">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 px-3 text-xs"
+                              disabled={actionLoading}
+                              onClick={() => { openPlanner(course) }}
+                            >
+                              {course.classes.some((c) => c.scheduled) ? '调课' : '排课'}
+                            </Button>
+                            {isAdmin && (
                               <Button
                                 variant="outline"
                                 size="sm"
-                                className="h-8 px-3 text-xs"
+                                className="h-8 px-3 text-xs text-danger"
                                 disabled={actionLoading}
-                                onClick={() => { openPlanner(course) }}
+                                onClick={() => { handleRemove(course) }}
                               >
-                                {course.classes.some((c) => c.scheduled) ? '调课' : '排课'}
+                                删除
                               </Button>
-                              {isAdmin && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-8 px-3 text-xs text-danger"
-                                  disabled={actionLoading}
-                                  onClick={() => { handleRemove(course) }}
-                                >
-                                  删除
-                                </Button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                    {pagedCourses.length === 0 && (
-                      <tr>
-                        <td
-                          colSpan={isAdmin ? 8 : 7}
-                          className="px-6 py-12 text-center text-neutral-400"
-                        >
-                          暂无课程数据
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                  {pagedCourses.length === 0 && (
+                    <div className="px-6 py-12 text-center text-neutral-400">暂无课程数据</div>
+                  )}
+                </div>
               </div>
 
               <div className="flex items-center justify-between px-6 py-4 border-t border-neutral-100">
