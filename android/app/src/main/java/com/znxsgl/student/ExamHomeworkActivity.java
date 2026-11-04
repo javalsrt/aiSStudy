@@ -209,7 +209,7 @@ public class ExamHomeworkActivity extends AppCompatActivity {
             @Override
             public void onFailure(Call<Map<String, Object>> call, Throwable t) {
                 pd.dismiss();
-                showUnavailableDialog("网络错误：" + t.getMessage(), true, true);
+                showUnavailableDialog(UiMsg.network(t), true, true);
             }
         });
     }
@@ -465,7 +465,7 @@ public class ExamHomeworkActivity extends AppCompatActivity {
             @Override
             public void onFailure(Call<Map<String, Object>> call, Throwable t) {
                 pd.dismiss();
-                Toast.makeText(ExamHomeworkActivity.this, "提交失败：" + t.getMessage(), Toast.LENGTH_SHORT).show();
+                Toast.makeText(ExamHomeworkActivity.this, "提交失败：" + UiMsg.network(t), Toast.LENGTH_SHORT).show();
             }
         });
     }

@@ -602,19 +602,33 @@ public class ScheduleService {
                 Integer.class, dto.getCourseName(), classId);
             dto.setPublished(publishedCount > 0);
 
-            // 查询该学生在此课程的未读消息数（按 course_id 隔离，同名课程不合并）
-            int unread = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM chat_message " +
-                "WHERE course_id = ? AND user_id = ? AND sender_role = 'teacher' AND is_read = 0",
-                Integer.class, dto.getCourseId(), userId);
-            dto.setUnreadCount(unread);
+            // 未读消息数：基于 chat_read_state.last_read_at 计算。
+            // 首次进入列表时为该课程建立已读基线（避免把历史消息全部算成未读），
+            // 之后教师群发消息、AI 回复、同学公聊都会正确产生红点。
+            try {
+                jdbc.update("INSERT IGNORE INTO chat_read_state (user_id, course_id, last_read_id, last_read_at) " +
+                        "SELECT ?, ?, COALESCE(MAX(id), 0), NOW() FROM chat_message WHERE course_id = ?",
+                        userId, dto.getCourseId(), dto.getCourseId());
+                int unread = jdbc.queryForObject(
+                        "SELECT COUNT(*) FROM chat_message cm " +
+                        "JOIN chat_read_state rs ON rs.course_id = cm.course_id AND rs.user_id = ? " +
+                        "WHERE cm.course_id = ? AND cm.id > rs.last_read_id " +
+                        "  AND NOT (cm.sender_role = 'student' AND cm.user_id = ?) " +
+                        "  AND (cm.mention_user_id IS NULL OR cm.mention_user_id = ?)",
+                        Integer.class, userId, dto.getCourseId(), userId, userId);
+                dto.setUnreadCount(unread);
+            } catch (Exception e) {
+                log.warn("查询课程未读数失败: courseId={}, userId={}", dto.getCourseId(), userId, e);
+                dto.setUnreadCount(0);
+            }
 
-            // 查询该学生可见的最后一条聊天消息摘要
+            // 查询该学生可见的最后一条聊天消息摘要（教师消息 / 自己的消息 / @自己的）
             try {
                 List<Map<String, Object>> lastMsgs = jdbc.queryForList(
                     "SELECT content, sender_role, sender_name FROM chat_message " +
-                    "WHERE course_id = ? AND sender_role != 'student' " +
-                    "  AND (user_id = ? OR mention_user_id IS NULL OR mention_user_id = ?) " +
+                    "WHERE course_id = ? " +
+                    "  AND (sender_role <> 'student' OR user_id = ?) " +
+                    "  AND (mention_user_id IS NULL OR mention_user_id = ?) " +
                     "ORDER BY created_at DESC, id DESC LIMIT 1",
                     dto.getCourseId(), userId, userId);
                 if (!lastMsgs.isEmpty()) {

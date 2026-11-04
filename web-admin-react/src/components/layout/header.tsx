@@ -68,11 +68,31 @@ export function Header() {
 
   const handleNotiClick = (courseName: string, courseId?: number) => {
     setNotiOpen(false)
-    // 立即从本地通知列表移除该课程相关提示
-    setNotifications((prev) => prev.filter((n) => n.courseName !== courseName))
+    // 立即从本地通知列表移除该课程相关提示（按课程ID匹配，同名课程不误删）
+    setNotifications((prev) =>
+      prev.filter((n) => (courseId ? n.courseId !== courseId : n.courseName !== courseName))
+    )
     // 同步标记后端已读：优先用 courseId（同名课程隔离），无ID时退回课程名
-    markTeacherRead(courseId ?? courseName).catch(() => {})
-    navigate(`/teacher-chat?course=${encodeURIComponent(courseName)}`)
+    const key = courseId ?? courseName
+    markTeacherRead(key)
+      .catch(() => {})
+      .finally(() => {
+        // 标记完成后重新拉取，确保服务端状态与铃铛一致（避免 30s 轮询又把旧提示加回来）
+        getTeacherUnreadNotifications()
+          .then((data) => {
+            setNotifications(
+              (data || []).filter(
+                (n) => n.senderRole !== 'teacher' && n.courseName !== currentChatCourse
+              )
+            )
+          })
+          .catch(() => {})
+      })
+    // 路由携带 courseId：同名课程（如 4 门「英语」）必须按ID打开正确房间
+    const qs = courseId
+      ? `course=${encodeURIComponent(courseName)}&courseId=${courseId}`
+      : `course=${encodeURIComponent(courseName)}`
+    navigate(`/teacher-chat?${qs}`)
   }
 
   return (

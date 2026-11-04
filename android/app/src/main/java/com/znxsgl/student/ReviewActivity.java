@@ -82,7 +82,7 @@ public class ReviewActivity extends AppCompatActivity {
                     }
                     @Override public void onFailure(Call<Map<String, Object>> c, Throwable t) {
                         if (!isFinishing()) {
-                            showEmpty("网络错误：" + t.getMessage());
+                            showEmpty(UiMsg.network(t));
                         }
                     }
                 });

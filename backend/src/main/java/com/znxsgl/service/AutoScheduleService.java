@@ -71,7 +71,7 @@ public class AutoScheduleService {
     /** 自动适配作息：按班级年级 + 今日单双周解析节次段时间，无配置回退内置 NODE_TIMES */
     private LocalTime[] blockTimes(Long classId, int startNode, int step) {
         try {
-            LocalTime[] r = bellTimeService.nodeRange(resolveGrade(classId), java.time.LocalDate.now(), startNode, step);
+            LocalTime[] r = bellTimeService.nodeRange(classId, resolveGrade(classId), java.time.LocalDate.now(), startNode, step);
             if (r != null) return r;
         } catch (Exception e) {
             System.out.println("=== 作息自动适配失败，回退默认表: " + e.getMessage());

@@ -9,6 +9,7 @@ import { StaffPage } from '@/pages/admin/staff'
 import { SemesterPage } from '@/pages/admin/semester'
 import { CourseImportPage } from '@/pages/admin/course-import'
 import { SchedulePage } from '@/pages/admin/schedule'
+import { BellSchedulePage } from '@/pages/admin/bell-schedule'
 import { CourseChaptersPage } from '@/pages/course-chapters'
 import { ExamHomeworkPage } from '@/pages/exam-homework'
 import ExamTakePage from '@/pages/exam-take'
@@ -183,6 +184,14 @@ export const router = createBrowserRouter(
           element: (
             <AdminRoute>
               <SchedulePage />
+            </AdminRoute>
+          ),
+        },
+        {
+          path: 'admin/bell',
+          element: (
+            <AdminRoute>
+              <BellSchedulePage />
             </AdminRoute>
           ),
         },

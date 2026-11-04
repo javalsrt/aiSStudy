@@ -103,12 +103,57 @@ public class ChatService {
         List<ChatMessage> msgs = chatMapper.selectList(
                 new LambdaQueryWrapper<ChatMessage>()
                         .eq(ChatMessage::getCourseId, courseId)
-                        .and(w -> w.eq(ChatMessage::getUserId, userId)
-                                .or().isNull(ChatMessage::getMentionUserId)
-                                .or().eq(ChatMessage::getMentionUserId, userId)
-                                .or().eq(ChatMessage::getSenderRole, "ai"))
                         .orderByAsc(ChatMessage::getCreatedAt));
-        return chatMessageConverter.toDtoList(msgs);
+        List<ChatMessage> visible = new ArrayList<>();
+        for (ChatMessage m : msgs) {
+            if (isVisibleTo(m, userId)) visible.add(m);
+        }
+        // 兜底去重：同发送者 + 同内容 + 10 分钟内只留一条（防历史脏数据继续刷屏）
+        List<ChatMessage> deduped = new ArrayList<>();
+        Map<String, LocalDateTime> lastNoticeAt = new HashMap<>();
+        for (ChatMessage m : visible) {
+            String c = m.getContent();
+            boolean isNotice = "teacher".equals(m.getSenderRole()) && c != null
+                    && (c.contains("【课程通知】") || c.contains("排课已更新"));
+            if (isNotice) {
+                String key = String.valueOf(m.getSenderName()) + "|" + c;
+                LocalDateTime prev = lastNoticeAt.get(key);
+                if (prev != null && m.getCreatedAt() != null
+                        && Math.abs(Duration.between(prev, m.getCreatedAt()).toMinutes()) < 10) {
+                    continue;
+                }
+                lastNoticeAt.put(key, m.getCreatedAt());
+            }
+            deduped.add(m);
+        }
+        return chatMessageConverter.toDtoList(deduped);
+    }
+
+    /**
+     * 学生视角的消息可见性判断。
+     * <p>
+     * 关键修复：排课/调课通知是「按学生逐条落库」的（每人一条，用于各自红点），
+     * 旧实现用 {@code OR mention_user_id IS NULL} 匹配，导致每条通知（均为非@消息）
+     * 对所有学生可见 —— 一次调课就会在每个学生聊天里刷出全班 50 条重复通知。
+     */
+    private boolean isVisibleTo(ChatMessage m, Long userId) {
+        if (m == null) return false;
+        boolean mine = userId != null && userId.equals(m.getUserId());
+        Long mention = m.getMentionUserId();
+        String role = m.getSenderRole();
+        if ("teacher".equals(role)) {
+            String c = m.getContent();
+            boolean isNotice = c != null && (c.contains("【课程通知】") || c.contains("排课已更新"));
+            if (isNotice) return mine;                       // 排课通知：只给对应学生
+            if (mention != null) return userId != null && mention.equals(userId); // @某人：只给被@者
+            return true;                                     // 普通教师群聊：全班可见
+        }
+        if ("student".equals(role)) {
+            if (mine) return true;                           // 自己发的
+            if (mention != null) return userId != null && mention.equals(userId); // @别人：不可见
+            return true;                                     // 学生公聊
+        }
+        return true;                                         // AI / system
     }
 
     /** 课程公开聊天（教师端看全部，AI消息显示"AI对{学生}说"） */
@@ -211,7 +256,15 @@ public class ChatService {
 
     /** 标记该学生在指定课程的所有应读消息为已读 */
     public void markAsRead(Long courseId, Long userId) {
-        if (courseId == null) return;
+        if (courseId == null || userId == null) return;
+        // 记录「该学生读到哪条消息」：群聊消息只有一行（user_id=教师），
+        // 无法用 is_read 表达每个学生的已读状态，按学生+课程存消息ID水位线。
+        Long maxId = jdbc.queryForObject(
+                "SELECT COALESCE(MAX(id), 0) FROM chat_message WHERE course_id = ?", Long.class, courseId);
+        jdbc.update("INSERT INTO chat_read_state (user_id, course_id, last_read_id, last_read_at) " +
+                        "VALUES (?, ?, ?, NOW()) ON DUPLICATE KEY UPDATE last_read_id = ?, last_read_at = NOW()",
+                userId, courseId, maxId, maxId);
+        // 兼容旧字段（通知类消息按学生各一行，仍沿用 is_read）
         chatMapper.markAsRead(courseId, userId);
     }
 
@@ -221,23 +274,45 @@ public class ChatService {
         return chatMapper.markTeacherRead(courseId);
     }
 
-    /** 学生各课程未读数（courseId + courseName + count） */
+    /**
+     * 学生各课程未读数（courseId + courseName + count）。
+     * 基于 chat_read_state.last_read_at 计算：该时间之后的「非本人发送」消息即未读，
+     * 这样教师群发消息（user_id=教师）也能给学生产生红点。
+     */
     public List<Map<String, Object>> unreadByCourse(Long userId) {
-        return chatMapper.countUnreadByCourse(userId);
-    }
-
-    /** 教师未读聊天通知（学生/AI 发送的消息，按 course_id 隔离） */
-    public List<Map<String, Object>> teacherUnread(Long userId) {
         return jdbc.queryForList(
-                "SELECT cm.id, cm.course_id AS courseId, cm.course_name AS courseName, " +
-                        "  cm.sender_name AS senderName, cm.sender_role AS senderRole, " +
-                        "  cm.content, cm.created_at AS createdAt " +
+                "SELECT cm.course_id AS courseId, c.course_name AS courseName, COUNT(*) AS count " +
                         "FROM chat_message cm " +
                         "JOIN course c ON c.id = cm.course_id " +
-                        "JOIN teacher t ON t.id = c.teacher_id " +
-                        "JOIN user u ON u.real_name = t.real_name " +
-                        "WHERE u.id = ? AND cm.is_read = 0 AND cm.sender_role != 'teacher' " +
-                        "ORDER BY cm.created_at DESC LIMIT 50",
+                        "JOIN chat_read_state rs ON rs.course_id = cm.course_id AND rs.user_id = ? " +
+                        "WHERE cm.id > rs.last_read_id " +
+                        "  AND NOT (cm.sender_role = 'student' AND cm.user_id = ?) " +
+                        "  AND (cm.mention_user_id IS NULL OR cm.mention_user_id = ?) " +
+                        "GROUP BY cm.course_id, c.course_name",
+                userId, userId, userId);
+    }
+
+    /**
+     * 教师未读聊天通知：按「课程」聚合，每个课程只返回最新一条 + 未读条数。
+     * 原实现按消息逐条返回，同一课程几十条未读会在通知里堆成一屏旧消息，
+     * 且点开一门课后剩余条目仍反复提示。
+     */
+    public List<Map<String, Object>> teacherUnread(Long userId) {
+        return jdbc.queryForList(
+                "SELECT t.id, t.courseId, t.courseName, t.senderName, t.senderRole, " +
+                        "       t.content, t.createdAt, t.unreadCount " +
+                        "FROM (" +
+                        "  SELECT cm.id, cm.course_id AS courseId, cm.course_name AS courseName, " +
+                        "         cm.sender_name AS senderName, cm.sender_role AS senderRole, " +
+                        "         cm.content, cm.created_at AS createdAt, " +
+                        "         COUNT(*) OVER (PARTITION BY cm.course_id) AS unreadCount, " +
+                        "         ROW_NUMBER() OVER (PARTITION BY cm.course_id ORDER BY cm.id DESC) AS rn " +
+                        "  FROM chat_message cm " +
+                        "  JOIN course c ON c.id = cm.course_id " +
+                        "  JOIN teacher t ON t.id = c.teacher_id " +
+                        "  JOIN user u ON u.real_name = t.real_name " +
+                        "  WHERE u.id = ? AND cm.is_read = 0 AND cm.sender_role != 'teacher' " +
+                        ") t WHERE t.rn = 1 ORDER BY t.createdAt DESC LIMIT 20",
                 userId);
     }
 

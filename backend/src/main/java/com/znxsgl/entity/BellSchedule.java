@@ -18,6 +18,9 @@ public class BellSchedule {
     /** 学期，空=通用 */
     private String semester;
 
+    /** 班级ID：空=按年级或默认作息（优先级：班级 > 年级 > 默认） */
+    private Long classId;
+
     /** 年级（如 2026级），空=默认作息 */
     private String grade;
 

@@ -35,6 +35,7 @@ import androidx.viewpager2.widget.ViewPager2;
 import com.znxsgl.student.CourseDetailActivity;
 import com.znxsgl.student.ExamHomeworkActivity;
 import com.znxsgl.student.RichTextRenderer;
+import com.znxsgl.student.UiMsg;
 import com.znxsgl.student.R;
 import com.znxsgl.student.model.StudentCourse;
 import com.znxsgl.student.network.ApiService;
@@ -146,16 +147,34 @@ public class ProfileFragment extends Fragment implements WebSocketManager.OnChat
     @Override
     public void onResume() {
         super.onResume();
-        if (isAdded() && prefs != null) {
-            loadCourses();
-            loadUnreadCounts();
-            loadFocusTotal();
-            loadQuizStats();
-            loadBookmarkCount(getView());
-        }
+        // 从其他页面返回：强制刷新一次（可能有新消息/新统计）
+        refreshProfileData(true);
         // 实时轮询学习时长
         mainHandler.removeCallbacks(refreshFocusTotal);
         mainHandler.post(refreshFocusTotal);
+    }
+
+    // 切 Tab 节流：隐藏再显示时不再每次全量请求，避免每次切换等数秒
+    private long lastHeavyRefreshAt = 0;
+    private long lastUnreadRefreshAt = 0;
+    private static final long HEAVY_REFRESH_MS = 30_000;
+    private static final long UNREAD_REFRESH_MS = 5_000;
+
+    private void refreshProfileData(boolean force) {
+        if (!isAdded() || prefs == null) return;
+        long now = System.currentTimeMillis();
+        if (force || now - lastHeavyRefreshAt > HEAVY_REFRESH_MS) {
+            lastHeavyRefreshAt = now;
+            loadCourses();
+            loadFocusTotal();
+            loadQuizStats();
+            if (getView() != null) loadBookmarkCount(getView());
+        }
+        // 未读红点仍保持较短新鲜度（5 秒），但不会连带整页数据重拉
+        if (force || now - lastUnreadRefreshAt > UNREAD_REFRESH_MS) {
+            lastUnreadRefreshAt = now;
+            loadUnreadCounts();
+        }
     }
 
     @Override
@@ -177,11 +196,8 @@ public class ProfileFragment extends Fragment implements WebSocketManager.OnChat
         if (hidden) {
             mainHandler.removeCallbacks(refreshFocusTotal);
         } else {
-            loadFocusTotal();
-            loadQuizStats();
-            loadCourses();
-            loadUnreadCounts();
-            if (getView() != null) loadBookmarkCount(getView());
+            // 切回本 Tab：30 秒内直接复用已有数据，界面立即可见，不再等网络
+            refreshProfileData(false);
             mainHandler.removeCallbacks(refreshFocusTotal);
             mainHandler.post(refreshFocusTotal);
         }
@@ -465,7 +481,7 @@ public class ProfileFragment extends Fragment implements WebSocketManager.OnChat
                     @Override public void onFailure(Call<Map<String, Object>> c, Throwable t) {
                         pd.dismiss();
                         if (!isAdded()) return;
-                        Toast.makeText(RetrofitClient.safeContext(getContext()), "加载失败: " + t.getMessage(), Toast.LENGTH_SHORT).show();
+                        Toast.makeText(RetrofitClient.safeContext(getContext()), UiMsg.network(t), Toast.LENGTH_SHORT).show();
                     }
                 });
     }
@@ -553,6 +569,7 @@ public class ProfileFragment extends Fragment implements WebSocketManager.OnChat
                     courseList.clear();
                     courseList.addAll(items);
                     restoreCourseOrder();
+                    applyChatSorting();
                     adapter.notifyDataSetChanged();
                     rvCourses.requestLayout();
                 });
@@ -560,7 +577,7 @@ public class ProfileFragment extends Fragment implements WebSocketManager.OnChat
             @Override
             public void onFailure(Call<List<StudentCourse>> call, Throwable t) {
                 mainHandler.post(() ->
-                    Toast.makeText(RetrofitClient.safeContext(getContext()), "加载失败: " + t.getMessage(), Toast.LENGTH_LONG).show());
+                    Toast.makeText(RetrofitClient.safeContext(getContext()), UiMsg.network(t), Toast.LENGTH_LONG).show());
             }
         });
     }
@@ -828,6 +845,30 @@ public class ProfileFragment extends Fragment implements WebSocketManager.OnChat
         }
     }
 
+    /**
+     * 会话列表式排序（QQ/微信语义）：
+     * 1) 有未读消息的课程置顶，未读越多越靠前；
+     * 2) 无未读的课程保持用户手动拖拽/默认顺序，不打扰已读列表；
+     * 3) 只做稳定分区，不改变同组内的相对顺序。
+     */
+    private void applyChatSorting() {
+        if (courseList.size() <= 1) return;
+        List<StudentCourse> unread = new ArrayList<>();
+        List<StudentCourse> read = new ArrayList<>();
+        for (StudentCourse c : courseList) {
+            int n = unreadMap.getOrDefault(c.getCourseId(), c.getUnreadCount());
+            if (n > 0) unread.add(c);
+            else read.add(c);
+        }
+        if (unread.isEmpty()) return;
+        unread.sort((a, b) -> Integer.compare(
+                unreadMap.getOrDefault(b.getCourseId(), b.getUnreadCount()),
+                unreadMap.getOrDefault(a.getCourseId(), a.getUnreadCount())));
+        courseList.clear();
+        courseList.addAll(unread);
+        courseList.addAll(read);
+    }
+
     /** 刷新未读数：统一由 MainActivity 拉取后下发，避免重复请求 */
     private void loadUnreadCounts() {
         if (getActivity() instanceof MainActivity) {
@@ -839,6 +880,7 @@ public class ProfileFragment extends Fragment implements WebSocketManager.OnChat
     public void applyUnreadCounts(Map<Long, Integer> counts) {
         unreadMap.clear();
         if (counts != null) unreadMap.putAll(counts);
+        applyChatSorting();
         if (adapter != null) adapter.notifyDataSetChanged();
     }
 

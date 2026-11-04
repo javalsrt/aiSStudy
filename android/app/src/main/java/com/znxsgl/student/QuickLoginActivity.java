@@ -214,7 +214,9 @@ public class QuickLoginActivity extends AppCompatActivity {
                 } else {
                     try {
                         String errBody = response.errorBody().string();
-                        Toast.makeText(QuickLoginActivity.this, errBody, Toast.LENGTH_SHORT).show();
+                        Toast.makeText(QuickLoginActivity.this,
+                                UiMsg.errorBody(errBody, getString(R.string.error_auth)),
+                                Toast.LENGTH_SHORT).show();
                     } catch (Exception e) {
                         Toast.makeText(QuickLoginActivity.this, R.string.error_auth, Toast.LENGTH_SHORT).show();
                     }
@@ -227,7 +229,7 @@ public class QuickLoginActivity extends AppCompatActivity {
                 progressBar.setVisibility(View.GONE);
                 updateQuickLoginCardState();
                 Toast.makeText(QuickLoginActivity.this,
-                        R.string.error_network + ": " + t.getMessage(), Toast.LENGTH_SHORT).show();
+                        UiMsg.network(t), Toast.LENGTH_SHORT).show();
             }
         });
     }

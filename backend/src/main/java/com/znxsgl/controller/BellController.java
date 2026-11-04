@@ -49,12 +49,20 @@ public class BellController {
 
         LocalDate today = LocalDate.now();
 
+        Long userId = (principal instanceof org.springframework.security.core.Authentication auth
+                && auth.getPrincipal() instanceof Long uid) ? uid : null;
+
+        // 班级解析：显式传参优先；学生端未传时按登录用户所属班级解析（用于班级专属作息）
+        if (classId == null && userId != null) {
+            classId = resolveClassIdByUser(userId);
+        }
+        final Long cid = classId;
+
         // 年级解析优先级：grade 参数 > classId 反查 > 登录用户所属班级反查 > 默认作息
         if (grade == null || grade.isBlank()) {
             if (classId != null) {
                 grade = resolveGradeByClass(classId);
-            } else if (principal instanceof org.springframework.security.core.Authentication auth
-                    && auth.getPrincipal() instanceof Long userId) {
+            } else if (userId != null) {
                 grade = resolveGradeByUser(userId);
             }
         }
@@ -63,11 +71,12 @@ public class BellController {
         Integer weekNumber = (week != null && week > 0) ? week : bellTimeService.weekNumberOf(today);
         int parity = bellTimeService.parityByWeek(g, (week != null && week > 0) ? week : null);
         List<Map<String, Object>> periods = (week != null && week > 0)
-                ? bellTimeService.bellsForWeek(g, week)
-                : bellTimeService.todayBells(g);
+                ? bellTimeService.bellsForWeek(cid, g, week)
+                : bellTimeService.todayBells(cid, g);
 
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("date", today.toString());
+        data.put("classId", cid);
         data.put("grade", g);
         data.put("weekNumber", weekNumber);
         data.put("parity", parity);                          // 1=单周 2=双周 0=未知(按通用表)
@@ -83,6 +92,17 @@ public class BellController {
         try {
             List<String> rows = jdbc.queryForList(
                     "SELECT grade FROM class_info WHERE id = ? AND grade IS NOT NULL", String.class, classId);
+            return rows.isEmpty() ? null : rows.get(0);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /** 通过登录用户（学生）反查所属班级 */
+    private Long resolveClassIdByUser(Long userId) {
+        try {
+            List<Long> rows = jdbc.queryForList(
+                    "SELECT class_id FROM user WHERE id = ? AND class_id IS NOT NULL", Long.class, userId);
             return rows.isEmpty() ? null : rows.get(0);
         } catch (Exception e) {
             return null;

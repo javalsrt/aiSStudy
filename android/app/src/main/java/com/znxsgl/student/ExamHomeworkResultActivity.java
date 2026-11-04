@@ -80,7 +80,7 @@ public class ExamHomeworkResultActivity extends AppCompatActivity {
             @Override
             public void onFailure(Call<Map<String, Object>> call, Throwable t) {
                 pd.dismiss();
-                Toast.makeText(ExamHomeworkResultActivity.this, "网络错误：" + t.getMessage(), Toast.LENGTH_SHORT).show();
+                Toast.makeText(ExamHomeworkResultActivity.this, UiMsg.network(t), Toast.LENGTH_SHORT).show();
             }
         });
     }

@@ -78,6 +78,7 @@ const ROLE_LABEL: Record<string, string> = {
 export function TeacherChatPage() {
   const [searchParams] = useSearchParams()
   const initialCourse = searchParams.get('course')
+  const initialCourseId = searchParams.get('courseId')
 
   const [courses, setCourses] = useState<CourseItem[]>([])
   const [activeCourse, setActiveCourse] = useState<CourseItem | null>(null)
@@ -99,9 +100,14 @@ export function TeacherChatPage() {
       .then((list) => {
         setCourses(list || [])
         if (list && list.length > 0) {
-          const target = initialCourse
-            ? list.find((c) => c.courseName === initialCourse)
-            : null
+          // 优先按 courseId 精确匹配：同名课程（如 4 门「英语」）必须打开正确的那一门
+          let target = null as (typeof list)[number] | null
+          if (initialCourseId) {
+            target = list.find((c) => String(c.courseId) === String(initialCourseId)) || null
+          }
+          if (!target && initialCourse) {
+            target = list.find((c) => c.courseName === initialCourse) || null
+          }
           setActiveCourse(target || list[0])
         }
       })

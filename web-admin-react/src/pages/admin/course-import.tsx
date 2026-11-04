@@ -336,22 +336,6 @@ export function CourseImportPage() {
                       <Download className="w-4 h-4" />
                       下载空白模板
                     </a>
-                    <a
-                      href="/template/summer-training-schedule.xlsx"
-                      download
-                      className="inline-flex items-center gap-2 h-8 px-4 text-xs rounded-full border border-primary-200 bg-primary-50 text-primary-700 hover:bg-primary-100 hover:border-primary-300 transition-all"
-                    >
-                      <FileSpreadsheet className="w-4 h-4" />
-                      下载暑假培训样例
-                    </a>
-                    <a
-                      href="/template/summer-3week-test.xlsx"
-                      download
-                      className="inline-flex items-center gap-2 h-8 px-4 text-xs rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-300 transition-all"
-                    >
-                      <FileSpreadsheet className="w-4 h-4" />
-                      下载3周测试数据
-                    </a>
                   </div>
                 </div>
               </CardContent>

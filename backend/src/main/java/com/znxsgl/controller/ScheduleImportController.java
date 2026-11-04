@@ -601,7 +601,7 @@ public class ScheduleImportController {
                 if (tried.contains(key)) continue;
                 tried.add(key);
 
-                String[] times = getNodeTimeRange(n);
+                String[] times = getNodeTimeRange(classId, n);
                 if (times == null) continue;
                 LocalTime start = LocalTime.parse(times[0], fmt);
                 LocalTime end = LocalTime.parse(times[1], fmt);
@@ -666,13 +666,12 @@ public class ScheduleImportController {
         return 18;
     }
 
-    /** 获取小节对应的时间段：优先读作息配置表（通用表），无配置回退内置表 */
-    private String[] getNodeTimeRange(int node) {
+    /** 获取小节对应的时间段：优先读作息配置（班级专属 > 默认），无配置回退内置表 */
+    private String[] getNodeTimeRange(Long classId, int node) {
         try {
-            LocalTime st = bellTimeService.nodeStartTime(null, null, node);
-            LocalTime et = bellTimeService.nodeEndTime(null, null, node);
-            if (st != null && et != null) {
-                return new String[]{st.toString(), et.toString()};
+            LocalTime[] r = bellTimeService.nodeRange(classId, null, null, node, 1);
+            if (r != null && r[0] != null && r[1] != null) {
+                return new String[]{r[0].toString(), r[1].toString()};
             }
         } catch (Exception ignore) { }
         switch (node) {

@@ -78,6 +78,37 @@ const formatTime = (course: CourseItem) => {
   return parts.join(' ')
 }
 
+/** 时段字符串 → 紧凑标签：去掉秒、最多展示 2 个时段，其余折叠为 "+N 个时段"（悬停看全部） */
+function ScheduleCell({ text }: { text?: string }) {
+  if (!text || text === '-') {
+    return <span className="text-neutral-400">-</span>
+  }
+  const items = text
+    .split(/[；;、]/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((s) => s.replace(/(\d{2}:\d{2}):\d{2}/g, '$1'))
+  if (items.length === 0) return <span className="text-neutral-400">-</span>
+  const shown = items.slice(0, 2)
+  return (
+    <div className="flex flex-wrap items-center gap-1.5" title={items.join('\n')}>
+      {shown.map((it, i) => (
+        <span
+          key={i}
+          className="inline-flex items-center rounded-md bg-neutral-100 px-2 py-0.5 text-xs text-neutral-600 whitespace-nowrap tabular-nums"
+        >
+          {it}
+        </span>
+      ))}
+      {items.length > shown.length && (
+        <span className="text-xs text-neutral-400 whitespace-nowrap">
+          +{items.length - shown.length} 个时段
+        </span>
+      )}
+    </div>
+  )
+}
+
 const normalizeCourse = (raw: any): CourseItem & { classes: ClassInfo[] } => {
   const classes: any[] = Array.isArray(raw?.classes) ? raw.classes : []
   const className =
@@ -424,33 +455,44 @@ export function CoursesPage() {
           {viewMode === 'list' ? (
             <Card>
               <div className="overflow-x-auto">
-                <table className="w-full">
+                {/* 固定列宽 + table-fixed：避免表头/内容被挤压成竖排文字 */}
+                <table className="w-full table-fixed" style={{ minWidth: 1080 }}>
+                  <colgroup>
+                    <col style={{ width: 260 }} />
+                    {isAdmin && <col style={{ width: 96 }} />}
+                    <col style={{ width: 112 }} />
+                    <col style={{ width: 112 }} />
+                    <col />
+                    <col style={{ width: 108 }} />
+                    <col style={{ width: 124 }} />
+                    <col style={{ width: 168 }} />
+                  </colgroup>
                   <thead>
-                    <tr className="border-b border-neutral-200">
-                      <th className="text-left px-6 py-4 text-sm font-medium text-neutral-500">
+                    <tr className="border-b border-neutral-200 bg-neutral-50/60">
+                      <th className="text-left px-5 py-3 text-[11px] font-medium tracking-wide text-neutral-400 whitespace-nowrap">
                         课程
                       </th>
                       {isAdmin && (
-                        <th className="text-left px-6 py-4 text-sm font-medium text-neutral-500">
-                          授课教师
+                        <th className="text-left px-5 py-3 text-[11px] font-medium tracking-wide text-neutral-400 whitespace-nowrap">
+                          教师
                         </th>
                       )}
-                      <th className="text-left px-6 py-4 text-sm font-medium text-neutral-500">
+                      <th className="text-left px-5 py-3 text-[11px] font-medium tracking-wide text-neutral-400 whitespace-nowrap">
                         班级
                       </th>
-                      <th className="text-left px-6 py-4 text-sm font-medium text-neutral-500">
+                      <th className="text-left px-5 py-3 text-[11px] font-medium tracking-wide text-neutral-400 whitespace-nowrap">
                         教室
                       </th>
-                      <th className="text-left px-6 py-4 text-sm font-medium text-neutral-500">
-                        时间
+                      <th className="text-left px-5 py-3 text-[11px] font-medium tracking-wide text-neutral-400 whitespace-nowrap">
+                        上课时间
                       </th>
-                      <th className="text-left px-6 py-4 text-sm font-medium text-neutral-500">
+                      <th className="text-left px-5 py-3 text-[11px] font-medium tracking-wide text-neutral-400 whitespace-nowrap">
                         学期
                       </th>
-                      <th className="text-left px-6 py-4 text-sm font-medium text-neutral-500">
+                      <th className="text-left px-5 py-3 text-[11px] font-medium tracking-wide text-neutral-400 whitespace-nowrap">
                         状态
                       </th>
-                      <th className="text-right px-6 py-4 text-sm font-medium text-neutral-500">
+                      <th className="text-right px-5 py-3 text-[11px] font-medium tracking-wide text-neutral-400 whitespace-nowrap">
                         操作
                       </th>
                     </tr>
@@ -462,23 +504,27 @@ export function CoursesPage() {
                       return (
                         <tr
                           key={key}
-                          className="border-b border-neutral-100 hover:bg-neutral-50 transition-colors"
+                          className="border-b border-neutral-100 last:border-0 hover:bg-neutral-50/80 transition-colors"
                         >
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-3">
+                          <td className="px-5 py-3.5">
+                            <div className="flex items-center gap-3 min-w-0">
                               <div
-                                className={`w-12 h-12 rounded-xl bg-gradient-to-br ${getCoverGradient(
+                                className={`w-10 h-10 shrink-0 rounded-xl bg-gradient-to-br ${getCoverGradient(
                                   course.courseName || ''
                                 )} flex items-center justify-center text-white font-bold text-sm`}
                               >
                                 {course.courseName?.charAt(0) || '?'}
                               </div>
-                              <div>
-                                <div className="font-medium text-neutral-900" data-testid="course-name">
+                              <div className="min-w-0">
+                                <div
+                                  className="font-medium text-[13.5px] text-neutral-900 truncate"
+                                  title={course.courseName || ''}
+                                  data-testid="course-name"
+                                >
                                   {course.courseName || '-'}
                                 </div>
                                 {course.hours != null && (
-                                  <div className="text-xs text-neutral-500">
+                                  <div className="text-[11px] text-neutral-400 mt-0.5">
                                     {course.hours} 课时
                                   </div>
                                 )}
@@ -486,24 +532,36 @@ export function CoursesPage() {
                             </div>
                           </td>
                           {isAdmin && (
-                            <td className="px-6 py-4 text-sm text-neutral-700">
-                              {course.teacherName || '-'}
+                            <td className="px-5 py-3.5 text-[13px] text-neutral-700">
+                              <span className="block truncate" title={course.teacherName || ''}>
+                                {course.teacherName || '-'}
+                              </span>
                             </td>
                           )}
-                          <td className="px-6 py-4 text-sm text-neutral-700">
-                            {course.className || '-'}
+                          <td className="px-5 py-3.5 text-[13px] text-neutral-700">
+                            <span className="block truncate" title={course.className || ''}>
+                              {course.className || '-'}
+                            </span>
                           </td>
-                          <td className="px-6 py-4 text-sm text-neutral-700">
-                            {course.classroom || '-'}
+                          <td className="px-5 py-3.5 text-[13px] text-neutral-700">
+                            <span className="block truncate" title={course.classroom || ''}>
+                              {course.classroom || '-'}
+                            </span>
                           </td>
-                          <td className="px-6 py-4 text-sm text-neutral-700 whitespace-nowrap">
-                            {formatTime(course) || '-'}
+                          <td className="px-5 py-3.5">
+                            <ScheduleCell text={formatTime(course)} />
                           </td>
-                          <td className="px-6 py-4 text-sm text-neutral-700">
-                            {course.semester || '-'}
+                          <td className="px-5 py-3.5">
+                            {course.semester ? (
+                              <span className="inline-block rounded-md bg-neutral-100 px-2 py-0.5 text-xs text-neutral-600 whitespace-nowrap tabular-nums">
+                                {course.semester}
+                              </span>
+                            ) : (
+                              <span className="text-neutral-400 text-[13px]">-</span>
+                            )}
                           </td>
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-2">
+                          <td className="px-5 py-3.5">
+                            <div className="flex items-center gap-2 whitespace-nowrap">
                               <Switch
                                 checked={active}
                                 onCheckedChange={(checked) =>
@@ -511,33 +569,34 @@ export function CoursesPage() {
                                 }
                               />
                               <span
-                                className={`text-sm ${
-                                  active ? 'text-success' : 'text-neutral-500'
+                                className={`text-xs font-medium ${
+                                  active ? 'text-success' : 'text-neutral-400'
                                 }`}
                               >
                                 {active ? '已上架' : '已下架'}
                               </span>
                             </div>
                           </td>
-                          <td className="px-6 py-4 text-right">
-                            <div className="flex items-center justify-end gap-2">
+                          <td className="px-5 py-3.5 text-right">
+                            <div className="flex items-center justify-end gap-2 whitespace-nowrap">
                               <Button
-                              variant="outline"
-                              size="sm"
-                              disabled={actionLoading}
-                              onClick={() => { openPlanner(course) }}
-                            >
-                              {course.classes.some((c) => c.scheduled) ? '调课' : '排课'}
-                            </Button>
+                                variant="outline"
+                                size="sm"
+                                className="h-8 px-3 text-xs"
+                                disabled={actionLoading}
+                                onClick={() => { openPlanner(course) }}
+                              >
+                                {course.classes.some((c) => c.scheduled) ? '调课' : '排课'}
+                              </Button>
                               {isAdmin && (
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  className="text-danger"
+                                  className="h-8 px-3 text-xs text-danger"
                                   disabled={actionLoading}
                                   onClick={() => { handleRemove(course) }}
                                 >
-                                  删除课程
+                                  删除
                                 </Button>
                               )}
                             </div>

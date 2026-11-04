@@ -794,7 +794,7 @@ public class CourseDetailActivity extends AppCompatActivity {
                 runOnUiThread(() -> {
                     if (localPos < items.size()) {
                         ChatMsgDto m = (ChatMsgDto) items.get(localPos);
-                        m.setContent("（上传失败：" + e.getMessage() + "）");
+                        m.setContent("（上传失败，请稍后重试）");
                         adapter.notifyItemChanged(localPos);
                     }
                 });
@@ -1007,7 +1007,7 @@ public class CourseDetailActivity extends AppCompatActivity {
                         Intent intent = new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(furl));
                         v.getContext().startActivity(intent);
                     } catch (Exception e) {
-                        Toast.makeText(v.getContext(), "无法打开文件：" + e.getMessage(), Toast.LENGTH_SHORT).show();
+                        Toast.makeText(v.getContext(), "无法打开文件，请稍后重试", Toast.LENGTH_SHORT).show();
                     }
                 });
                 // 给文件卡片应用发送者对应的气泡背景

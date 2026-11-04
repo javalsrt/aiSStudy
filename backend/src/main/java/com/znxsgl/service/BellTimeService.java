@@ -103,24 +103,37 @@ public class BellTimeService {
         return oddParity == PARITY_ODD ? PARITY_EVEN : PARITY_ODD;
     }
 
+    /** 兼容旧调用：不区分班级 */
+    public Map<Integer, LocalTime[]> getNodeTimes(String grade, Integer parity) {
+        return getNodeTimes(null, grade, parity);
+    }
+
     /**
      * 解析节点 → 起止时间映射（自动适配）。
-     * @param grade  年级（可空=默认作息）
-     * @param parity 1=单周 2=双周 0/null=通用表
+     * 优先级：班级专属(2) > 年级专属(1) > 默认(0)，同级中单双周专属优先于通用。
+     *
+     * @param classId 班级ID（可空）
+     * @param grade   年级（可空=默认作息）
+     * @param parity  1=单周 2=双周 0/null=通用表
      */
-    public Map<Integer, LocalTime[]> getNodeTimes(String grade, Integer parity) {
+    public Map<Integer, LocalTime[]> getNodeTimes(Long classId, String grade, Integer parity) {
         String g = normalize(grade);
         int p = (parity == null) ? PARITY_GENERIC : parity;
         List<BellSchedule> rows = loadBells();
         Map<Integer, Integer> priMap = new LinkedHashMap<>();
         Map<Integer, LocalTime[]> result = new LinkedHashMap<>();
         for (BellSchedule r : rows) {
+            // 班级维度：只有「无班级配置」或「就本班」的行参与；本班行优先级最高
+            boolean classOk = r.getClassId() == null || (classId != null && classId.equals(r.getClassId()));
+            if (!classOk) continue;
             String rg = normalize(r.getGrade());
             boolean gradeOk = rg.isEmpty() || rg.equals(g);
-            if (!gradeOk) continue;
+            // 班级专属行不看年级；年级行仍按年级匹配
+            if (r.getClassId() == null && !gradeOk) continue;
             int rp = r.getWeekParity() == null ? 0 : r.getWeekParity();
             if (rp != p && rp != PARITY_GENERIC) continue;
-            int pri = (rg.isEmpty() ? 0 : 2) + (rp == PARITY_GENERIC ? 0 : 1);
+            int level = r.getClassId() != null ? 2 : (rg.isEmpty() ? 0 : 1);
+            int pri = level * 2 + (rp == PARITY_GENERIC ? 0 : 1);
             Integer oldPri = priMap.get(r.getNode());
             if (oldPri == null || pri >= oldPri) {
                 priMap.put(r.getNode(), pri);
@@ -130,19 +143,32 @@ public class BellTimeService {
         return result;
     }
 
+    /** 清空作息缓存（管理端修改作息后调用，立即生效） */
+    public void evictCache() {
+        bellsCache.clear();
+        parityCache.clear();
+        bellsLoadedAt = 0;
+        paritiesLoadedAt = 0;
+    }
+
     /** 某节次段的起止时间：[首节开始, 末节结束]；无配置返回 null（奇偶表缺失时回退通用表） */
     public LocalTime[] nodeRange(String grade, LocalDate date, int startNode, int step) {
+        return nodeRange(null, grade, date, startNode, step);
+    }
+
+    /** 按班级解析某节次段起止（班级专属作息优先） */
+    public LocalTime[] nodeRange(Long classId, String grade, LocalDate date, int startNode, int step) {
         int lastNode = startNode + Math.max(step, 1) - 1;
         int parity = (date == null) ? PARITY_GENERIC : effectiveParity(grade, date);
         LocalTime[] first = null;
         LocalTime[] last = null;
         if (parity != PARITY_GENERIC) {
-            Map<Integer, LocalTime[]> times = getNodeTimes(grade, parity);
+            Map<Integer, LocalTime[]> times = getNodeTimes(classId, grade, parity);
             first = times.get(startNode);
             last = times.get(lastNode);
         }
         if (first == null || last == null) {
-            Map<Integer, LocalTime[]> generic = getNodeTimes(grade, PARITY_GENERIC);
+            Map<Integer, LocalTime[]> generic = getNodeTimes(classId, grade, PARITY_GENERIC);
             if (first == null) first = generic.get(startNode);
             if (last == null) last = generic.get(lastNode);
         }
@@ -162,8 +188,13 @@ public class BellTimeService {
         return getNodeTimes(grade, parity);
     }
 
-    /** 按周次解析某节次段起止（无配置返回 null，回退通用表） */
+    /** 兼容旧调用：按周次解析某节次段起止（不区分班级） */
     public LocalTime[] nodeRangeByWeek(String grade, Integer weekNumber, int startNode, int step) {
+        return nodeRangeByWeek(null, grade, weekNumber, startNode, step);
+    }
+
+    /** 按班级+周次解析某节次段起止（无配置返回 null，回退通用表） */
+    public LocalTime[] nodeRangeByWeek(Long classId, String grade, Integer weekNumber, int startNode, int step) {
         int lastNode = startNode + Math.max(step, 1) - 1;
         int parity;
         if (weekNumber == null) {
@@ -172,10 +203,10 @@ public class BellTimeService {
             int oddParity = oddWeekParityOf(grade);
             parity = (weekNumber % 2 == 1) ? oddParity : (oddParity == PARITY_ODD ? PARITY_EVEN : PARITY_ODD);
         }
-        LocalTime[] first = getNodeTimes(grade, parity).get(startNode);
-        LocalTime[] last = getNodeTimes(grade, parity).get(lastNode);
+        LocalTime[] first = getNodeTimes(classId, grade, parity).get(startNode);
+        LocalTime[] last = getNodeTimes(classId, grade, parity).get(lastNode);
         if (first == null || last == null) {
-            Map<Integer, LocalTime[]> generic = getNodeTimes(grade, PARITY_GENERIC);
+            Map<Integer, LocalTime[]> generic = getNodeTimes(classId, grade, PARITY_GENERIC);
             if (first == null) first = generic.get(startNode);
             if (last == null) last = generic.get(lastNode);
         }
@@ -204,8 +235,13 @@ public class BellTimeService {
 
     /** 输出某奇偶下的作息列表（按节次升序），奇偶表为空时回退通用表 */
     public List<Map<String, Object>> bellsByParity(String grade, int parity) {
-        Map<Integer, LocalTime[]> resolved = getNodeTimes(grade, parity);
-        if (resolved.isEmpty()) resolved = getNodeTimes(grade, PARITY_GENERIC);
+        return bellsByParity(null, grade, parity);
+    }
+
+    /** 输出某班级某奇偶下的作息列表 */
+    public List<Map<String, Object>> bellsByParity(Long classId, String grade, int parity) {
+        Map<Integer, LocalTime[]> resolved = getNodeTimes(classId, grade, parity);
+        if (resolved.isEmpty()) resolved = getNodeTimes(classId, grade, PARITY_GENERIC);
         final Map<Integer, LocalTime[]> times = resolved;
         List<Map<String, Object>> list = new ArrayList<>();
         times.keySet().stream().sorted().forEach(node -> {
@@ -221,12 +257,22 @@ public class BellTimeService {
 
     /** 今日作息（供 App / 管理端展示），按节次升序；奇偶表为空时回退通用表 */
     public List<Map<String, Object>> todayBells(String grade) {
-        return bellsByParity(grade, effectiveParity(grade, LocalDate.now()));
+        return todayBells(null, grade);
+    }
+
+    /** 今日作息（按班级优先） */
+    public List<Map<String, Object>> todayBells(Long classId, String grade) {
+        return bellsByParity(classId, grade, effectiveParity(grade, LocalDate.now()));
     }
 
     /** 指定周次作息（周视图；week 为空按今天），单双周自动适配 */
     public List<Map<String, Object>> bellsForWeek(String grade, Integer week) {
-        return bellsByParity(grade, parityByWeek(grade, week));
+        return bellsForWeek(null, grade, week);
+    }
+
+    /** 指定班级+周次作息 */
+    public List<Map<String, Object>> bellsForWeek(Long classId, String grade, Integer week) {
+        return bellsByParity(classId, grade, parityByWeek(grade, week));
     }
 
     private String normalize(String grade) {

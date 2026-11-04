@@ -225,7 +225,10 @@ public class LoginActivity extends AppCompatActivity {
                 } else {
                     try {
                         String errBody = response.errorBody().string();
-                        Toast.makeText(LoginActivity.this, errBody, Toast.LENGTH_SHORT).show();
+                        // 只展示错误体里的 message 字段，避免把原始 JSON 弹给用户
+                        Toast.makeText(LoginActivity.this,
+                                UiMsg.errorBody(errBody, getString(R.string.error_auth)),
+                                Toast.LENGTH_SHORT).show();
                     } catch (Exception e) {
                         Toast.makeText(LoginActivity.this, R.string.error_auth, Toast.LENGTH_SHORT).show();
                     }
@@ -239,7 +242,7 @@ public class LoginActivity extends AppCompatActivity {
                 progressBar.setVisibility(View.GONE);
                 updateLoginButtonState();
                 Toast.makeText(LoginActivity.this,
-                        R.string.error_network + ": " + t.getMessage(), Toast.LENGTH_SHORT).show();
+                        UiMsg.network(t), Toast.LENGTH_SHORT).show();
             }
         });
     }

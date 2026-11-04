@@ -32,6 +32,7 @@ import androidx.viewpager2.widget.ViewPager2;
 import com.znxsgl.student.ChapterLearnActivity;
 import com.znxsgl.student.MainActivity;
 import com.znxsgl.student.RichTextRenderer;
+import com.znxsgl.student.UiMsg;
 import com.znxsgl.student.QuizPagerAdapter;
 import com.znxsgl.student.R;
 import com.znxsgl.student.model.QuizQuestion;
@@ -145,20 +146,52 @@ public class FocusFragment extends Fragment {
         return "自习".equals(name) || "班会".equals(name) || "大扫除".equals(name);
     }
 
+    // 切 Tab 节流：30 秒内复用已加载的课程，避免每次切换都等网络
+    private long lastCoursesRefreshAt = 0;
+    private static final long COURSES_REFRESH_MS = 30_000;
+
+    private void loadCoursesThrottled() {
+        long now = System.currentTimeMillis();
+        if (!panelData.isEmpty() && now - lastCoursesRefreshAt < COURSES_REFRESH_MS) return;
+        lastCoursesRefreshAt = now;
+        loadStudentCourses(getView());
+    }
+
     private void loadStudentCourses(View view) {
         ApiService api = RetrofitClient.getInstance().create(ApiService.class);
         api.getStudentCourses(token).enqueue(new Callback<List<StudentCourse>>() {
             @Override public void onResponse(Call<List<StudentCourse>> call, Response<List<StudentCourse>> resp) {
                 if (!isAdded()) return;
-                panelData.clear();
-                if (resp.isSuccessful() && resp.body() != null) {
-                    for (StudentCourse c : resp.body()) {
-                        if (c.getCourseName() == null) continue;
-                        // 活动类条目（自习/班会/大扫除）只在课表展示，不作为可刷题课程卡片
-                        if (isActivityName(c.getCourseName())) continue;
-                        panelData.add(c);
+                // 请求失败时保留现有卡片，避免切页面时列表突然变空
+                if (!resp.isSuccessful() || resp.body() == null) {
+                    if (panelData.isEmpty()) handler.post(() -> buildPanels());
+                    return;
+                }
+                List<StudentCourse> next = new ArrayList<>();
+                for (StudentCourse c : resp.body()) {
+                    if (c.getCourseName() == null) continue;
+                    // 活动类条目（自习/班会/大扫除）只在课表展示，不作为可刷题课程卡片
+                    if (isActivityName(c.getCourseName())) continue;
+                    next.add(c);
+                }
+                // 数据未变化时不重建卡片列表（切 Tab 秒开，不再整页重排）
+                boolean changed = next.size() != panelData.size();
+                if (!changed) {
+                    for (int i = 0; i < next.size(); i++) {
+                        Object o = panelData.get(i);
+                        if (!(o instanceof StudentCourse)) { changed = true; break; }
+                        StudentCourse a = next.get(i), b = (StudentCourse) o;
+                        if (a.getCourseId() != b.getCourseId()
+                                || a.getUnreadCount() != b.getUnreadCount()
+                                || !String.valueOf(a.getLastMessage()).equals(String.valueOf(b.getLastMessage()))) {
+                            changed = true;
+                            break;
+                        }
                     }
                 }
+                if (!changed) return;
+                panelData.clear();
+                panelData.addAll(next);
                 // 暂时下线「错题解析」「复习加强」入口卡片
                 handler.post(() -> buildPanels());
             }
@@ -489,7 +522,7 @@ public class FocusFragment extends Fragment {
                     if (rvQuizPanels != null) rvQuizPanels.setVisibility(View.VISIBLE);
                     setNavVisible(true);
                     quizActive = false;
-                    Toast.makeText(RetrofitClient.safeContext(getContext()),"提交失败：" + t.getMessage(), Toast.LENGTH_SHORT).show();
+                    Toast.makeText(RetrofitClient.safeContext(getContext()),"提交失败：" + UiMsg.network(t), Toast.LENGTH_SHORT).show();
                 });
             }
         });
@@ -935,8 +968,8 @@ public class FocusFragment extends Fragment {
         super.onHiddenChanged(hidden);
         if (hidden) stopAndSave();
         else {
-            // 从其他 Tab 返回时刷新课程列表，避免后台删除课程后仍显示旧数据
-            loadStudentCourses(getView());
+            // 从其他 Tab 返回：课程列表 30 秒内复用缓存，避免每次切换都等网络
+            loadCoursesThrottled();
             loadTodayTotal(); showLastSession();
             if (!quizActive && (llQuizArea==null||llQuizArea.getVisibility()!=View.VISIBLE))
                 handler.postDelayed(this::autoStart, 3000);
@@ -976,8 +1009,8 @@ public class FocusFragment extends Fragment {
 
     @Override public void onResume() {
         super.onResume();
-        // 从后台切回前台时刷新课程列表
-        loadStudentCourses(getView());
+        // 从后台切回前台时刷新课程列表（30 秒内复用缓存）
+        loadCoursesThrottled();
         if (!quizActive && (llQuizArea==null||llQuizArea.getVisibility()!=View.VISIBLE))
             handler.postDelayed(this::autoStart, 3000);
     }

@@ -75,7 +75,7 @@ public class TeacherScheduleAdjustController {
     /** 自动适配作息：按班级年级 + 目标周奇偶解析节次段起止，无配置回退内置 NODE_TIMES */
     private LocalTime[] bellTimes(Long classId, Integer targetWeek, int startNode, int step) {
         try {
-            LocalTime[] r = bellTimeService.nodeRangeByWeek(resolveGrade(classId), targetWeek, startNode, step);
+            LocalTime[] r = bellTimeService.nodeRangeByWeek(classId, resolveGrade(classId), targetWeek, startNode, step);
             if (r != null) return r;
         } catch (Exception e) {
             System.out.println("=== 调课作息自动适配失败，回退默认表: " + e.getMessage());

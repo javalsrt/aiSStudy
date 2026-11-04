@@ -114,7 +114,7 @@ public class ChapterLearnActivity extends AppCompatActivity {
                 updateProgress();
             }
             @Override public void onFailure(Call<List<Chapter>> c, Throwable t) {
-                Toast.makeText(ChapterLearnActivity.this, "网络错误：" + t.getMessage(), Toast.LENGTH_SHORT).show();
+                Toast.makeText(ChapterLearnActivity.this, UiMsg.network(t), Toast.LENGTH_SHORT).show();
             }
         });
     }
