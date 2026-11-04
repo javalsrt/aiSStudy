@@ -50,6 +50,17 @@ export const getAdminBell = (params: { classId?: number; semester?: string } = {
   return request.get<any, AdminBellInfo>('/admin/bell', { params })
 }
 
+/** 作息表图片识别：上传图片由 AI 视觉提取节次时间（不落库） */
+export const recognizeBellImage = (file: File) => {
+  const form = new FormData()
+  form.append('file', file)
+  return request.post<any, { periods?: BellPeriodRow[]; count?: number; error?: string }>(
+    '/admin/bell/recognize',
+    form,
+    { headers: { 'Content-Type': 'multipart/form-data' } }
+  )
+}
+
 /** 保存作息（classIds 批量 > classId 单个 > 默认作息），同时同步已排课时间 */
 export const saveAdminBell = (data: {
   classId?: number | null

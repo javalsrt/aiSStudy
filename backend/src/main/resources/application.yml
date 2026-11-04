@@ -58,6 +58,13 @@ llm:
   model: deepseek-v4-flash
   url: https://api.deepseek.com/chat/completions
 
+# 作息表图片识别（OpenAI 兼容的多模态视觉模型）
+# 默认硅基流动 Qwen2.5-VL；也可换成智谱 GLM-4V / 通义 qwen-vl 等兼容接口
+vision:
+  api-key: ${VISION_API_KEY:}
+  url: ${VISION_URL:https://api.siliconflow.cn/v1/chat/completions}
+  model: ${VISION_MODEL:Qwen/Qwen2.5-VL-7B-Instruct}
+
 # 本地 BGE-M3 Embedding 服务配置，宽带是数据流量大小，吞吐是发送接收的效率，物理层，传输层，数据链路层，网络层，会话层，应用层
 embedding:
   local:

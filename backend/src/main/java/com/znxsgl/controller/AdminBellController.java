@@ -1,11 +1,15 @@
 package com.znxsgl.controller;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.znxsgl.service.BellTimeService;
+import com.znxsgl.service.BellVisionService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
@@ -40,10 +44,106 @@ public class AdminBellController {
 
     private final JdbcTemplate jdbc;
     private final BellTimeService bellTimeService;
+    private final BellVisionService bellVisionService;
+    private final ObjectMapper mapper = new ObjectMapper();
 
-    public AdminBellController(JdbcTemplate jdbc, BellTimeService bellTimeService) {
+    public AdminBellController(JdbcTemplate jdbc, BellTimeService bellTimeService,
+                               BellVisionService bellVisionService) {
         this.jdbc = jdbc;
         this.bellTimeService = bellTimeService;
+        this.bellVisionService = bellVisionService;
+    }
+
+    /**
+     * 作息表图片识别：上传作息时间表截图/照片，AI 视觉提取教学节次时间。
+     * 返回 periods 供前端填入表格（不直接落库，需人工核对后保存）。
+     */
+    @PostMapping("/recognize")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Map<String, Object>> recognize(@RequestParam("file") MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "请选择要识别的图片"));
+        }
+        String name = String.valueOf(file.getOriginalFilename()).toLowerCase();
+        String mime = file.getContentType();
+        boolean image = (mime != null && mime.startsWith("image/"))
+                || name.endsWith(".jpg") || name.endsWith(".jpeg")
+                || name.endsWith(".png") || name.endsWith(".webp") || name.endsWith(".bmp");
+        if (!image) {
+            return ResponseEntity.badRequest().body(Map.of("error", "仅支持图片文件（jpg/png/webp）"));
+        }
+        if (file.getSize() > 10L * 1024 * 1024) {
+            return ResponseEntity.badRequest().body(Map.of("error", "图片不能超过 10MB"));
+        }
+        try {
+            String text = bellVisionService.recognize(file.getBytes(), mime);
+            List<Map<String, Object>> periods = parsePeriods(text);
+            if (periods.isEmpty()) {
+                return ResponseEntity.ok(Map.of("error", "未识别到教学节次时间，请换一张更清晰的图片"));
+            }
+            Map<String, Object> resp = new LinkedHashMap<>();
+            resp.put("periods", periods);
+            resp.put("count", periods.size());
+            return ResponseEntity.ok(resp);
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(503).body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.ok(Map.of("error", "识别失败：" + e.getMessage()));
+        }
+    }
+
+    /** 解析模型返回的 JSON（容忍 ```json 包裹、前后废话），并规范化时间 */
+    private List<Map<String, Object>> parsePeriods(String text) {
+        List<Map<String, Object>> result = new ArrayList<>();
+        if (text == null) return result;
+        String cleaned = text.replace("```json", "").replace("```", "").trim();
+        int start = cleaned.indexOf('{');
+        int end = cleaned.lastIndexOf('}');
+        if (start < 0 || end <= start) return result;
+        try {
+            JsonNode root = mapper.readTree(cleaned.substring(start, end + 1));
+            JsonNode arr = root.path("periods");
+            if (!arr.isArray()) return result;
+            for (JsonNode p : arr) {
+                int node = p.path("node").asInt(-1);
+                String st = normalizeTime(p.path("startTime").asText(""));
+                String et = normalizeTime(p.path("endTime").asText(""));
+                if (node < 1 || node > 12 || st == null || et == null) continue;
+                if (st.compareTo(et) >= 0) continue;
+                Map<String, Object> m = new LinkedHashMap<>();
+                m.put("node", node);
+                m.put("startTime", st);
+                m.put("endTime", et);
+                result.add(m);
+            }
+        } catch (Exception e) {
+            // 忽略解析异常，交由上层提示
+        }
+        result.sort((a, b) -> Integer.compare((int) a.get("node"), (int) b.get("node")));
+        return result;
+    }
+
+    /** "8:5" / "08：55" → "08:05" / "08:55" */
+    private String normalizeTime(String raw) {
+        if (raw == null) return null;
+        String s = raw.replace('：', ':').replace("—", "-").replace("－", "-").trim();
+        // 只取第一个时间片段（防止 "8:55-9:35" 这类脏数据）
+        int dash = s.indexOf('-');
+        int space = s.indexOf(' ');
+        int cut = s.length();
+        if (dash > 0) cut = Math.min(cut, dash);
+        if (space > 0) cut = Math.min(cut, space);
+        s = s.substring(0, cut).trim();
+        String[] parts = s.split(":");
+        if (parts.length < 2) return null;
+        try {
+            int h = Integer.parseInt(parts[0].replaceAll("[^0-9]", ""));
+            int m = Integer.parseInt(parts[1].replaceAll("[^0-9]", ""));
+            if (h < 0 || h > 23 || m < 0 || m > 59) return null;
+            return String.format("%02d:%02d", h, m);
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     /** 查询某班级（classId 为空=默认作息）当前生效的作息 */

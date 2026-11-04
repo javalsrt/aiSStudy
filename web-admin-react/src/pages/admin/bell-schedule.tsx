@@ -1,9 +1,20 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Clock, RotateCcw, Save, Info, Plus, Trash2, Globe2, Users, Check } from 'lucide-react'
+import {
+  Clock,
+  RotateCcw,
+  Save,
+  Info,
+  Plus,
+  Trash2,
+  Globe2,
+  Users,
+  Check,
+  ScanLine,
+} from 'lucide-react'
 import { getClasses } from '@/api/staff'
-import { getAdminBell, saveAdminBell, type BellPeriodRow } from '@/api/bell'
+import { getAdminBell, recognizeBellImage, saveAdminBell, type BellPeriodRow } from '@/api/bell'
 import type { ClassInfo } from '@/types'
 
 /**
@@ -22,7 +33,9 @@ export function BellSchedulePage() {
   const [ownCount, setOwnCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [recognizing, setRecognizing] = useState(false)
   const [message, setMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
+  const imageRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     getClasses()
@@ -79,6 +92,44 @@ export function BellSchedulePage() {
 
   const updateRow = (index: number, key: 'startTime' | 'endTime', value: string) => {
     setRows((prev) => prev.map((r, i) => (i === index ? { ...r, [key]: value } : r)))
+  }
+
+  /** 图片识别：上传作息表照片 → AI 视觉提取节次时间并填入表格 */
+  const onImageSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setRecognizing(true)
+    setMessage(null)
+    try {
+      const res = await recognizeBellImage(file)
+      if (!res.periods || res.periods.length === 0) {
+        setMessage({ type: 'err', text: res.error || '未识别到教学节次时间，请换一张更清晰的图片' })
+        return
+      }
+      setRows((prev) => {
+        const map = new Map(prev.map((p) => [p.node, p]))
+        for (const p of res.periods!) {
+          map.set(p.node, {
+            node: p.node,
+            startTime: (p.startTime || '').slice(0, 5),
+            endTime: (p.endTime || '').slice(0, 5),
+          })
+        }
+        return Array.from(map.values()).sort((a, b) => a.node - b.node)
+      })
+      setMessage({
+        type: 'ok',
+        text: `识别到 ${res.count ?? res.periods.length} 个节次，已填入下方表格，请核对后保存`,
+      })
+    } catch (err: any) {
+      setMessage({
+        type: 'err',
+        text: err?.response?.data?.error || err?.message || '识别失败，请稍后重试',
+      })
+    } finally {
+      setRecognizing(false)
+    }
   }
 
   const fillPreset = async () => {
@@ -348,7 +399,24 @@ export function BellSchedulePage() {
               {semester || '当前学期'} · {rows.length} 节
             </span>
           </CardTitle>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => imageRef.current?.click()}
+              disabled={recognizing || loading}
+              title="上传作息表照片/截图，由 AI 视觉自动识别节次时间"
+            >
+              <ScanLine className="mr-1 h-4 w-4" />
+              {recognizing ? '识别中…' : '图片识别'}
+            </Button>
+            <input
+              ref={imageRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={onImageSelected}
+            />
             <Button variant="outline" size="sm" onClick={fillPreset} disabled={loading}>
               <RotateCcw className="mr-1 h-4 w-4" />
               填入标准作息
@@ -401,7 +469,7 @@ export function BellSchedulePage() {
 
           <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
             <div className="text-xs text-neutral-400">
-              保存将覆盖所选范围内原有的通用作息；单双周差异作息可后续按需扩展。
+              保存将覆盖所选范围内原有的通用作息；「图片识别」支持拍照/截图，仅提取教学节次（起床铃、早读、午休等自动忽略）。
             </div>
             <Button onClick={submit} disabled={saving || loading}>
               <Save className="mr-1 h-4 w-4" />
