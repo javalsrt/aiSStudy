@@ -128,38 +128,30 @@ public class AdminBellController {
             return ResponseEntity.badRequest().body(Map.of("error", "节次重复"));
         }
 
-        // 覆盖该范围该学期的旧配置
-        if (classId != null) {
-            jdbc.update("DELETE FROM bell_schedule WHERE class_id = ? AND week_parity = 0 AND COALESCE(semester,'') = ?",
-                    classId, semester);
-        } else {
+        // 目标范围：classIds 批量 > classId 单个 > 默认作息
+        List<Long> targets = new ArrayList<>();
+        Object idsObj = body.get("classIds");
+        if (idsObj instanceof List<?> idList) {
+            for (Object o : idList) {
+                Long v = parseLong(o);
+                if (v != null) targets.add(v);
+            }
+        }
+        Long single = parseLong(body.get("classId"));
+        if (targets.isEmpty() && single != null) targets.add(single);
+        boolean defaultScope = targets.isEmpty();
+
+        int synced = 0;
+        if (defaultScope) {
+            // 覆盖默认作息配置
             jdbc.update("DELETE FROM bell_schedule WHERE class_id IS NULL AND (grade IS NULL OR grade = '') " +
                     "AND week_parity = 0 AND COALESCE(semester,'') = ?", semester);
-        }
-
-        String grade = "";
-        if (classId != null) {
-            List<String> g = jdbc.queryForList("SELECT grade FROM class_info WHERE id = ?", String.class, classId);
-            if (!g.isEmpty() && g.get(0) != null) grade = g.get(0);
-        }
-        for (int i = 0; i < nodes.size(); i++) {
-            jdbc.update("INSERT INTO bell_schedule (semester, grade, class_id, week_parity, node, start_time, end_time) " +
-                            "VALUES (?, ?, ?, 0, ?, ?, ?)",
-                    semester, grade, classId, nodes.get(i), times.get(i)[0], times.get(i)[1]);
-        }
-
-        // 同步已排课记录的时间（按新作息重算起始节开始、末节结束）
-        int synced;
-        if (classId != null) {
-            synced = jdbc.update(
-                    "UPDATE schedule s " +
-                            "JOIN user u ON u.id = s.user_id " +
-                            "JOIN bell_schedule b1 ON b1.class_id = ? AND b1.week_parity = 0 AND b1.node = s.start_node " +
-                            "JOIN bell_schedule b2 ON b2.class_id = ? AND b2.week_parity = 0 AND b2.node = s.start_node + s.step - 1 " +
-                            "SET s.start_time = b1.start_time, s.end_time = b2.end_time " +
-                            "WHERE u.class_id = ? AND s.semester = ? AND s.day_of_week > 0",
-                    classId, classId, classId, semester);
-        } else {
+            for (int i = 0; i < nodes.size(); i++) {
+                jdbc.update("INSERT INTO bell_schedule (semester, grade, class_id, week_parity, node, start_time, end_time) " +
+                                "VALUES (?, '', NULL, 0, ?, ?, ?)",
+                        semester, nodes.get(i), times.get(i)[0], times.get(i)[1]);
+            }
+            // 同步「没有班级专属作息」的班级的已排课时间
             synced = jdbc.update(
                     "UPDATE schedule s " +
                             "JOIN user u ON u.id = s.user_id " +
@@ -169,13 +161,37 @@ public class AdminBellController {
                             "WHERE s.semester = ? AND s.day_of_week > 0 " +
                             "  AND NOT EXISTS (SELECT 1 FROM bell_schedule bx WHERE bx.class_id = u.class_id AND bx.week_parity = 0)",
                     semester);
+        } else {
+            for (Long cid : targets) {
+                jdbc.update("DELETE FROM bell_schedule WHERE class_id = ? AND week_parity = 0 AND COALESCE(semester,'') = ?",
+                        cid, semester);
+                String grade = "";
+                List<String> g = jdbc.queryForList("SELECT grade FROM class_info WHERE id = ?", String.class, cid);
+                if (!g.isEmpty() && g.get(0) != null) grade = g.get(0);
+                for (int i = 0; i < nodes.size(); i++) {
+                    jdbc.update("INSERT INTO bell_schedule (semester, grade, class_id, week_parity, node, start_time, end_time) " +
+                                    "VALUES (?, ?, ?, 0, ?, ?, ?)",
+                            semester, grade, cid, nodes.get(i), times.get(i)[0], times.get(i)[1]);
+                }
+                synced += jdbc.update(
+                        "UPDATE schedule s " +
+                                "JOIN user u ON u.id = s.user_id " +
+                                "JOIN bell_schedule b1 ON b1.class_id = ? AND b1.week_parity = 0 AND b1.node = s.start_node " +
+                                "JOIN bell_schedule b2 ON b2.class_id = ? AND b2.week_parity = 0 AND b2.node = s.start_node + s.step - 1 " +
+                                "SET s.start_time = b1.start_time, s.end_time = b2.end_time " +
+                                "WHERE u.class_id = ? AND s.semester = ? AND s.day_of_week > 0",
+                        cid, cid, cid, semester);
+            }
         }
 
         bellTimeService.evictCache();
 
         Map<String, Object> resp = new LinkedHashMap<>();
-        resp.put("msg", (classId != null ? "本班" : "默认") + "作息已保存");
+        resp.put("msg", defaultScope
+                ? "默认作息已保存"
+                : (targets.size() == 1 ? "本班作息已保存" : targets.size() + " 个班级的作息已保存"));
         resp.put("saved", nodes.size());
+        resp.put("classes", defaultScope ? 0 : targets.size());
         resp.put("syncedSchedules", synced);
         return ResponseEntity.ok(resp);
     }

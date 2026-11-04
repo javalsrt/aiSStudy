@@ -585,34 +585,40 @@ export function CoursesPage() {
                 <div className="text-sm text-neutral-500">
                   共 {filteredCourses.length} 条记录
                 </div>
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="w-8 h-8 rounded-lg"
-                    data-testid="pagination-prev"
-                    onClick={() => setPage(Math.max(1, currentPage - 1))}
-                    disabled={currentPage === 1}
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="default"
-                    size="sm"
-                    className="w-8 h-8 p-0 rounded-lg"
-                  >
-                    {currentPage}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="w-8 h-8 rounded-lg"
-                    data-testid="pagination-next"
-                    onClick={() => setPage(Math.min(totalPages, currentPage + 1))}
-                    disabled={currentPage >= totalPages}
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </Button>
+                <div className="flex items-center gap-3">
+                  {/* 总页数显示：当前页 / 总页数 */}
+                  <span className="whitespace-nowrap text-xs text-neutral-400 tabular-nums">
+                    第 {currentPage} / {totalPages} 页
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="w-8 h-8 rounded-lg"
+                      data-testid="pagination-prev"
+                      onClick={() => setPage(Math.max(1, currentPage - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="default"
+                      size="sm"
+                      className="w-8 h-8 p-0 rounded-lg tabular-nums"
+                    >
+                      {currentPage}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="w-8 h-8 rounded-lg"
+                      data-testid="pagination-next"
+                      onClick={() => setPage(Math.min(totalPages, currentPage + 1))}
+                      disabled={currentPage >= totalPages}
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
               </div>
             </Card>

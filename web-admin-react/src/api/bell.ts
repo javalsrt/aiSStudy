@@ -50,14 +50,15 @@ export const getAdminBell = (params: { classId?: number; semester?: string } = {
   return request.get<any, AdminBellInfo>('/admin/bell', { params })
 }
 
-/** 保存作息（同时同步该范围已排课时间） */
+/** 保存作息（classIds 批量 > classId 单个 > 默认作息），同时同步已排课时间 */
 export const saveAdminBell = (data: {
   classId?: number | null
+  classIds?: number[]
   semester?: string
   periods: BellPeriodRow[]
 }) => {
-  return request.post<any, { msg: string; saved: number; syncedSchedules: number }>(
-    '/admin/bell',
-    data
-  )
+  return request.post<
+    any,
+    { msg: string; saved: number; classes: number; syncedSchedules: number }
+  >('/admin/bell', data)
 }
