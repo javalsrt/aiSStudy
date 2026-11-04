@@ -5,6 +5,7 @@ services:
     container_name: znxsgl-mysql
     restart: unless-stopped
     environment:
+      TZ: Asia/Shanghai
       MYSQL_ROOT_PASSWORD: 123456
       MYSQL_DATABASE: znxsglTest
       MYSQL_CHARACTER_SET_SERVER: utf8mb4
@@ -50,6 +51,9 @@ services:
       redis:
         condition: service_healthy
     environment:
+      # 时区：容器默认 UTC 会导致 LocalDateTime.now() / NOW() 比北京时间慢 8 小时
+      TZ: Asia/Shanghai
+      JAVA_TOOL_OPTIONS: -Duser.timezone=Asia/Shanghai
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/znxsglTest?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&characterEncoding=UTF-8
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: 123456

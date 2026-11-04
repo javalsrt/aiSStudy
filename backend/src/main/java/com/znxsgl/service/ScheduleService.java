@@ -295,10 +295,27 @@ public class ScheduleService {
         }
 
         List<Schedule> schedules = queryStudentSchedule(userId, activeSemesters, week);
-        if (schedules.isEmpty() && classId != null) {
-            // 新建学生/转班学生可能还没有个人 schedule 记录：
-            // 回退到本班已有课表，按课程 + 时段去重展示，保证课表可见。
-            schedules = queryClassSchedule(classId, activeSemesters, week);
+        if (classId != null) {
+            // 班级课表兜底与补齐：
+            // 1) 新学生/转班学生没有任何个人记录时，整表回退班级课表；
+            // 2) 个人记录不完整时（如测试账号只有调课生成的一条英语），
+            //    按「课程」补齐个人缺失的课程，避免课表只剩零星几门。
+            List<Schedule> classSchedules = queryClassSchedule(classId, activeSemesters, week);
+            if (schedules.isEmpty()) {
+                schedules = classSchedules;
+            } else if (!classSchedules.isEmpty()) {
+                Set<String> mine = schedules.stream()
+                        .map(Schedule::getCourseName)
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toSet());
+                List<Schedule> extra = classSchedules.stream()
+                        .filter(s -> s.getCourseName() != null && !mine.contains(s.getCourseName()))
+                        .collect(Collectors.toList());
+                if (!extra.isEmpty()) {
+                    schedules = new ArrayList<>(schedules);
+                    schedules.addAll(extra);
+                }
+            }
         }
         return schedules.stream().map(this::toStudentScheduleDTO).collect(Collectors.toList());
     }
@@ -309,15 +326,32 @@ public class ScheduleService {
                 .in(Schedule::getSemester, activeSemesters)
                 .eq(Schedule::getStatus, 1)
                 .gt(Schedule::getDayOfWeek, 0);
-        if (week > 0) {
-            qw.apply("JSON_CONTAINS(weeks, CAST({0} AS JSON))", week);
-        }
         try {
-            return scheduleMapper.selectList(qw);
+            List<Schedule> rows = scheduleMapper.selectList(qw);
+            // 周次在 Java 层过滤：原 JSON_CONTAINS 遇到任意一条非合法 JSON（如手工写成 "1-16"）
+            // 会让整条 SQL 报错，导致整周课表消失。
+            return rows.stream().filter(s -> weekMatches(s.getWeeks(), week)).collect(Collectors.toList());
         } catch (Exception e) {
             log.warn("学生课表查询异常 userId={} week={}", userId, week, e);
             return Collections.emptyList();
         }
+    }
+
+    /** 判断某周次是否命中 weeks 字段：支持 [1,2,3] 与 "1-16" 两种格式，无法解析视为全学期 */
+    private boolean weekMatches(String weeksJson, int week) {
+        if (week <= 0) return true;
+        if (weeksJson == null || weeksJson.trim().isEmpty()) return true;
+        List<Integer> weeks = ScheduleConflictChecker.parseWeeks(weeksJson);
+        if (!weeks.isEmpty()) return weeks.contains(week);
+        java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("^\\s*(\\d{1,2})\\s*-\\s*(\\d{1,2})\\s*$")
+                .matcher(weeksJson.trim());
+        if (m.matches()) {
+            int a = Integer.parseInt(m.group(1));
+            int b = Integer.parseInt(m.group(2));
+            return week >= Math.min(a, b) && week <= Math.max(a, b);
+        }
+        return true;
     }
 
     private List<Schedule> queryClassSchedule(Long classId, List<String> activeSemesters, int week) {
@@ -335,13 +369,12 @@ public class ScheduleService {
                 .in(Schedule::getSemester, activeSemesters)
                 .eq(Schedule::getStatus, 1)
                 .gt(Schedule::getDayOfWeek, 0);
-        if (week > 0) {
-            qw.apply("JSON_CONTAINS(weeks, CAST({0} AS JSON))", week);
-        }
         try {
             List<Schedule> rows = scheduleMapper.selectList(qw);
             Map<String, Schedule> distinct = new LinkedHashMap<>();
             for (Schedule s : rows) {
+                // 周次在 Java 层过滤，兼容非法 JSON / "1-16" 等历史格式
+                if (!weekMatches(s.getWeeks(), week)) continue;
                 String key = String.join("|",
                         String.valueOf(s.getCourseId()),
                         String.valueOf(s.getCourseName()),

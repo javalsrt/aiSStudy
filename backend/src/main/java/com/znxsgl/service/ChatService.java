@@ -11,6 +11,10 @@ import com.znxsgl.mapper.UserMapper;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -113,7 +117,26 @@ public class ChatService {
                 new LambdaQueryWrapper<ChatMessage>()
                         .eq(ChatMessage::getCourseId, courseId)
                         .orderByAsc(ChatMessage::getCreatedAt));
-        return msgs.stream().map(m -> {
+        // 群聊展示去重：排课/调课通知按「每个学生一条」落库（用于各自的未读红点），
+        // 群聊直接展示会重复 N 次。这里折叠「同发送者 + 同内容 + 10 分钟内」的重复通知，保留最早一条。
+        List<ChatMessage> deduped = new ArrayList<>();
+        Map<String, LocalDateTime> lastNoticeAt = new HashMap<>();
+        for (ChatMessage m : msgs) {
+            String content = m.getContent();
+            boolean isNotice = "teacher".equals(m.getSenderRole()) && content != null
+                    && (content.contains("【课程通知】") || content.contains("排课已更新") || content.contains("调课"));
+            if (isNotice) {
+                String key = String.valueOf(m.getSenderName()) + "|" + content;
+                LocalDateTime prev = lastNoticeAt.get(key);
+                if (prev != null && m.getCreatedAt() != null
+                        && Math.abs(Duration.between(prev, m.getCreatedAt()).toMinutes()) < 10) {
+                    continue;
+                }
+                lastNoticeAt.put(key, m.getCreatedAt());
+            }
+            deduped.add(m);
+        }
+        return deduped.stream().map(m -> {
             ChatMessageDTO d = chatMessageConverter.toDto(m);
             if ("ai".equals(m.getSenderRole())) {
                 User student = userMapper.selectById(m.getUserId());

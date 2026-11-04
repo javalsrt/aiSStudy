@@ -18,7 +18,10 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
-    <!-- 悬浮药丸导航 -->
+    <!-- 悬浮药丸导航
+         注意：不要给它加 paddingHorizontal。M3 底部导航是按等分槽位排布（每个 tab 占 1/N），
+         左右 padding 会把两端挤出大片空白（4 个 tab 时尤其明显）；
+         padding = 0 时端到端间隙恰为相邻间隙的一半，分布最平均（同 iOS Tab Bar）。 -->
     <com.google.android.material.bottomnavigation.BottomNavigationView
         android:id="@+id/bottom_nav"
         android:layout_width="match_parent"
@@ -27,8 +30,6 @@
         android:layout_marginStart="16dp"
         android:layout_marginEnd="16dp"
         android:layout_marginBottom="16dp"
-        android:paddingStart="48dp"
-        android:paddingEnd="48dp"
         android:background="@drawable/bg_nav_bar"
         android:elevation="8dp"
         android:outlineProvider="background"

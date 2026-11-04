@@ -2,6 +2,8 @@ package com.znxsgl.student;
 
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -130,11 +132,7 @@ public class QuizPagerAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
         vh.tvTag.setText("解析题");
         vh.tvNum.setText((pos + 1) + "/" + questions.size());
         RichTextRenderer.set(vh.tvQuestion, question);
-        if (q.getUserAnswer() == null || q.getUserAnswer().isEmpty()) {
-            vh.etAnswer.setText("");
-        } else if (!vh.etAnswer.getText().toString().equals(q.getUserAnswer())) {
-            vh.etAnswer.setText(q.getUserAnswer());
-        }
+        bindTextAnswer(vh.etAnswer, q);
     }
 
     // ===== 填空题 =====
@@ -142,11 +140,31 @@ public class QuizPagerAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
         vh.tvTag.setText("填空题");
         vh.tvNum.setText((pos + 1) + "/" + questions.size());
         RichTextRenderer.set(vh.tvQuestion, question);
-        if (q.getUserAnswer() == null || q.getUserAnswer().isEmpty()) {
-            vh.etAnswer.setText("");
-        } else if (!vh.etAnswer.getText().toString().equals(q.getUserAnswer())) {
-            vh.etAnswer.setText(q.getUserAnswer());
+        bindTextAnswer(vh.etAnswer, q);
+    }
+
+    /**
+     * 解析题/填空题输入框绑定：用户输入实时写回 QuizQuestion.userAnswer。
+     * 修复：此前没有监听器，提交时空值被统一改写成“不会”，导致报告显示「未作答」。
+     * ViewHolder 复用需先移除旧监听器，避免答案串题。
+     */
+    private void bindTextAnswer(EditText et, QuizQuestion q) {
+        Object tag = et.getTag();
+        if (tag instanceof TextWatcher) {
+            et.removeTextChangedListener((TextWatcher) tag);
         }
+        // 回显已保存答案（先清监听再回显，避免回显触发写回导致光标跳动）
+        String saved = q.getUserAnswer();
+        et.setText(saved == null ? "" : saved);
+        TextWatcher watcher = new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) { }
+            @Override public void afterTextChanged(Editable s) {
+                q.setUserAnswer(s.toString().trim());
+            }
+        };
+        et.addTextChangedListener(watcher);
+        et.setTag(watcher);
     }
 
     /** 选择题选项样式：浅蓝底 + 浅灰斜切块滑动 */

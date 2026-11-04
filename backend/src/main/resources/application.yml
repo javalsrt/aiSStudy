@@ -93,3 +93,8 @@ management:
   metrics:
     tags:
       application: znxsgl-backend
+  # 本地未启用 Redis（app.redis.enabled=false）时关闭 Redis 健康检查，
+  # 避免本地开发日志持续刷 "Redis health check failed"；服务器通过 APP_REDIS_ENABLED=true 打开
+  health:
+    redis:
+      enabled: ${APP_REDIS_ENABLED:false}

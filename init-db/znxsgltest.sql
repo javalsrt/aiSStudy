@@ -11,7 +11,7 @@
  Target Server Version : 80028 (8.0.28)
  File Encoding         : 65001
 
- Date: 08/10/2026 22:11:28
+ Date: 04/11/2026 19:41:04
 */
 
 SET NAMES utf8mb4;
@@ -345,7 +345,7 @@ CREATE TABLE `checkin_record`  (
   INDEX `user_id`(`user_id` ASC) USING BTREE,
   CONSTRAINT `checkin_record_ibfk_1` FOREIGN KEY (`task_id`) REFERENCES `checkin_task` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT,
   CONSTRAINT `checkin_record_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `user` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '签到记录表' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '签到记录表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Records of checkin_record
@@ -371,7 +371,7 @@ CREATE TABLE `checkin_task`  (
   INDEX `course_id`(`course_id` ASC) USING BTREE,
   CONSTRAINT `checkin_task_ibfk_1` FOREIGN KEY (`admin_id`) REFERENCES `user` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT,
   CONSTRAINT `checkin_task_ibfk_2` FOREIGN KEY (`course_id`) REFERENCES `course` (`id`) ON DELETE SET NULL ON UPDATE RESTRICT
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '签到任务表' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '签到任务表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Records of checkin_task
@@ -1347,7 +1347,7 @@ CREATE TABLE `document`  (
   INDEX `course_id`(`course_id` ASC) USING BTREE,
   CONSTRAINT `document_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `user` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT,
   CONSTRAINT `document_ibfk_2` FOREIGN KEY (`course_id`) REFERENCES `course` (`id`) ON DELETE SET NULL ON UPDATE RESTRICT
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '文档表' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '文档表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Records of document
@@ -1367,7 +1367,7 @@ CREATE TABLE `document_chunk`  (
   PRIMARY KEY (`id`) USING BTREE,
   INDEX `idx_chunk_doc`(`document_id` ASC) USING BTREE,
   CONSTRAINT `document_chunk_ibfk_1` FOREIGN KEY (`document_id`) REFERENCES `document` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '文档分块表(向量检索)' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '文档分块表(向量检索)' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Records of document_chunk
@@ -1948,7 +1948,7 @@ CREATE TABLE `learning_goal`  (
   PRIMARY KEY (`id`) USING BTREE,
   INDEX `user_id`(`user_id` ASC) USING BTREE,
   CONSTRAINT `learning_goal_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `user` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '学习目标表' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '学习目标表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Records of learning_goal
@@ -1975,7 +1975,7 @@ CREATE TABLE `learning_plan`  (
   INDEX `course_id`(`course_id` ASC) USING BTREE,
   CONSTRAINT `learning_plan_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `user` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT,
   CONSTRAINT `learning_plan_ibfk_2` FOREIGN KEY (`course_id`) REFERENCES `course` (`id`) ON DELETE SET NULL ON UPDATE RESTRICT
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '学习计划表' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '学习计划表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Records of learning_plan
@@ -1999,7 +1999,7 @@ CREATE TABLE `notification`  (
   INDEX `idx_notif_time`(`created_at` ASC) USING BTREE,
   INDEX `admin_id`(`admin_id` ASC) USING BTREE,
   CONSTRAINT `notification_ibfk_1` FOREIGN KEY (`admin_id`) REFERENCES `user` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '通知表' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '通知表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Records of notification
@@ -2020,7 +2020,7 @@ CREATE TABLE `notification_receipt`  (
   INDEX `idx_receipt_user_read`(`user_id` ASC, `is_read` ASC) USING BTREE,
   CONSTRAINT `notification_receipt_ibfk_1` FOREIGN KEY (`notification_id`) REFERENCES `notification` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT,
   CONSTRAINT `notification_receipt_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `user` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '通知接收状态表' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '通知接收状态表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Records of notification_receipt
@@ -2044,7 +2044,7 @@ CREATE TABLE `qa_message`  (
   INDEX `idx_qa_user_time`(`user_id` ASC, `created_at` ASC) USING BTREE,
   INDEX `idx_qa_session`(`session_id` ASC) USING BTREE,
   CONSTRAINT `qa_message_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `user` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = 'AI问答消息表' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = 'AI问答消息表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Records of qa_message
@@ -61572,7 +61572,7 @@ CREATE TABLE `user`  (
 -- ----------------------------
 -- Records of user
 -- ----------------------------
-INSERT INTO `user` VALUES (1, NULL, 'admin', '$2a$10$jHN9lXZ2mzBt4IP4zzA5X.H2YOFAyt/xTWKM0SzDlRDR4MQBuR5z6', '系统管理员', NULL, 'admin@univ.edu.cn', NULL, 3, NULL, NULL, NULL, 1, '2026-05-24 21:00:49', '2026-09-21 11:24:35', 'eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiIxIiwidXNlcm5hbWUiOiJhZG1pbiIsInJvbGUiOjMsImlhdCI6MTc4OTk2MTA3NSwiZXhwIjoxNzkwNTY1ODc1fQ.2tWueo_zh55ZU078Driw34y4d6dqHoBrmHH549Nir2XKutn2vq0spfl02Jh4W9Vf_IN-vm8dqJ9tbdAhyPQ3Vw');
+INSERT INTO `user` VALUES (1, NULL, 'admin', '$2a$10$jHN9lXZ2mzBt4IP4zzA5X.H2YOFAyt/xTWKM0SzDlRDR4MQBuR5z6', '系统管理员', NULL, 'admin@univ.edu.cn', NULL, 3, NULL, NULL, NULL, 1, '2026-05-24 21:00:49', '2026-11-04 15:55:54', 'eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiIxIiwidXNlcm5hbWUiOiJhZG1pbiIsInJvbGUiOjMsImlhdCI6MTc5Mzc3ODk1NCwiZXhwIjoxNzk0MzgzNzU0fQ.XRsETBBp-isDLwrXT8LljpnHR38JErPkzMYC53l_PxwmxgADETgjg1bbd7lpum0dEj42cMf_66fotO61Uyp7zg');
 INSERT INTO `user` VALUES (363, NULL, 'zhangyq24', '$2a$10$jHN9lXZ2mzBt4IP4zzA5X.H2YOFAyt/xTWKM0SzDlRDR4MQBuR5z6', '张雅琴', NULL, 'zhangyq24@school.com', '13800000101', 2, NULL, NULL, NULL, 1, '2026-08-16 23:39:39', '2026-08-17 23:45:22', 'eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiIzNjMiLCJ1c2VybmFtZSI6InpoYW5neXEyNCIsInJvbGUiOjIsImlhdCI6MTc4Njk4MTUyMiwiZXhwIjoxNzg3NTg2MzIyfQ.qBjnOvY1tZHlxiGxk9ir8keHtTfs60hbKGuBxuw6t-WzJWGJ9AIfx5G3pLcVYV7ZKiHiU98XQmEZWBWeEHaq3A');
 INSERT INTO `user` VALUES (364, NULL, 'wanghm24', '$2a$10$jHN9lXZ2mzBt4IP4zzA5X.H2YOFAyt/xTWKM0SzDlRDR4MQBuR5z6', '王慧敏', NULL, 'wanghm24@school.com', '13800000102', 2, NULL, NULL, NULL, 1, '2026-08-16 23:39:39', NULL, NULL);
 INSERT INTO `user` VALUES (365, NULL, 'liuzx24', '$2a$10$jHN9lXZ2mzBt4IP4zzA5X.H2YOFAyt/xTWKM0SzDlRDR4MQBuR5z6', '刘子轩', NULL, 'liuzx24@school.com', '13800000103', 2, NULL, NULL, NULL, 1, '2026-08-16 23:39:39', NULL, NULL);
@@ -62729,7 +62729,7 @@ INSERT INTO `user` VALUES (1516, '202626349', '202626349', '$2a$10$xucJxZBtKZQF9
 INSERT INTO `user` VALUES (1517, NULL, 'yanxiaochuan', '$2a$10$dRwgzKKaXL4qMX8.5ThEReZ/h1iD9Hwl/pMgU5ddkfdw958vYFycm', '颜小川', NULL, NULL, NULL, 2, NULL, NULL, NULL, 1, '2026-09-12 15:47:05', '2026-09-12 15:47:05', NULL);
 INSERT INTO `user` VALUES (1518, NULL, 'huangdong', '$2a$10$bMYhdYakl7kHojfofel/eu6rf2axib92rqqxfoph1bjkY1ug2DWQK', '黄东(大)', NULL, NULL, NULL, 2, NULL, NULL, NULL, 1, '2026-09-12 15:47:05', '2026-09-21 13:10:26', 'eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiIxNTE4IiwidXNlcm5hbWUiOiJodWFuZ2RvbmciLCJyb2xlIjoyLCJpYXQiOjE3ODk5Njc0MjUsImV4cCI6MTc5MDU3MjIyNX0.zJA3PJkGMAium77fPutjPMPF96U0ZZ2sDGRWgWRTQYGHvSHB_vXfnIuTMaM2Heh5xwYLh0nd_PeXKmw92k6jmw');
 INSERT INTO `user` VALUES (1519, NULL, 'cenlixiao', '$2a$10$DMETRSaYEHAHgmoOiIsZBOzS3wKtkoG7KwBCDjpQcdPZZxt/cccLO', '岑丽潇', NULL, NULL, NULL, 2, NULL, NULL, NULL, 1, '2026-09-12 15:47:05', '2026-09-12 15:47:05', NULL);
-INSERT INTO `user` VALUES (1520, NULL, 'lishiyi', '$2a$10$zbNaHLv3H769NdEl4otYkum6Z68KZ88SIjWIqXcCBUUoo41Rpy4xq', '李世易', NULL, NULL, NULL, 2, NULL, NULL, NULL, 1, '2026-09-12 15:47:06', '2026-09-20 15:04:04', 'eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiIxNTIwIiwidXNlcm5hbWUiOiJsaXNoaXlpIiwicm9sZSI6MiwiaWF0IjoxNzg5ODg3ODQ0LCJleHAiOjE3OTA0OTI2NDR9.Vt349Xiwr6lRfcP9j1SxMWXdkcshsqOGPcUOjt3XaoFaSWQAybPtYRFynJGjjalqu1yl7K_ldRcCzZ_to5NtyA');
+INSERT INTO `user` VALUES (1520, NULL, 'lishiyi', '$2a$10$zbNaHLv3H769NdEl4otYkum6Z68KZ88SIjWIqXcCBUUoo41Rpy4xq', '李世易', NULL, NULL, NULL, 2, NULL, NULL, NULL, 1, '2026-09-12 15:47:06', '2026-11-04 19:25:07', 'eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiIxNTIwIiwidXNlcm5hbWUiOiJsaXNoaXlpIiwicm9sZSI6MiwiaWF0IjoxNzkzNzkxNTA3LCJleHAiOjE3OTQzOTYzMDd9.KvH3BzOSuyfegZn5sWRuzUESATJlof4uqPL5bseYCEoo4ml4G8olBa7iXSt2BFRAWBqRkUzchie6l1u_3rbTGA');
 INSERT INTO `user` VALUES (1521, NULL, 'tangwei', '$2a$10$09JM.WUwNLFb2Pg0jV4UtO1zpCjefT6URSrw4k5U3dBoRMns/1Ysu', '唐伟', NULL, NULL, NULL, 2, NULL, NULL, NULL, 1, '2026-09-12 15:47:06', '2026-09-12 15:47:06', NULL);
 INSERT INTO `user` VALUES (1522, NULL, 'pengxiucheng', '$2a$10$qI5Y7T90UrvrloUo8Nqgjuw0YHxAiqFPy6VB75UmAusXvvoCDykQu', '彭秀程', NULL, NULL, NULL, 2, NULL, NULL, NULL, 1, '2026-09-12 15:47:06', '2026-09-12 15:47:06', NULL);
 INSERT INTO `user` VALUES (1523, NULL, 'lijing', '$2a$10$rYjwadOh1LjyV8BLLm.yUufmwCtwD0czTxLmdxp64qdomoUV8bQg6', '李晶', NULL, NULL, NULL, 2, NULL, NULL, NULL, 1, '2026-09-12 15:47:06', '2026-09-12 15:47:06', NULL);
@@ -62784,7 +62784,7 @@ CREATE TABLE `user_profile`  (
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `user_id`(`user_id` ASC) USING BTREE,
   CONSTRAINT `user_profile_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `user` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '用户画像表(AI辅助)' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '用户画像表(AI辅助)' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Records of user_profile
