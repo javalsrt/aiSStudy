@@ -4,7 +4,10 @@
     android:layout_height="wrap_content"
     android:background="@drawable/bg_contacts_card"
     android:orientation="vertical"
-    android:padding="20dp">
+    android:paddingStart="20dp"
+    android:paddingEnd="20dp"
+    android:paddingTop="18dp"
+    android:paddingBottom="12dp">
 
     <!-- 标题栏 -->
     <LinearLayout
@@ -13,33 +16,50 @@
         android:gravity="center_vertical"
         android:orientation="horizontal">
 
-        <TextView
+        <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="通讯录"
-            android:textColor="@color/ink"
-            android:textSize="17sp"
-            android:fontFamily="@font/harmonyos_sans_sc_medium" />
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="通讯录"
+                android:textColor="@color/ink"
+                android:textSize="18sp"
+                android:fontFamily="@font/harmonyos_sans_sc_medium" />
+
+            <TextView
+                android:id="@+id/tv_head_teacher"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:textColor="@color/ink_subtle"
+                android:textSize="11sp"
+                android:visibility="gone" />
+        </LinearLayout>
 
         <TextView
             android:id="@+id/btn_close"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:gravity="center"
             android:text="✕"
             android:textColor="@color/ink_subtle"
-            android:textSize="18sp"
-            android:padding="8dp"
+            android:textSize="16sp"
             android:clickable="true"
             android:focusable="true" />
     </LinearLayout>
 
-    <!-- 可滚动的内容区，避免条目过多时最后一行被截断 -->
+    <!-- 可滚动内容区 -->
     <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:layout_marginTop="16dp"
+        android:layout_marginTop="14dp"
+        android:clipToPadding="false"
+        android:paddingBottom="8dp"
         android:overScrollMode="never">
 
         <LinearLayout
@@ -49,6 +69,7 @@
 
             <!-- 任课教师 -->
             <TextView
+                android:id="@+id/tv_teacher_title"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="任课教师"
@@ -75,9 +96,10 @@
 
             <!-- 同班同学 -->
             <TextView
+                android:id="@+id/tv_classmate_title"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="24dp"
+                android:layout_marginTop="22dp"
                 android:text="同班同学"
                 android:textColor="@color/primary"
                 android:textSize="13sp"

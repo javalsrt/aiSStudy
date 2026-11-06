@@ -13,6 +13,7 @@ import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewOutlineProvider;
 import android.view.ViewParent;
 import android.view.Window;
 import android.widget.HorizontalScrollView;
@@ -499,27 +500,64 @@ public class ProfileFragment extends Fragment implements WebSocketManager.OnChat
         List<Map<String, Object>> classmates = (List<Map<String, Object>>) data.get("classmates");
         List<Map<String, Object>> teachers = (List<Map<String, Object>>) data.get("teachers");
 
-        // 教师置顶显示
+        // 班主任提示
+        TextView tvHead = root.findViewById(R.id.tv_head_teacher);
+        Object headName = data.get("headTeacher");
+        if (headName != null && !String.valueOf(headName).isEmpty()) {
+            tvHead.setText("班主任：" + headName);
+            tvHead.setVisibility(View.VISIBLE);
+        }
+
+        // 教师置顶显示：领导 > 班主任 > 其他
+        TextView tvTeacherTitle = root.findViewById(R.id.tv_teacher_title);
+        if (teachers != null && !teachers.isEmpty()) {
+            tvTeacherTitle.setText("任课教师 · " + teachers.size());
+        }
         if (teachers == null || teachers.isEmpty()) {
             tvNoTeachers.setVisibility(View.VISIBLE);
         } else {
             for (Map<String, Object> item : teachers) {
-                String name = item.get("realName") != null ? item.get("realName").toString() : "";
-                String title = item.get("title") != null ? item.get("title").toString() : "";
-                String courses = item.get("courseNames") != null ? item.get("courseNames").toString() : "";
-                String sub = (title.isEmpty() ? "" : title + " · ") + courses;
-                addContactItem(llTeachers, name, sub);
+                String name = str(item.get("realName"));
+                String title = str(item.get("title"));
+                String duty = str(item.get("duty"));
+                String courses = str(item.get("courseNames"));
+                int isLeader = intOf(item.get("isLeader"));
+
+                String badge;
+                int badgeColor;
+                if (isLeader == 1) {
+                    badge = duty.isEmpty() ? "领导" : duty;
+                    badgeColor = 0xFFF59E0B;          // 领导：琥珀色
+                } else if ("班主任".equals(duty)) {
+                    badge = "班主任";
+                    badgeColor = 0xFF3B6EF6;          // 班主任：主题蓝
+                } else if (!title.isEmpty()) {
+                    badge = title;                     // 讲师 / 副教授（职称）
+                    badgeColor = 0xFF9CA3AF;
+                } else {
+                    badge = "教师";
+                    badgeColor = 0xFF9CA3AF;
+                }
+                String sub = courses.isEmpty() ? "任课教师" : courses;
+                addContactItem(llTeachers, name, sub, badge, badgeColor);
             }
         }
 
+        TextView tvClassmateTitle = root.findViewById(R.id.tv_classmate_title);
+        if (classmates != null && !classmates.isEmpty()) {
+            tvClassmateTitle.setText("同班同学 · " + classmates.size());
+        }
         if (classmates == null || classmates.isEmpty()) {
             tvNoClassmates.setVisibility(View.VISIBLE);
         } else {
             for (Map<String, Object> item : classmates) {
-                String name = item.get("realName") != null ? item.get("realName").toString() : "";
-                String no = item.get("studentNo") != null ? item.get("studentNo").toString() : "";
+                String name = str(item.get("realName"));
+                String no = str(item.get("studentNo"));
                 if (no.isEmpty()) no = "暂无";
-                addContactItem(llClassmates, name, "学号: " + no);
+                String position = str(item.get("position"));
+                addContactItem(llClassmates, name, "学号 " + no,
+                        position.isEmpty() ? null : position,
+                        position.isEmpty() ? 0 : 0xFF10B981);
             }
         }
 
@@ -528,18 +566,26 @@ public class ProfileFragment extends Fragment implements WebSocketManager.OnChat
         dlg.setContentView(root);
         dlg.setCanceledOnTouchOutside(true);
         root.findViewById(R.id.btn_close).setOnClickListener(v -> dlg.dismiss());
+
+        // 卡片阴影：圆角 + elevation，配合窗口透明背景形成投影
+        root.setElevation(dp(24));
+        root.setOutlineProvider(ViewOutlineProvider.BACKGROUND);
+        root.setClipToOutline(false);
+
         dlg.setOnShowListener(d -> {
             android.view.Window w = dlg.getWindow();
             if (w != null) {
-                w.getDecorView().setPadding(40, 0, 40, 0);
+                int side = dp(18);
+                w.getDecorView().setPadding(side, 0, side, 0);
                 android.view.WindowManager.LayoutParams lp = new android.view.WindowManager.LayoutParams();
                 lp.copyFrom(w.getAttributes());
                 lp.width = ViewGroup.LayoutParams.MATCH_PARENT;
-                // 限制弹窗高度为屏幕 75%，避免条目过多时底部被截断
-                lp.height = (int) (getResources().getDisplayMetrics().heightPixels * 0.75);
+                // 高度放宽到 82%，留出更多滚动空间，避免拥挤
+                lp.height = (int) (getResources().getDisplayMetrics().heightPixels * 0.82);
                 lp.gravity = Gravity.CENTER;
-                lp.dimAmount = 0.5f;
+                lp.dimAmount = 0.55f;
                 w.setAttributes(lp);
+                w.addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND);
                 w.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
             }
         });
@@ -547,15 +593,41 @@ public class ProfileFragment extends Fragment implements WebSocketManager.OnChat
     }
 
     private void addContactItem(ViewGroup parent, String name, String sub) {
+        addContactItem(parent, name, sub, null, 0);
+    }
+
+    private void addContactItem(ViewGroup parent, String name, String sub, String badge, int badgeColor) {
         View item = LayoutInflater.from(getContext()).inflate(R.layout.item_contact, parent, false);
         TextView tvAvatar = item.findViewById(R.id.tv_avatar);
         TextView tvName = item.findViewById(R.id.tv_name);
         TextView tvSub = item.findViewById(R.id.tv_sub);
+        TextView tvBadge = item.findViewById(R.id.tv_badge);
 
         tvAvatar.setText(name.isEmpty() ? "?" : String.valueOf(name.charAt(0)));
         tvName.setText(name);
         tvSub.setText(sub);
+        if (badge != null && !badge.isEmpty()) {
+            tvBadge.setText(badge);
+            tvBadge.setVisibility(View.VISIBLE);
+            if (badgeColor != 0) {
+                tvBadge.setBackgroundTintList(android.content.res.ColorStateList.valueOf(badgeColor));
+            }
+        } else {
+            tvBadge.setVisibility(View.GONE);
+        }
         parent.addView(item);
+    }
+
+    private String str(Object o) {
+        return o == null ? "" : String.valueOf(o);
+    }
+
+    private int intOf(Object o) {
+        return o instanceof Number ? ((Number) o).intValue() : 0;
+    }
+
+    private int dp(int v) {
+        return Math.round(getResources().getDisplayMetrics().density * v);
     }
 
     private void loadCourses() {

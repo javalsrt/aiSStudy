@@ -166,30 +166,56 @@ public class ScheduleController {
         Long classId = ((Number) userRows.get(0).get("class_id")).longValue();
 
         // 同班同学：同班级、角色为学生、排除自己
+        // 同班同学：附带班级职务（班长/学习委员等）
         List<Map<String, Object>> classmates = jdbc.queryForList(
-            "SELECT id AS userId, real_name AS realName, student_no AS studentNo " +
+            "SELECT id AS userId, real_name AS realName, student_no AS studentNo, position " +
             "FROM user WHERE class_id = ? AND role = 1 AND id != ? " +
-            "ORDER BY student_no, real_name", classId, userId);
+            "ORDER BY position IS NULL, position, student_no, real_name", classId, userId);
 
-        // 教我的老师：取本班有排课（status=1）或 course_class 关联的课程的教师，聚合课程名
-        List<Map<String, Object>> teachers = jdbc.queryForList(
-            "SELECT t.id AS teacherId, t.real_name AS realName, t.title, " +
-            "GROUP_CONCAT(DISTINCT c.course_name ORDER BY c.course_name SEPARATOR '、') AS courseNames " +
-            "FROM course c " +
-            "JOIN teacher t ON t.id = c.teacher_id " +
-            "WHERE c.id IN ( " +
-            "  SELECT DISTINCT s.course_id FROM schedule s " +
-            "  JOIN user u ON u.id = s.user_id " +
-            "  WHERE u.class_id = ? AND s.status = 1 AND s.course_id IS NOT NULL " +
-            "  UNION " +
-            "  SELECT cc.course_id FROM course_class cc WHERE cc.class_id = ? " +
-            ") " +
-            "GROUP BY t.id, t.real_name, t.title " +
-            "ORDER BY t.real_name", classId, classId);
+        // 教我的老师：附带职务（班主任/教导主任）与是否领导，按领导 > 班主任 > 姓名排序
+        List<Map<String, Object>> teachers;
+        try {
+            teachers = jdbc.queryForList(
+                "SELECT t.id AS teacherId, t.real_name AS realName, t.title, t.duty, t.is_leader AS isLeader, " +
+                "GROUP_CONCAT(DISTINCT c.course_name ORDER BY c.course_name SEPARATOR '、') AS courseNames " +
+                "FROM course c " +
+                "JOIN teacher t ON t.id = c.teacher_id " +
+                "WHERE c.id IN ( " +
+                "  SELECT DISTINCT s.course_id FROM schedule s " +
+                "  JOIN user u ON u.id = s.user_id " +
+                "  WHERE u.class_id = ? AND s.status = 1 AND s.course_id IS NOT NULL " +
+                "  UNION " +
+                "  SELECT cc.course_id FROM course_class cc WHERE cc.class_id = ? " +
+                ") " +
+                "GROUP BY t.id, t.real_name, t.title, t.duty, t.is_leader " +
+                "ORDER BY t.is_leader DESC, t.duty = '班主任' DESC, t.real_name", classId, classId);
+        } catch (Exception e) {
+            // 未执行迁移 22 时降级
+            teachers = jdbc.queryForList(
+                "SELECT t.id AS teacherId, t.real_name AS realName, t.title, NULL AS duty, 0 AS isLeader, " +
+                "GROUP_CONCAT(DISTINCT c.course_name ORDER BY c.course_name SEPARATOR '、') AS courseNames " +
+                "FROM course c JOIN teacher t ON t.id = c.teacher_id " +
+                "WHERE c.id IN ( " +
+                "  SELECT DISTINCT s.course_id FROM schedule s JOIN user u ON u.id = s.user_id " +
+                "  WHERE u.class_id = ? AND s.status = 1 AND s.course_id IS NOT NULL " +
+                "  UNION SELECT cc.course_id FROM course_class cc WHERE cc.class_id = ? " +
+                ") GROUP BY t.id, t.real_name, t.title ORDER BY t.real_name", classId, classId);
+        }
+
+        // 本班班主任
+        String headTeacher = null;
+        try {
+            List<String> ht = jdbc.queryForList(
+                "SELECT t.real_name FROM class_info ci JOIN teacher t ON t.id = ci.head_teacher_id WHERE ci.id = ?",
+                String.class, classId);
+            if (!ht.isEmpty()) headTeacher = ht.get(0);
+        } catch (Exception ignored) {
+        }
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("classmates", classmates);
         result.put("teachers", teachers);
+        result.put("headTeacher", headTeacher);
         return ResponseEntity.ok(result);
     }
 
