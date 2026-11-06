@@ -3,7 +3,8 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="#F7F7FA">
+    android:background="#F7F7FA"
+    android:paddingBottom="96dp">
 
     <!-- 顶部栏 -->
     <LinearLayout
@@ -27,15 +28,13 @@
             android:textStyle="bold" />
 
         <TextView
-            android:id="@+id/btnClose"
+            android:id="@+id/tvHint"
             android:layout_width="wrap_content"
-            android:layout_height="40dp"
-            android:gravity="center"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp"
-            android:text="关闭"
-            android:textColor="#666666"
-            android:textSize="13sp" />
+            android:layout_height="wrap_content"
+            android:paddingEnd="8dp"
+            android:text="校园版"
+            android:textColor="#9CA3AF"
+            android:textSize="11sp" />
     </LinearLayout>
 
     <ScrollView

@@ -13,6 +13,7 @@ import androidx.fragment.app.FragmentTransaction;
 
 import com.google.android.material.badge.BadgeDrawable;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
+import com.znxsgl.student.fragment.AiAssistantFragment;
 import com.znxsgl.student.fragment.FocusFragment;
 import com.znxsgl.student.fragment.NewsFragment;
 import com.znxsgl.student.fragment.ScheduleFragment;
@@ -51,11 +52,6 @@ public class MainActivity extends AppCompatActivity {
         bottomNav = findViewById(R.id.bottom_nav);
         bottomNav.setOnItemSelectedListener(item -> {
             int id = item.getItemId();
-            // 中间 AI 助手：打开独立页面，不切换底部选中态（返回后仍停留在原 Tab）
-            if (id == R.id.nav_ai) {
-                startActivity(new android.content.Intent(this, AiAssistantActivity.class));
-                return false;
-            }
             // 注意：不在切到「我的」时清红点——红点表示真实未读，进入对应课程聊天后才会消除
             // 答题中切换：先弹窗确认
             if (id != R.id.nav_focus && focusFragment != null && focusFragment.isQuizActive()) {
@@ -266,6 +262,7 @@ public class MainActivity extends AppCompatActivity {
         if (id == R.id.nav_schedule) fragment = new ScheduleFragment();
         else if (id == R.id.nav_profile) fragment = new ProfileFragment();
         else if (id == R.id.nav_news) fragment = new NewsFragment();
+        else if (id == R.id.nav_ai) fragment = new AiAssistantFragment();
         else {
             if (focusFragment == null) focusFragment = new FocusFragment();
             fragment = focusFragment;

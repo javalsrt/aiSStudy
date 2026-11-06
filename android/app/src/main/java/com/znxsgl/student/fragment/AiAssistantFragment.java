@@ -1,5 +1,6 @@
-package com.znxsgl.student;
+package com.znxsgl.student.fragment;
 
+import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -7,23 +8,29 @@ import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.Gravity;
+import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.GridLayout;
-import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.appcompat.app.AppCompatActivity;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.fragment.app.Fragment;
 
+import com.znxsgl.student.R;
+import com.znxsgl.student.UiMsg;
 import com.znxsgl.student.network.ApiService;
 import com.znxsgl.student.network.RetrofitClient;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -32,9 +39,10 @@ import retrofit2.Callback;
 import retrofit2.Response;
 
 /**
- * 校园 AI 助手：校内规定（底层知识）、课程资料、个人成绩课表问答。
+ * 校园 AI 助手（底部导航同级页面）：
+ * 校内规定（底层知识）、课程资料、个人成绩课表问答。
  */
-public class AiAssistantActivity extends AppCompatActivity {
+public class AiAssistantFragment extends Fragment {
 
     private String token;
     private LinearLayout boxMessages;
@@ -45,6 +53,7 @@ public class AiAssistantActivity extends AppCompatActivity {
     private Button btnSend;
     private ScrollView scroll;
     private boolean loading = false;
+    private boolean quickLoaded = false;
 
     private static final String[][] FALLBACK_CAPS = {
             {"校园规定", "作息/宿舍/请假"},
@@ -63,23 +72,28 @@ public class AiAssistantActivity extends AppCompatActivity {
             "今天我有几节课？"
     };
 
+    @Nullable
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_ai_assistant);
+    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container,
+                             @Nullable Bundle savedInstanceState) {
+        return inflater.inflate(R.layout.fragment_ai_assistant, container, false);
+    }
 
-        SharedPreferences prefs = getSharedPreferences("znxsgl", 0);
+    @Override
+    public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
+        super.onViewCreated(view, savedInstanceState);
+
+        SharedPreferences prefs = requireContext().getSharedPreferences("znxsgl", Context.MODE_PRIVATE);
         token = "Bearer " + prefs.getString("token", "");
 
-        boxMessages = findViewById(R.id.boxMessages);
-        boxSuggestions = findViewById(R.id.boxSuggestions);
-        gridCapabilities = findViewById(R.id.gridCapabilities);
-        welcomeCard = findViewById(R.id.welcomeCard);
-        etInput = findViewById(R.id.etInput);
-        btnSend = findViewById(R.id.btnSend);
-        scroll = findViewById(R.id.scroll);
+        boxMessages = view.findViewById(R.id.boxMessages);
+        boxSuggestions = view.findViewById(R.id.boxSuggestions);
+        gridCapabilities = view.findViewById(R.id.gridCapabilities);
+        welcomeCard = view.findViewById(R.id.welcomeCard);
+        etInput = view.findViewById(R.id.etInput);
+        btnSend = view.findViewById(R.id.btnSend);
+        scroll = view.findViewById(R.id.scroll);
 
-        findViewById(R.id.btnClose).setOnClickListener(v -> finish());
         btnSend.setOnClickListener(v -> submit());
         etInput.setOnEditorActionListener((v, actionId, event) -> {
             if (actionId == EditorInfo.IME_ACTION_SEND) {
@@ -89,25 +103,30 @@ public class AiAssistantActivity extends AppCompatActivity {
             return false;
         });
 
-        renderFallback();
-        loadQuick();
+        if (gridCapabilities.getChildCount() == 0) {
+            renderFallback();
+            loadQuick();
+        }
     }
 
-    /** 拉取欢迎页能力与推荐问题 */
+    /** 拉取欢迎页能力与推荐问题（只拉一次，切页不重复请求） */
     private void loadQuick() {
+        if (quickLoaded || !isAdded()) return;
+        quickLoaded = true;
         ApiService api = RetrofitClient.getInstance().create(ApiService.class);
         api.getAssistantQuick(token).enqueue(new Callback<Map<String, Object>>() {
             @Override
             public void onResponse(Call<Map<String, Object>> call, Response<Map<String, Object>> resp) {
-                if (!resp.isSuccessful() || resp.body() == null) return;
+                if (!isAdded() || getView() == null || !resp.isSuccessful() || resp.body() == null) return;
+                View v = getView();
                 Map<String, Object> data = resp.body();
                 Object greeting = data.get("greeting");
                 if (greeting != null) {
-                    ((TextView) findViewById(R.id.tvGreeting)).setText(String.valueOf(greeting));
+                    ((TextView) v.findViewById(R.id.tvGreeting)).setText(String.valueOf(greeting));
                 }
                 Object subtitle = data.get("subtitle");
                 if (subtitle != null) {
-                    ((TextView) findViewById(R.id.tvSubtitle)).setText(String.valueOf(subtitle));
+                    ((TextView) v.findViewById(R.id.tvSubtitle)).setText(String.valueOf(subtitle));
                 }
                 Object caps = data.get("capabilities");
                 if (caps instanceof List && !((List<?>) caps).isEmpty()) {
@@ -122,15 +141,13 @@ public class AiAssistantActivity extends AppCompatActivity {
                 Object suggestions = data.get("suggestions");
                 if (suggestions instanceof List && !((List<?>) suggestions).isEmpty()) {
                     boxSuggestions.removeAllViews();
-                    for (Object o : (List<?>) suggestions) {
-                        addSuggestion(String.valueOf(o));
-                    }
+                    for (Object o : (List<?>) suggestions) addSuggestion(String.valueOf(o));
                 }
             }
 
             @Override
             public void onFailure(Call<Map<String, Object>> call, Throwable t) {
-                // 保留兜底内容，不打扰用户
+                // 保留兜底内容
             }
         });
     }
@@ -142,9 +159,9 @@ public class AiAssistantActivity extends AppCompatActivity {
         for (String s : FALLBACK_SUGGESTIONS) addSuggestion(s);
     }
 
-    /** 能力卡片（3 列宫格） */
     private void addCapability(String title, String desc) {
-        LinearLayout box = new LinearLayout(this);
+        Context ctx = requireContext();
+        LinearLayout box = new LinearLayout(ctx);
         box.setOrientation(LinearLayout.VERTICAL);
         box.setPadding(dp(10), dp(10), dp(10), dp(10));
         box.setBackground(roundBg(0xFFF5F7FF, 12, 0xFFE6ECFF));
@@ -154,14 +171,14 @@ public class AiAssistantActivity extends AppCompatActivity {
         lp.setMargins(dp(3), dp(3), dp(3), dp(3));
         box.setLayoutParams(lp);
 
-        TextView t = new TextView(this);
+        TextView t = new TextView(ctx);
         t.setText(title);
         t.setTextSize(13);
         t.setTypeface(Typeface.DEFAULT_BOLD);
         t.setTextColor(0xFF2B3A67);
         box.addView(t);
 
-        TextView d = new TextView(this);
+        TextView d = new TextView(ctx);
         d.setText(desc);
         d.setTextSize(10.5f);
         d.setTextColor(0xFF8A93A6);
@@ -176,9 +193,8 @@ public class AiAssistantActivity extends AppCompatActivity {
         gridCapabilities.addView(box);
     }
 
-    /** 推荐问题 */
     private void addSuggestion(String text) {
-        TextView t = new TextView(this);
+        TextView t = new TextView(requireContext());
         t.setText("# " + text);
         t.setTextSize(13);
         t.setTextColor(0xFF4A5468);
@@ -191,10 +207,10 @@ public class AiAssistantActivity extends AppCompatActivity {
     }
 
     private void submit() {
-        if (loading) return;
+        if (loading || !isAdded()) return;
         String text = etInput.getText() == null ? "" : etInput.getText().toString().trim();
         if (TextUtils.isEmpty(text)) {
-            Toast.makeText(this, "请输入问题", Toast.LENGTH_SHORT).show();
+            Toast.makeText(requireContext(), "请输入问题", Toast.LENGTH_SHORT).show();
             return;
         }
         etInput.setText("");
@@ -205,11 +221,12 @@ public class AiAssistantActivity extends AppCompatActivity {
         setLoading(true);
 
         ApiService api = RetrofitClient.getInstance().create(ApiService.class);
-        Map<String, String> body = new java.util.HashMap<>();
+        Map<String, String> body = new HashMap<>();
         body.put("message", text);
         api.askAssistant(token, body).enqueue(new Callback<Map<String, Object>>() {
             @Override
             public void onResponse(Call<Map<String, Object>> call, Response<Map<String, Object>> resp) {
+                if (!isAdded()) return;
                 setLoading(false);
                 if (!resp.isSuccessful() || resp.body() == null) {
                     loadingBubble.setText("服务暂时不可用，请稍后再试");
@@ -217,7 +234,7 @@ public class AiAssistantActivity extends AppCompatActivity {
                 }
                 Map<String, Object> data = resp.body();
                 Object answer = data.get("answer");
-                String text = answer == null ? "抱歉，我没有理解这个问题。" : String.valueOf(answer);
+                String ans = answer == null ? "抱歉，我没有理解这个问题。" : String.valueOf(answer);
                 Object src = data.get("sources");
                 if (src instanceof List) {
                     List<String> titles = new ArrayList<>();
@@ -227,16 +244,15 @@ public class AiAssistantActivity extends AppCompatActivity {
                             if (t != null) titles.add(String.valueOf(t));
                         }
                     }
-                    if (!titles.isEmpty()) {
-                        text += "\n\n来源：" + TextUtils.join("、", titles);
-                    }
+                    if (!titles.isEmpty()) ans += "\n\n来源：" + TextUtils.join("、", titles);
                 }
-                loadingBubble.setText(text);
+                loadingBubble.setText(ans);
                 scrollToBottom();
             }
 
             @Override
             public void onFailure(Call<Map<String, Object>> call, Throwable t) {
+                if (!isAdded()) return;
                 setLoading(false);
                 loadingBubble.setText(UiMsg.network(t));
                 scrollToBottom();
@@ -256,14 +272,14 @@ public class AiAssistantActivity extends AppCompatActivity {
         btnSend.setAlpha(v ? 0.6f : 1f);
     }
 
-    /** 气泡：me=true 右侧蓝色，否则左侧白色 */
     private TextView addBubble(String text, boolean me) {
-        LinearLayout row = new LinearLayout(this);
+        Context ctx = requireContext();
+        LinearLayout row = new LinearLayout(ctx);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(me ? Gravity.END : Gravity.START);
         row.setPadding(0, dp(6), 0, dp(6));
 
-        TextView tv = new TextView(this);
+        TextView tv = new TextView(ctx);
         tv.setText(text);
         tv.setTextSize(14);
         tv.setLineSpacing(dp(3), 1f);
@@ -277,15 +293,15 @@ public class AiAssistantActivity extends AppCompatActivity {
             tv.setTextColor(0xFF1F2937);
             tv.setBackground(roundBg(0xFFFFFFFF, 14, 0xFFECECF1));
         }
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        row.addView(tv, lp);
+        row.addView(tv, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         boxMessages.addView(row);
         scrollToBottom();
         return tv;
     }
 
     private void scrollToBottom() {
+        if (scroll == null) return;
         scroll.post(() -> scroll.fullScroll(View.FOCUS_DOWN));
     }
 
