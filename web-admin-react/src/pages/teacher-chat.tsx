@@ -263,10 +263,7 @@ export function TeacherChatPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-neutral-900">课程聊天</h1>
-          <p className="text-sm text-neutral-500 mt-1">选择课程进入群聊，可 @AI 或 @学生，也可发送图片、文件与链接</p>
-        </div>
+        <h1 className="text-2xl font-bold text-neutral-900">课程聊天</h1>
       </div>
 
       <div className="grid grid-cols-[280px_1fr] gap-6 h-[calc(100vh-220px)] min-h-[480px]">
