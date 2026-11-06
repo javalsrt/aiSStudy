@@ -154,48 +154,12 @@
         </LinearLayout>
     </HorizontalScrollView>
 
-    <!-- 骨架屏加载层：圆形 + 双行条块，脉冲呼吸动画 -->
-    <LinearLayout
+    <!-- 骨架屏加载层：课表网格（表头 + 时间轴 + 7 个星期列 + 课程块），叠加呼吸动画 -->
+    <com.znxsgl.student.widget.ScheduleSkeletonView
         android:id="@+id/skeleton_loading"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:orientation="vertical"
-        android:gravity="center"
-        android:paddingHorizontal="28dp"
         android:background="@color/canvas"
-        android:visibility="gone">
-
-        <LinearLayout style="@style/SkeletonRow">
-            <View style="@style/SkeletonCircle" />
-            <LinearLayout style="@style/SkeletonLines">
-                <View style="@style/SkeletonBar" android:layout_width="120dp" />
-                <View style="@style/SkeletonBar" android:layout_width="160dp" />
-            </LinearLayout>
-        </LinearLayout>
-
-        <LinearLayout style="@style/SkeletonRow">
-            <View style="@style/SkeletonCircle" />
-            <LinearLayout style="@style/SkeletonLines">
-                <View style="@style/SkeletonBar" android:layout_width="150dp" />
-                <View style="@style/SkeletonBar" android:layout_width="110dp" />
-            </LinearLayout>
-        </LinearLayout>
-
-        <LinearLayout style="@style/SkeletonRow">
-            <View style="@style/SkeletonCircle" />
-            <LinearLayout style="@style/SkeletonLines">
-                <View style="@style/SkeletonBar" android:layout_width="100dp" />
-                <View style="@style/SkeletonBar" android:layout_width="170dp" />
-            </LinearLayout>
-        </LinearLayout>
-
-        <LinearLayout style="@style/SkeletonRow">
-            <View style="@style/SkeletonCircle" />
-            <LinearLayout style="@style/SkeletonLines">
-                <View style="@style/SkeletonBar" android:layout_width="140dp" />
-                <View style="@style/SkeletonBar" android:layout_width="120dp" />
-            </LinearLayout>
-        </LinearLayout>
-    </LinearLayout>
+        android:visibility="gone" />
     </FrameLayout>
 </LinearLayout>

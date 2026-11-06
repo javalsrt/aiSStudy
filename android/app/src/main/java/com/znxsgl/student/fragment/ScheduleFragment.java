@@ -1466,21 +1466,10 @@ public class ScheduleFragment extends Fragment {
     // ========== 骨架屏加载动画（模仿 animate-pulse 呼吸效果） ==========
     private void showSkeleton(boolean show) {
         if (skeletonLoading == null) return;
-        if (show) {
-            skeletonLoading.setVisibility(View.VISIBLE);
-            skeletonLoading.setAlpha(1f);
-            if (skeletonAnim == null) {
-                skeletonAnim = ObjectAnimator.ofFloat(skeletonLoading, View.ALPHA, 1f, 0.35f);
-                skeletonAnim.setDuration(750);
-                skeletonAnim.setRepeatCount(ValueAnimator.INFINITE);
-                skeletonAnim.setRepeatMode(ValueAnimator.REVERSE);
-            }
-            if (!skeletonAnim.isRunning()) skeletonAnim.start();
-        } else {
-            if (skeletonAnim != null && skeletonAnim.isRunning()) skeletonAnim.cancel();
-            skeletonLoading.setAlpha(1f);
-            skeletonLoading.setVisibility(View.GONE);
-        }
+        // 呼吸动画由 ScheduleSkeletonView 内部按色块做，这里只控制显隐：
+        // 整层不透明才能盖住底下的真实课表，避免表头/格子透出来。
+        skeletonLoading.setAlpha(1f);
+        skeletonLoading.setVisibility(show ? View.VISIBLE : View.GONE);
     }
 
     @Override

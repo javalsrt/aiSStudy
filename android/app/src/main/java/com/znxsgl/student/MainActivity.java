@@ -149,8 +149,8 @@ public class MainActivity extends AppCompatActivity {
                 icon.getLocationInWindow(iconPos);
                 float itemCenter = item.getHeight() / 2f;
                 float iconCenter = (iconPos[1] - itemPos[1]) + icon.getHeight() / 2f;
-                // 星星图形重心偏下，略微上移视觉更居中
-                icon.setTranslationY(itemCenter - iconCenter - dp(4));
+                // 星星图形重心偏下，上移使其视觉重心与其他页签图标对齐
+                icon.setTranslationY(itemCenter - iconCenter - dp(10));
             } catch (Exception ignored) {
             }
         }, 100);
