@@ -22,6 +22,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { TeacherDutyPage } from '@/pages/admin/teacher-duty'
 import {
   Sheet,
   SheetContent,
@@ -38,6 +39,12 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
+import {
+  getClassPositions,
+  getPositionOptions,
+  setStudentPosition,
+  type ClassStudentPosition,
+} from '@/api/student-position'
 import {
   getUserList,
   getUserOverview,
@@ -121,8 +128,10 @@ function statusBadge(status: number) {
 
 export function StaffPage() {
   const location = useLocation()
-  const initialTab = location.pathname === '/admin/students' ? 'students' : 'teachers'
-  const [activeTab, setActiveTab] = useState<'teachers' | 'students'>(initialTab)
+  const tabParam = new URLSearchParams(location.search).get('tab')
+  const initialTab =
+    tabParam === 'duty' ? 'duty' : tabParam === 'students' ? 'students' : location.pathname === '/admin/students' ? 'students' : 'teachers'
+  const [activeTab, setActiveTab] = useState<'teachers' | 'students' | 'duty'>(initialTab)
   const [searchInput, setSearchInput] = useState('')
   const [keyword, setKeyword] = useState('')
   const [searchField, setSearchField] = useState('all')
@@ -186,6 +195,14 @@ export function StaffPage() {
   // Import
   const importInputRef = useRef<HTMLInputElement>(null)
   const [importing, setImporting] = useState(false)
+  // 班干部设置
+  const [cadreOpen, setCadreOpen] = useState(false)
+  const [cadreClassId, setCadreClassId] = useState('')
+  const [cadreList, setCadreList] = useState<ClassStudentPosition[]>([])
+  const [cadreOptions, setCadreOptions] = useState<string[]>([])
+  const [cadreSaving, setCadreSaving] = useState<number | null>(null)
+  const [cadreMsg, setCadreMsg] = useState('')
+
   // 新增班级
   const [classDialogOpen, setClassDialogOpen] = useState(false)
   const [classSaving, setClassSaving] = useState(false)
@@ -201,7 +218,7 @@ export function StaffPage() {
   } | null>(null)
 
   const currentRole = activeTab === 'teachers' ? ROLE_TEACHER : ROLE_STUDENT
-  const tabLabel = activeTab === 'teachers' ? '教师' : '学生'
+  const tabLabel = activeTab === 'teachers' ? '教师' : activeTab === 'duty' ? '教师' : '学生'
 
   // Fetch classes once
   useEffect(() => {
@@ -634,13 +651,58 @@ export function StaffPage() {
     return Array.from(map.values())
   }, [teacherCourses])
 
+  const loadCadreList = async (classId: number) => {
+    try {
+      setCadreList(await getClassPositions(classId))
+    } catch (e: any) {
+      setCadreList([])
+      setCadreMsg(e?.response?.data?.error || '加载学生失败')
+    }
+  }
+
+  const openCadreDialog = async () => {
+    setCadreOpen(true)
+    setCadreMsg('')
+    try {
+      const opt = await getPositionOptions()
+      setCadreOptions([...(opt.cadres || []), ...(opt.adminOnly || [])])
+    } catch {
+      setCadreOptions([])
+    }
+    if (cadreClassId) {
+      loadCadreList(Number(cadreClassId))
+    } else if (classes.length > 0) {
+      setCadreClassId(String(classes[0].id))
+      loadCadreList(classes[0].id)
+    }
+  }
+
+  const changePosition = async (s: ClassStudentPosition, position: string) => {
+    setCadreSaving(s.id)
+    try {
+      const r = await setStudentPosition(s.id, position)
+      setCadreList((prev) => prev.map((x) => (x.id === s.id ? { ...x, position: r.position } : x)))
+      setCadreMsg(`${s.name}：${r.msg}`)
+    } catch (e: any) {
+      setCadreMsg(e?.response?.data?.error || '设置失败')
+    } finally {
+      setCadreSaving(null)
+    }
+  }
+
   const handleClassClick = (className: string) => {
-    // 自动下钻到学生列表：切换到学生 tab、搜索维度=班级、填入关键词
+    // 自动下钻到学生列表：切换标签、设置班级筛选、滚动到名单
+    // 注意：不能调用 handleTabChange，它会清空搜索条件，导致「点了没反应」
     setActiveTab('students')
     setSearchField('className')
     setSearchInput(className)
-    setKeyword(className)
+    setKeyword(className.trim())
     setPageNum(1)
+    setActionError('')
+    // 卡片在页面上方，滚动到名单区域便于查看结果
+    setTimeout(() => {
+      document.getElementById('staff-list-anchor')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 50)
   }
 
   const goPrev = () => setPageNum((p) => Math.max(1, p - 1))
@@ -724,6 +786,16 @@ export function StaffPage() {
             >
               学生管理{activeTab === 'students' && total > 0 ? ` (${total})` : ''}
             </button>
+            <button
+              onClick={() => handleTabChange('duty')}
+              className={`h-8 px-4 rounded-full text-sm font-medium transition-colors ${
+                activeTab === 'duty'
+                  ? 'bg-primary-600 text-white'
+                  : 'text-neutral-600 hover:text-neutral-900'
+              }`}
+            >
+              教师职务
+            </button>
           </div>
           <input
             ref={importInputRef}
@@ -754,6 +826,12 @@ export function StaffPage() {
             )}
             {importing ? '导入中...' : `批量导入${tabLabel}`}
           </Button>
+          {activeTab === 'students' && (
+            <Button variant="outline" className="gap-2" onClick={openCadreDialog}>
+              <UserCheck className="w-4 h-4" />
+              班干部设置
+            </Button>
+          )}
           <Button variant="outline" className="gap-2" onClick={openClassDialog}>
             <School className="w-4 h-4" />
             新增班级
@@ -766,7 +844,7 @@ export function StaffPage() {
       </div>
 
       {/* Filters */}
-      <Card>
+      <Card className={activeTab === 'duty' ? 'hidden' : ''}>
         <CardContent className="p-5">
           <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
             <div className="flex items-center gap-2 w-full md:w-auto">
@@ -802,7 +880,7 @@ export function StaffPage() {
       </Card>
 
       {/* 人员概览卡片：专业 → 班级 → 列表 下钻 */}
-      {overview && (
+      {overview && activeTab !== 'duty' && (
         <Card>
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-4">
@@ -934,6 +1012,7 @@ export function StaffPage() {
         </Card>
       )}
 
+      <div id="staff-list-anchor" />
       <Tabs value={activeTab} onValueChange={handleTabChange}>
 
         {importResult && (
@@ -1331,6 +1410,11 @@ export function StaffPage() {
             )}
           </Card>
         </TabsContent>
+
+        {/* 教师职务：从原「教师职务」独立页面合并进来 */}
+        <TabsContent value="duty" className="mt-2">
+          <TeacherDutyPage />
+        </TabsContent>
       </Tabs>
 
       {/* Create / Edit Sheet */}
@@ -1640,6 +1724,77 @@ export function StaffPage() {
           </div>
           <DialogFooter className="border-t border-neutral-100 pt-4 mt-2 flex-shrink-0">
             <Button variant="outline" onClick={closeTeacherCourses}>
+              关闭
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 班干部设置 */}
+      <Dialog open={cadreOpen} onOpenChange={setCadreOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>班干部设置</DialogTitle>
+            <DialogDescription>
+              选择班级后为每位学生指定职务。管理员可设任意职务；教师只能设班干部（班长、学习委员等）。
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex flex-wrap items-center gap-3 py-2">
+            <Label className="text-xs text-neutral-500">班级</Label>
+            <select
+              className="h-9 w-64 rounded-md border border-neutral-200 px-2 text-sm"
+              value={cadreClassId}
+              onChange={(e) => {
+                setCadreClassId(e.target.value)
+                if (e.target.value) loadCadreList(Number(e.target.value))
+              }}
+            >
+              <option value="">选择班级…</option>
+              {classes.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.className}
+                </option>
+              ))}
+            </select>
+            <span className="text-xs text-neutral-400">{cadreList.length} 名学生</span>
+            {cadreMsg && <span className="text-xs text-emerald-600">{cadreMsg}</span>}
+          </div>
+
+          <div className="max-h-[52vh] space-y-1.5 overflow-y-auto pr-1">
+            {cadreList.map((s) => (
+              <div
+                key={s.id}
+                className="flex items-center justify-between gap-3 rounded-lg border border-neutral-100 px-3 py-2"
+              >
+                <div className="min-w-0">
+                  <div className="truncate text-sm text-neutral-800">{s.name}</div>
+                  <div className="text-[11px] text-neutral-400">{s.studentNo || '-'}</div>
+                </div>
+                <select
+                  className="h-8 w-40 shrink-0 rounded-md border border-neutral-200 px-2 text-xs"
+                  value={s.position || ''}
+                  disabled={cadreSaving === s.id}
+                  onChange={(e) => changePosition(s, e.target.value)}
+                >
+                  <option value="">普通学生</option>
+                  {cadreOptions.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ))}
+            {cadreList.length === 0 && (
+              <div className="py-10 text-center text-xs text-neutral-400">
+                {cadreClassId ? '该班暂无学生' : '请先选择班级'}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCadreOpen(false)}>
               关闭
             </Button>
           </DialogFooter>
