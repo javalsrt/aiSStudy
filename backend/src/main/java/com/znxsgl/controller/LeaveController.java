@@ -203,6 +203,18 @@ public class LeaveController {
     /** 审批：action=approve|reject */
     @PostMapping("/{id}/review")
     public ResponseEntity<?> review(@PathVariable Long id, @RequestBody Map<String, Object> body, Authentication auth) {
+        // 统一兜底：把底层 SQL 异常转成可读提示，避免前端只看到 Internal Server Error
+        try {
+            return doReview(id, body, auth);
+        } catch (Exception e) {
+            Throwable cause = e.getCause() == null ? e : e.getCause();
+            String detail = cause.getMessage() == null ? cause.getClass().getSimpleName() : cause.getMessage();
+            return ResponseEntity.badRequest().body(Map.of("error",
+                    "审批失败：" + detail + "（若提示字段不存在，请执行 init-db/25-catchup-safe.sql）"));
+        }
+    }
+
+    private ResponseEntity<?> doReview(Long id, Map<String, Object> body, Authentication auth) {
         Long userId = uid(auth);
         if (userId == null) return ResponseEntity.status(401).body(Map.of("error", "请先登录"));
         String action = "reject".equalsIgnoreCase(str(body.get("action"))) ? "reject" : "approve";
