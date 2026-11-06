@@ -229,7 +229,7 @@
                 android:text="请假申请"
                 android:textSize="14sp"
                 android:textColor="@color/ink"
-                android:drawableStart="@drawable/ic_profile"
+                android:drawableStart="@drawable/ic_leave"
                 android:drawableTint="@color/primary"
                 android:drawablePadding="8dp" />
 
@@ -272,7 +272,7 @@
                 android:text="临时外出"
                 android:textSize="14sp"
                 android:textColor="@color/ink"
-                android:drawableStart="@drawable/ic_schedule"
+                android:drawableStart="@drawable/ic_map_pin"
                 android:drawableTint="@color/primary"
                 android:drawablePadding="8dp" />
 
