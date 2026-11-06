@@ -3,6 +3,8 @@ package com.znxsgl.student;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.os.Bundle;
+import android.view.View;
+import android.view.ViewGroup;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -83,7 +85,49 @@ public class MainActivity extends AppCompatActivity {
         registerChatBadgeListener();
         refreshUnread();
 
+        // 中间 AI 页签只保留图标文字隐藏，图标放大
+        styleAiTab();
+
         bottomNav.setSelectedItemId(R.id.nav_schedule);
+    }
+
+    /** AI 页签：隐藏「AI 助手」文字，仅放大星星图标 */
+    private void styleAiTab() {
+        if (bottomNav == null) return;
+        bottomNav.post(() -> {
+            try {
+                ViewGroup menuView = (ViewGroup) bottomNav.getChildAt(0);
+                if (menuView == null || menuView.getChildCount() <= 2) return;
+                hideLabelAndEnlargeIcon(menuView.getChildAt(2));
+            } catch (Exception ignored) {
+            }
+        });
+    }
+
+    /** 递归：隐藏文字（小号/大号标题），并把图标放大 */
+    private void hideLabelAndEnlargeIcon(View v) {
+        if (v == null) return;
+        if (v instanceof android.widget.TextView) {
+            v.setVisibility(View.GONE);
+            return;
+        }
+        if (v instanceof android.widget.ImageView) {
+            ViewGroup.LayoutParams lp = v.getLayoutParams();
+            if (lp != null) {
+                lp.width = dp(32);
+                lp.height = dp(32);
+                v.setLayoutParams(lp);
+            }
+        }
+        if (v instanceof ViewGroup g) {
+            for (int i = 0; i < g.getChildCount(); i++) {
+                hideLabelAndEnlargeIcon(g.getChildAt(i));
+            }
+        }
+    }
+
+    private int dp(int v) {
+        return Math.round(getResources().getDisplayMetrics().density * v);
     }
 
     /** 答题时隐藏悬浮导航（全屏答题），结束后恢复 */
