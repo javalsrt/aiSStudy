@@ -71,3 +71,6 @@ test/screenshots/
 *.err
 
 uploads/
+
+# 官网 App 安装包需随仓库一起部署，单独放行
+!website/apk/*.apk
