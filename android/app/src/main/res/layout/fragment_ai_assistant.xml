@@ -155,7 +155,7 @@
                 android:paddingEnd="14dp"
                 android:paddingTop="10dp"
                 android:paddingBottom="10dp"
-                android:hint="可以问我：宿舍几点熄灯？（长按语音输入）"
+                android:hint="可以问我：宿舍几点熄灯？"
                 android:textColorHint="#9CA3AF"
                 android:textSize="14sp"
                 android:inputType="textMultiLine|textCapSentences" />

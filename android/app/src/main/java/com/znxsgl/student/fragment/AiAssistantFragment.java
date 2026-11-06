@@ -1,11 +1,7 @@
 package com.znxsgl.student.fragment;
 
-import android.app.Activity;
-import android.content.ActivityNotFoundException;
 import android.content.Context;
-import android.content.Intent;
 import android.content.SharedPreferences;
-import android.speech.RecognizerIntent;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
@@ -24,8 +20,6 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.activity.result.ActivityResultLauncher;
-import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
@@ -60,19 +54,6 @@ public class AiAssistantFragment extends Fragment {
     private ScrollView scroll;
     private boolean loading = false;
     private boolean quickLoaded = false;
-
-    /** 语音输入：系统语音识别（中文），识别完成后自动填入并发送 */
-    private final ActivityResultLauncher<Intent> voiceLauncher =
-            registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
-                if (result.getResultCode() != Activity.RESULT_OK || result.getData() == null) return;
-                ArrayList<String> texts =
-                        result.getData().getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
-                if (texts == null || texts.isEmpty()) return;
-                String text = texts.get(0);
-                etInput.setText(text);
-                etInput.setSelection(etInput.getText().length());
-                submit();
-            });
 
     private static final String[][] FALLBACK_CAPS = {
             {"校园规定", "作息/宿舍/请假"},
@@ -114,11 +95,6 @@ public class AiAssistantFragment extends Fragment {
         scroll = view.findViewById(R.id.scroll);
 
         btnSend.setOnClickListener(v -> submit());
-        // 长按输入框 → 语音输入
-        etInput.setOnLongClickListener(v -> {
-            startVoiceInput();
-            return true;
-        });
         etInput.setOnEditorActionListener((v, actionId, event) -> {
             if (actionId == EditorInfo.IME_ACTION_SEND) {
                 submit();
@@ -228,20 +204,6 @@ public class AiAssistantFragment extends Fragment {
             submit();
         });
         boxSuggestions.addView(t);
-    }
-
-    /** 唤起系统语音识别（中文），长按输入框触发 */
-    private void startVoiceInput() {
-        if (!isAdded()) return;
-        Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
-        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
-        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "zh-CN");
-        intent.putExtra(RecognizerIntent.EXTRA_PROMPT, "请说出你的问题");
-        try {
-            voiceLauncher.launch(intent);
-        } catch (ActivityNotFoundException e) {
-            Toast.makeText(requireContext(), "当前设备不支持语音输入，请检查是否安装语音服务", Toast.LENGTH_SHORT).show();
-        }
     }
 
     private void submit() {
