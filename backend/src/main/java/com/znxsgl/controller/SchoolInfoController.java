@@ -58,8 +58,28 @@ public class SchoolInfoController {
         if (text.isBlank()) {
             return ResponseEntity.badRequest().body(Map.of("error", "导入内容不能为空"));
         }
-        int imported = schoolInfoService.bulkImport(category, text, operatorName(auth));
-        return ResponseEntity.ok(Map.of("msg", "成功导入 " + imported + " 条", "imported", imported));
+        return ResponseEntity.ok(buildImportResponse(schoolInfoService.bulkImport(category, text, operatorName(auth))));
+    }
+
+    /** 统一导入结果文案（新增/更新分开统计，避免「0 条」让人误以为格式错误） */
+    private Map<String, Object> buildImportResponse(Map<String, Object> r) {
+        int inserted = (int) r.getOrDefault("inserted", 0);
+        int updated = (int) r.getOrDefault("updated", 0);
+        int total = inserted + updated;
+        String msg;
+        if (total == 0) {
+            msg = "未识别到有效条目：请确认文档包含标题行（如「学生请假管理办法」单独成行）";
+        } else if (updated > 0) {
+            msg = "导入完成：新增 " + inserted + " 条，更新同标题 " + updated + " 条";
+        } else {
+            msg = "导入完成：新增 " + inserted + " 条";
+        }
+        Map<String, Object> resp = new LinkedHashMap<>();
+        resp.put("msg", msg);
+        resp.put("inserted", inserted);
+        resp.put("updated", updated);
+        resp.put("imported", total);
+        return resp;
     }
 
     /**
@@ -106,9 +126,7 @@ public class SchoolInfoController {
         if (text == null || text.isBlank()) {
             return ResponseEntity.badRequest().body(Map.of("error", "文件内容为空"));
         }
-        int imported = schoolInfoService.bulkImport(category, text, operatorName(auth));
-        return ResponseEntity.ok(Map.of("msg", imported > 0 ? "成功导入 " + imported + " 条新规" : "未发现新条目（标题重复或格式不符）",
-                "imported", imported));
+        return ResponseEntity.ok(buildImportResponse(schoolInfoService.bulkImport(category, text, operatorName(auth))));
     }
 
     /** 删除 */

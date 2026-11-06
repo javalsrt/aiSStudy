@@ -40,7 +40,6 @@ export function SchoolInfoPage() {
   // 批量导入
   const [bulkOpen, setBulkOpen] = useState(false)
   const [bulkText, setBulkText] = useState('')
-  const [bulkCategory, setBulkCategory] = useState('规章制度')
   const [bulkFile, setBulkFile] = useState<File | null>(null)
   const bulkFileRef = useRef<HTMLInputElement>(null)
 
@@ -136,8 +135,8 @@ export function SchoolInfoPage() {
     setSaving(true)
     try {
       const res = bulkFile
-        ? await importSchoolInfoFile(bulkFile, bulkCategory)
-        : await bulkImportSchoolInfo({ category: bulkCategory, text: bulkText })
+        ? await importSchoolInfoFile(bulkFile)
+        : await bulkImportSchoolInfo({ text: bulkText })
       setMessage({ type: 'ok', text: res.msg })
       setBulkOpen(false)
       setBulkText('')
@@ -197,18 +196,9 @@ export function SchoolInfoPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex flex-wrap items-center gap-3">
-              <Label className="text-xs text-neutral-500">分类</Label>
-              <select
-                className="h-9 rounded-md border border-neutral-200 px-2 text-sm"
-                value={bulkCategory}
-                onChange={(e) => setBulkCategory(e.target.value)}
-              >
-                {categories.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
+              <span className="rounded-md bg-emerald-50 px-2 py-1 text-xs text-emerald-700">
+                无需选择分类，系统按内容自动归类
+              </span>
               <Button variant="outline" size="sm" onClick={() => bulkFileRef.current?.click()}>
                 <FileText className="mr-1 h-4 w-4" />
                 选择文档

@@ -62,23 +62,61 @@ public class SchoolInfoService {
         jdbc.update("DELETE FROM school_info WHERE id = ?", id);
     }
 
-    /** 批量导入：按「## 标题」或「标题：」切段，整段作为正文 */
-    public int bulkImport(String category, String text, String operator) {
-        if (text == null || text.isBlank()) return 0;
+    /**
+     * 批量导入：按「## 标题」、Word 标题样式、或独立短标题行切段。
+     * 不传分类时按内容自动归类（老师无需判断属于哪个类目）；
+     * 同名条目已存在则更新正文，不重复插入。
+     */
+    public Map<String, Object> bulkImport(String category, String text, String operator) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        if (text == null || text.isBlank()) {
+            result.put("inserted", 0);
+            result.put("updated", 0);
+            return result;
+        }
         List<Map<String, String>> items = splitSections(text);
-        int n = 0;
+        int inserted = 0;
+        int updated = 0;
         for (Map<String, String> it : items) {
             String title = it.get("title").trim();
             String content = it.get("content").trim();
             if (title.isEmpty() || content.isEmpty()) continue;
-            Integer exists = jdbc.queryForObject("SELECT COUNT(*) FROM school_info WHERE title = ?", Integer.class, title);
-            if (exists != null && exists > 0) continue;
-            jdbc.update("INSERT INTO school_info (category, title, content, keywords, sort, status, updated_by) " +
-                            "VALUES (?, ?, ?, '', 100, 1, ?)",
-                    category == null || category.isBlank() ? "校园概况" : category, title, truncate(content, 20000), operator);
-            n++;
+            String cat = (category == null || category.isBlank()) ? classify(title, content) : category;
+            List<Long> exists = jdbc.queryForList("SELECT id FROM school_info WHERE title = ?", Long.class, title);
+            if (!exists.isEmpty()) {
+                jdbc.update("UPDATE school_info SET category = ?, content = ?, status = 1, updated_by = ? WHERE id = ?",
+                        cat, truncate(content, 20000), operator, exists.get(0));
+                updated++;
+            } else {
+                jdbc.update("INSERT INTO school_info (category, title, content, keywords, sort, status, updated_by) " +
+                                "VALUES (?, ?, ?, '', 100, 1, ?)",
+                        cat, title, truncate(content, 20000), operator);
+                inserted++;
+            }
         }
-        return n;
+        result.put("inserted", inserted);
+        result.put("updated", updated);
+        result.put("total", inserted + updated);
+        return result;
+    }
+
+    /** 按标题与正文关键词自动归类，避免老师纠结类目 */
+    public String classify(String title, String content) {
+        String t = (title == null ? "" : title) + (content == null ? "" : content);
+        if (containsAny(t, "奖助", "奖学金", "助学金", "资助", "减免", "勤工俭学", "助学贷款")) return "奖助政策";
+        if (containsAny(t, "就业", "升学", "专升本", "招聘", "顶岗实习", "对口升学", "职业生涯")) return "就业升学";
+        if (containsAny(t, "教学", "课程", "考试", "学籍", "成绩", "实训", "课堂", "作业", "教材", "学分")) return "教学管理";
+        if (containsAny(t, "宿舍", "熄灯", "食堂", "住宿", "水电", "门禁", "作息", "校园卡", "医务", "快递")) return "生活服务";
+        if (containsAny(t, "请假", "外出", "违纪", "处分", "考勤", "安全", "门卫", "吸烟", "手机", "仪容", "校规", "管理制度"))
+            return "规章制度";
+        return "校园概况";
+    }
+
+    private boolean containsAny(String text, String... keys) {
+        for (String k : keys) {
+            if (text.contains(k)) return true;
+        }
+        return false;
     }
 
     /**
@@ -158,19 +196,18 @@ public class SchoolInfoService {
         return s.length() <= max ? s : s.substring(0, max);
     }
 
-    /** 「## 标题\n正文」「标题：正文」两种写法都支持 */
+    /**
+     * 切分条目，兼容三种来源：
+     * 1) Markdown「## 标题」；2) Word 标题样式（导入时已被加上「##」）；
+     * 3) 普通文档里独立成行的短标题（如「学生请假管理办法」）。
+     */
     private List<Map<String, String>> splitSections(String text) {
         List<Map<String, String>> items = new ArrayList<>();
         String currentTitle = null;
         StringBuilder current = new StringBuilder();
         for (String line : text.split("\\r?\\n")) {
             String l = line.trim();
-            String title = null;
-            if (l.startsWith("##")) {
-                title = l.replaceFirst("^#+\\s*", "").trim();
-            } else if (l.matches("^[^\\s：:]{2,40}[：:]$")) {
-                title = l.substring(0, l.length() - 1).trim();
-            }
+            String title = detectTitle(l);
             if (title != null && !title.isEmpty()) {
                 if (currentTitle != null && current.length() > 0) {
                     items.add(Map.of("title", currentTitle, "content", current.toString().trim()));
@@ -179,11 +216,42 @@ public class SchoolInfoService {
                 current.setLength(0);
             } else if (currentTitle != null) {
                 current.append(l).append('\n');
+            } else if (!l.isEmpty()) {
+                // 首个标题前的内容：用一个兜底条目标题承载，避免整段丢失
+                currentTitle = "校园管理规定";
+                current.append(l).append('\n');
             }
         }
         if (currentTitle != null && current.length() > 0) {
             items.add(Map.of("title", currentTitle, "content", current.toString().trim()));
         }
         return items;
+    }
+
+    /** 判断一行是否为条目标题 */
+    private String detectTitle(String line) {
+        if (line == null) return null;
+        String l = line.trim();
+        if (l.isEmpty()) return null;
+        if (l.startsWith("#")) {
+            return l.replaceFirst("^#+\\s*", "").trim();
+        }
+        if (l.matches("^[^\\s：:]{2,40}[：:]$")) {
+            return l.substring(0, l.length() - 1).trim();
+        }
+        // 正文句子/条款编号排除
+        if (l.length() < 2 || l.length() > 30) return null;
+        if (l.matches(".*[。；，、；：:].*$")) return null;
+        if (l.matches("^[一二三四五六七八九十]+、.*")) return null;
+        if (l.matches("^（[一二三四五六七八九十]+）.*")) return null;
+        if (l.matches("^第[一二三四五六七八九十百零〇\\d]+[条章节款].*")) return null;
+        if (l.matches("^\\d+[.、].*")) return null;
+        if (l.matches("^(特|为|根据|按照|本|凡|经|如|对|各|其中|同时|此外|因此|并|其).*")) return null;
+        // 明确的文件类标题后缀
+        if (l.matches(".*(办法|规定|制度|通知|须知|流程|要求|说明|方案|细则|简介|公约|职责|标准|计划|条例|守则|规范)$")) {
+            return l;
+        }
+        // 短标题：不超过 12 字且无标点，视为标题
+        return l.length() <= 12 ? l : null;
     }
 }
