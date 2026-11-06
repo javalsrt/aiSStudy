@@ -73,6 +73,8 @@ services:
       JWT_EXPIRATION: "86400000"
       # LLM 对话模型（DeepSeek），Key 需在服务器上通过 .env 提供
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      # 高德 Web 服务 Key：用于把返校打卡经纬度反查成中文地址（免费申请，不配则只显示经纬度）
+      AMAP_KEY: ${AMAP_KEY:-}
       # 容器内无 Python，禁止后端自启 Embedding 进程，改用独立容器
       EMBEDDING_LOCAL_AUTO_START: "false"
       EMBEDDING_LOCAL_URL: http://embedding:8000/embeddings

@@ -35,9 +35,11 @@ public class LeaveController {
     private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
     private final JdbcTemplate jdbc;
+    private final com.znxsgl.service.GeoService geoService;
 
-    public LeaveController(JdbcTemplate jdbc) {
+    public LeaveController(JdbcTemplate jdbc, com.znxsgl.service.GeoService geoService) {
         this.jdbc = jdbc;
+        this.geoService = geoService;
     }
 
     /** 提交申请 */
@@ -114,6 +116,7 @@ public class LeaveController {
                 "SELECT r.*, u.real_name AS studentName, ci.class_name AS className FROM leave_request r " +
                         "LEFT JOIN user u ON u.id = r.user_id LEFT JOIN class_info ci ON ci.id = r.class_id " +
                         "WHERE r.user_id = ? ORDER BY r.id DESC LIMIT 30", userId);
+        fillMissingAddress(rows, 3);
         return ResponseEntity.ok(decorate(rows));
     }
 
@@ -235,6 +238,7 @@ public class LeaveController {
                             "SELECT t.id FROM teacher t JOIN user tu ON tu.real_name = t.real_name WHERE tu.id = ?)) " +
                             "ORDER BY r.id DESC LIMIT ?", userId, userId, n);
         }
+        fillMissingAddress(rows, 8);
         return ResponseEntity.ok(decorate(rows));
     }
 
@@ -354,6 +358,30 @@ public class LeaveController {
     }
 
     // ==================== 工具 ====================
+
+    /**
+     * 老记录只存了经纬度：配置了高德 Key 时按需反查地址并回写数据库。
+     * 单次最多处理 limit 条，避免页面加载被外部接口拖慢。
+     */
+    private void fillMissingAddress(List<Map<String, Object>> rows, int limit) {
+        if (!geoService.enabled() || rows == null || rows.isEmpty()) return;
+        int done = 0;
+        for (Map<String, Object> r : rows) {
+            if (done >= limit) break;
+            Object addr = r.get("return_address");
+            if (addr != null && !String.valueOf(addr).isBlank()) continue;
+            if (!(r.get("return_lat") instanceof Number lat) || !(r.get("return_lng") instanceof Number lng)) continue;
+            if (!(r.get("id") instanceof Number idNum)) continue;
+            String text = geoService.reverse(lat.doubleValue(), lng.doubleValue());
+            if (text == null) continue;
+            try {
+                jdbc.update("UPDATE leave_request SET return_address = ? WHERE id = ?", text, idNum.longValue());
+                r.put("return_address", text);
+                done++;
+            } catch (Exception ignored) {
+            }
+        }
+    }
 
     private List<Map<String, Object>> decorate(List<Map<String, Object>> rows) {
         List<Map<String, Object>> list = new ArrayList<>();

@@ -630,10 +630,23 @@ export function LeaveApprovalPage() {
                               <img
                                 src={r.returnPhoto}
                                 alt="返校打卡照片"
-                                className="h-14 w-14 shrink-0 cursor-zoom-in rounded-md object-cover ring-1 ring-neutral-200"
+                                className="h-20 w-20 shrink-0 cursor-zoom-in rounded-md object-cover ring-1 ring-neutral-200"
                                 onClick={() => setPreview(r.returnPhoto!)}
+                                onError={(e) => {
+                                  // 图片失效时给出明确提示，避免出现空白框
+                                  const el = e.currentTarget
+                                  el.style.display = 'none'
+                                  const tip = el.nextElementSibling as HTMLElement | null
+                                  if (tip) tip.style.display = 'flex'
+                                }}
                               />
                             )}
+                            <div
+                              className="hidden h-20 w-20 shrink-0 items-center justify-center rounded-md bg-neutral-50 px-1 text-center text-[10px] leading-tight text-neutral-400 ring-1 ring-neutral-200"
+                              style={{ display: 'none' }}
+                            >
+                              照片已丢失
+                            </div>
                             <div className="min-w-0 space-y-1">
                               <div className="text-neutral-700">{r.returnAtText}</div>
                               {r.returnLat != null && r.returnLng != null && (
