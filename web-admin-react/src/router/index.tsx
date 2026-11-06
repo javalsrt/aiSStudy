@@ -12,6 +12,7 @@ import { SchedulePage } from '@/pages/admin/schedule'
 import { BellSchedulePage } from '@/pages/admin/bell-schedule'
 import { SchoolInfoPage } from '@/pages/admin/school-info'
 import { LeaveApprovalPage } from '@/pages/admin/leave-approval'
+import { TeacherDutyPage } from '@/pages/admin/teacher-duty'
 import { CourseChaptersPage } from '@/pages/course-chapters'
 import { ExamHomeworkPage } from '@/pages/exam-homework'
 import ExamTakePage from '@/pages/exam-take'
@@ -210,6 +211,14 @@ export const router = createBrowserRouter(
           element: (
             <AdminRoute>
               <LeaveApprovalPage />
+            </AdminRoute>
+          ),
+        },
+        {
+          path: 'admin/teacher-duty',
+          element: (
+            <AdminRoute>
+              <TeacherDutyPage />
             </AdminRoute>
           ),
         },

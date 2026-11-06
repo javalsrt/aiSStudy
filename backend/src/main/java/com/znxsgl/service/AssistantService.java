@@ -74,6 +74,13 @@ public class AssistantService {
             }
         }
 
+        // ===== 1.5) 班级与班主任（组织结构，来自教师职务数据） =====
+        String org = buildOrgContext(userId, message);
+        if (!org.isBlank()) {
+            context.append("【班级与班主任信息（系统实时数据）】\n").append(org).append("\n");
+            sources.add(Map.of("type", "org", "title", "班主任信息"));
+        }
+
         // ===== 2) 课程资料（RAG） =====
         String courseName = matchCourse(userId, message);
         if (courseName != null) {
@@ -140,6 +147,70 @@ public class AssistantService {
 
                 ===== 可用资料 =====
                 """ + layers;
+    }
+
+    /**
+     * 班主任 / 领导 / 请假审批人相关问答。
+     * 只回答系统里真实存在的班级与教师，避免模型编造姓名。
+     */
+    private String buildOrgContext(Long userId, String message) {
+        boolean askHead = message.contains("班主任") || message.contains("班主住");
+        boolean askLeader = message.contains("领导") || message.contains("教导主任") || message.contains("谁审批")
+                || message.contains("找谁批") || message.contains("请假找谁");
+        if (!askHead && !askLeader) return "";
+
+        StringBuilder sb = new StringBuilder();
+
+        if (askHead) {
+            // 1) 本人班级的班主任
+            List<Map<String, Object>> mine = jdbc.queryForList(
+                    "SELECT ci.class_name AS className, ci.grade, t.real_name AS teacherName, t.duty, t.phone " +
+                            "FROM user u LEFT JOIN class_info ci ON ci.id = u.class_id " +
+                            "LEFT JOIN teacher t ON t.id = ci.head_teacher_id WHERE u.id = ?", userId);
+            if (!mine.isEmpty() && mine.get(0).get("className") != null) {
+                Map<String, Object> r = mine.get(0);
+                sb.append("· 该生所在班级：").append(r.get("className"))
+                        .append("，班主任：").append(str(r.get("teacherName")));
+                if (r.get("phone") != null) sb.append("（电话 ").append(r.get("phone")).append("）");
+                sb.append("\n");
+            }
+            // 2) 问题里点名的班级
+            List<Map<String, Object>> all = jdbc.queryForList(
+                    "SELECT ci.class_name AS className, t.real_name AS teacherName, t.duty, t.is_leader AS isLeader " +
+                            "FROM class_info ci LEFT JOIN teacher t ON t.id = ci.head_teacher_id");
+            int matched = 0;
+            for (Map<String, Object> r : all) {
+                String cn = str(r.get("className"));
+                if (!"未填写".equals(cn) && cn.length() >= 3 && message.contains(cn)) {
+                    sb.append("· ").append(cn).append(" 班主任：").append(str(r.get("teacherName"))).append("\n");
+                    matched++;
+                }
+            }
+            // 3) 未点名任何班级：给概览（前 8 个班）
+            if (matched == 0) {
+                sb.append("· 全校班级班主任（部分）：");
+                int n = 0;
+                for (Map<String, Object> r : all) {
+                    if (n++ >= 8) break;
+                    sb.append("\n  - ").append(str(r.get("className"))).append("：").append(str(r.get("teacherName")));
+                }
+                sb.append("\n");
+            }
+        }
+
+        if (askLeader) {
+            List<Map<String, Object>> leaders = jdbc.queryForList(
+                    "SELECT real_name AS name, duty FROM teacher WHERE is_leader = 1 ORDER BY id");
+            if (!leaders.isEmpty()) {
+                sb.append("· 校级领导：");
+                for (Map<String, Object> l : leaders) {
+                    sb.append(str(l.get("name"))).append("（").append(str(l.get("duty"))).append("）、");
+                }
+                sb.setLength(sb.length() - 1);
+                sb.append("\n· 请假审批规则：3 天以内由班主任审批；超过 3 天由班主任初审后报校级领导终审。\n");
+            }
+        }
+        return sb.toString();
     }
 
     /** 命中学生课程名则返回，用于触发 RAG */

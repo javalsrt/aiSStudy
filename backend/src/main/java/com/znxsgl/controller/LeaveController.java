@@ -172,20 +172,32 @@ public class LeaveController {
         boolean admin = hasRole(auth, "ROLE_ADMIN");
         List<Map<String, Object>> rows;
         String sql = "SELECT r.*, u.real_name AS studentName, u.student_no AS studentNo, ci.class_name AS className, " +
-                "t1.real_name AS teacherName FROM leave_request r " +
+                "ht.real_name AS headTeacherName, t1.real_name AS teacherName FROM leave_request r " +
                 "LEFT JOIN user u ON u.id = r.user_id " +
                 "LEFT JOIN class_info ci ON ci.id = r.class_id " +
+                "LEFT JOIN teacher ht ON ht.id = ci.head_teacher_id " +
                 "LEFT JOIN user t1 ON t1.id = r.teacher_id_op " +
                 "WHERE r.status IN ('PENDING_TEACHER','PENDING_LEADER') ";
-        if (admin) {
-            rows = jdbc.queryForList(sql + "ORDER BY r.id DESC LIMIT 100");
+        boolean leader = isLeader(userId);
+        if (admin || leader) {
+            // 管理员 / 领导：全校请假，按班级、状态排序
+            rows = jdbc.queryForList(sql + "ORDER BY ci.class_name, r.id DESC LIMIT 200");
         } else {
-            rows = jdbc.queryForList(sql + "AND (r.teacher_id = ? OR r.class_id IN (" +
-                    "SELECT cc.class_id FROM course_class cc JOIN course c ON c.id = cc.course_id " +
-                    "JOIN teacher t ON t.id = c.teacher_id JOIN user tu ON tu.real_name = t.real_name " +
-                    "WHERE tu.id = ?)) ORDER BY r.id DESC LIMIT 100", userId, userId);
+            rows = jdbc.queryForList(sql + "AND (r.teacher_id = ? OR ci.head_teacher_id IN (" +
+                    "SELECT t.id FROM teacher t JOIN user tu ON tu.real_name = t.real_name WHERE tu.id = ?)) " +
+                    "ORDER BY r.id DESC LIMIT 100", userId, userId);
         }
-        return ResponseEntity.ok(decorate(rows));
+        List<Map<String, Object>> list = decorate(rows);
+        for (Map<String, Object> row : list) {
+            String st = str(row.get("status"));
+            Long cid = row.get("class_id") instanceof Number n ? n.longValue() : null;
+            boolean can = "PENDING_TEACHER".equals(st)
+                    ? (admin || leader || isClassTeacher(userId, cid))
+                    : (admin || leader);
+            row.put("canReview", can);
+            row.put("reviewStage", "PENDING_LEADER".equals(st) ? "领导终审" : "班主任审批");
+        }
+        return ResponseEntity.ok(list);
     }
 
     /** 审批：action=approve|reject */
@@ -205,37 +217,48 @@ public class LeaveController {
 
         if ("PENDING_TEACHER".equals(status)) {
             Long classId = r.get("class_id") instanceof Number n ? n.longValue() : null;
-            boolean isTeacher = admin || isClassTeacher(userId, classId);
-            if (!isTeacher) {
-                return ResponseEntity.status(403).body(Map.of("error", "只有班主任或管理员可以审批"));
+            boolean leader = isLeader(userId);
+            // 初审权：该班班主任 / 校领导 / 管理员
+            if (!(admin || leader || isClassTeacher(userId, classId))) {
+                return ResponseEntity.status(403).body(Map.of("error", "只有本班班主任、校级领导或管理员可以审批"));
             }
+            String identity = reviewerIdentity(auth, classId);
             if ("reject".equals(action)) {
-                jdbc.update("UPDATE leave_request SET status='REJECTED', teacher_id_op=?, teacher_comment=?, teacher_at=NOW() WHERE id=?",
-                        userId, comment, id);
-                return ResponseEntity.ok(Map.of("msg", "已驳回", "status", "REJECTED"));
+                jdbc.update("UPDATE leave_request SET status='REJECTED', teacher_id_op=?, teacher_comment=?, " +
+                                "teacher_reviewer_role=?, teacher_at=NOW() WHERE id=?",
+                        userId, comment, identity, id);
+                return ResponseEntity.ok(Map.of("msg", "已驳回（审批人：" + identity + "）", "status", "REJECTED"));
             }
             if ("LEAVE".equals(str(r.get("type"))) && days > 3) {
-                jdbc.update("UPDATE leave_request SET status='PENDING_LEADER', teacher_id_op=?, teacher_comment=?, teacher_at=NOW() WHERE id=?",
-                        userId, comment, id);
-                return ResponseEntity.ok(Map.of("msg", "初审通过，已提交学生处终审（超过 3 天）", "status", "PENDING_LEADER"));
+                jdbc.update("UPDATE leave_request SET status='PENDING_LEADER', teacher_id_op=?, teacher_comment=?, " +
+                                "teacher_reviewer_role=?, teacher_at=NOW() WHERE id=?",
+                        userId, comment, identity, id);
+                return ResponseEntity.ok(Map.of(
+                        "msg", "初审通过（审批人：" + identity + "），已提交领导终审（超过 3 天）",
+                        "status", "PENDING_LEADER"));
             }
-            jdbc.update("UPDATE leave_request SET status='APPROVED', teacher_id_op=?, teacher_comment=?, teacher_at=NOW() WHERE id=?",
-                    userId, comment, id);
-            return ResponseEntity.ok(Map.of("msg", "审批通过", "status", "APPROVED"));
+            jdbc.update("UPDATE leave_request SET status='APPROVED', teacher_id_op=?, teacher_comment=?, " +
+                            "teacher_reviewer_role=?, teacher_at=NOW() WHERE id=?",
+                    userId, comment, identity, id);
+            return ResponseEntity.ok(Map.of("msg", "审批通过（审批人：" + identity + "）", "status", "APPROVED"));
         }
 
         if ("PENDING_LEADER".equals(status)) {
-            if (!admin) {
-                return ResponseEntity.status(403).body(Map.of("error", "仅学生处/管理员可终审"));
+            // 终审权：校领导 / 管理员
+            if (!(admin || isLeader(userId))) {
+                return ResponseEntity.status(403).body(Map.of("error", "仅教导主任/校级领导或管理员可终审"));
             }
+            String identity = reviewerIdentity(auth, null);
             if ("reject".equals(action)) {
-                jdbc.update("UPDATE leave_request SET status='REJECTED', leader_id_op=?, leader_comment=?, leader_at=NOW() WHERE id=?",
-                        userId, comment, id);
-                return ResponseEntity.ok(Map.of("msg", "已驳回", "status", "REJECTED"));
+                jdbc.update("UPDATE leave_request SET status='REJECTED', leader_id_op=?, leader_comment=?, " +
+                                "leader_reviewer_role=?, leader_at=NOW() WHERE id=?",
+                        userId, comment, identity, id);
+                return ResponseEntity.ok(Map.of("msg", "已驳回（审批人：" + identity + "）", "status", "REJECTED"));
             }
-            jdbc.update("UPDATE leave_request SET status='APPROVED', leader_id_op=?, leader_comment=?, leader_at=NOW() WHERE id=?",
-                    userId, comment, id);
-            return ResponseEntity.ok(Map.of("msg", "终审通过", "status", "APPROVED"));
+            jdbc.update("UPDATE leave_request SET status='APPROVED', leader_id_op=?, leader_comment=?, " +
+                            "leader_reviewer_role=?, leader_at=NOW() WHERE id=?",
+                    userId, comment, identity, id);
+            return ResponseEntity.ok(Map.of("msg", "终审通过（审批人：" + identity + "）", "status", "APPROVED"));
         }
 
         return ResponseEntity.badRequest().body(Map.of("error", "该申请当前状态不可审批"));
@@ -261,6 +284,9 @@ public class LeaveController {
             m.put("startText", fmt(r.get("start_time")));
             m.put("endText", fmt(r.get("end_time")));
             m.put("createdText", fmt(r.get("created_at")));
+            m.put("teacherReviewerRole", r.get("teacher_reviewer_role"));
+            m.put("leaderReviewerRole", r.get("leader_reviewer_role"));
+            m.put("headTeacherName", r.get("headTeacherName"));
             list.add(m);
         }
         return list;
@@ -272,22 +298,50 @@ public class LeaveController {
         return o == null ? "" : String.valueOf(o).replace('T', ' ');
     }
 
+    /** 班级班主任（class_info.head_teacher_id → teacher → user 账号） */
     private Long resolveClassTeacher(Long classId) {
         if (classId == null) return null;
         List<Long> ids = jdbc.queryForList(
+                "SELECT u.id FROM class_info ci JOIN teacher t ON t.id = ci.head_teacher_id " +
+                        "JOIN user u ON u.real_name = t.real_name WHERE ci.id = ? LIMIT 1", Long.class, classId);
+        if (!ids.isEmpty()) return ids.get(0);
+        // 兜底：未设置班主任时，取该班第一门课的授课教师
+        List<Long> fallback = jdbc.queryForList(
                 "SELECT u.id FROM course_class cc JOIN course c ON c.id = cc.course_id " +
                         "JOIN teacher t ON t.id = c.teacher_id JOIN user u ON u.real_name = t.real_name " +
                         "WHERE cc.class_id = ? LIMIT 1", Long.class, classId);
-        return ids.isEmpty() ? null : ids.get(0);
+        return fallback.isEmpty() ? null : fallback.get(0);
     }
 
     private boolean isClassTeacher(Long userId, Long classId) {
         if (classId == null) return false;
         Integer n = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM course_class cc JOIN course c ON c.id = cc.course_id " +
-                        "JOIN teacher t ON t.id = c.teacher_id JOIN user u ON u.real_name = t.real_name " +
-                        "WHERE cc.class_id = ? AND u.id = ?", Integer.class, classId, userId);
+                "SELECT COUNT(*) FROM class_info ci JOIN teacher t ON t.id = ci.head_teacher_id " +
+                        "JOIN user u ON u.real_name = t.real_name WHERE ci.id = ? AND u.id = ?",
+                Integer.class, classId, userId);
         return n != null && n > 0;
+    }
+
+    /** 当前登录人是否校级领导（teacher.is_leader=1） */
+    private boolean isLeader(Long userId) {
+        if (userId == null) return false;
+        List<String> names = jdbc.queryForList("SELECT real_name FROM user WHERE id = ?", String.class, userId);
+        if (names.isEmpty()) return false;
+        Integer n = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM teacher WHERE real_name = ? AND is_leader = 1", Integer.class, names.get(0));
+        return n != null && n > 0;
+    }
+
+    /** 审批人身份标记：班主任 / 教导主任 / 管理员 */
+    private String reviewerIdentity(Authentication auth, Long classId) {
+        Long uid = uid(auth);
+        if (hasRole(auth, "ROLE_ADMIN")) return "管理员";
+        if (classId != null && isClassTeacher(uid, classId)) return "班主任";
+        if (isLeader(uid)) return "教导主任";
+        List<String> duty = jdbc.queryForList(
+                "SELECT t.duty FROM teacher t JOIN user u ON u.real_name = t.real_name WHERE u.id = ? LIMIT 1",
+                String.class, uid);
+        return duty.isEmpty() ? "教师" : duty.get(0);
     }
 
     private boolean hasRole(Authentication auth, String role) {

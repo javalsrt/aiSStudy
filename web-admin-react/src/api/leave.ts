@@ -18,6 +18,14 @@ export interface LeaveItem {
   smsSent: number
   status: string
   statusText: string
+  /** 该班班主任姓名 */
+  headTeacherName?: string | null
+  /** 当前登录人是否可审批该条 */
+  canReview?: boolean
+  /** 当前审批环节：班主任审批 / 领导终审 */
+  reviewStage?: string
+  teacherReviewerRole?: string | null
+  leaderReviewerRole?: string | null
   teacherComment?: string | null
   leaderComment?: string | null
   returnPhoto?: string | null

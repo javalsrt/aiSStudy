@@ -985,22 +985,22 @@ export function StaffPage() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-neutral-200">
-                    <th className="text-left px-6 py-4 text-sm font-medium text-neutral-500">
+                    <th className="text-left px-4 py-3 text-xs font-medium text-neutral-500 whitespace-nowrap">
                       教师
                     </th>
-                    <th className="text-left px-6 py-4 text-sm font-medium text-neutral-500">
+                    <th className="text-left px-4 py-3 text-xs font-medium text-neutral-500 whitespace-nowrap">
                       手机号
                     </th>
-                    <th className="text-left px-6 py-4 text-sm font-medium text-neutral-500">
+                    <th className="text-left px-4 py-3 text-xs font-medium text-neutral-500 whitespace-nowrap">
                       邮箱
                     </th>
-                    <th className="text-left px-6 py-4 text-sm font-medium text-neutral-500">
+                    <th className="text-left px-4 py-3 text-xs font-medium text-neutral-500 whitespace-nowrap">
                       状态
                     </th>
-                    <th className="text-left px-6 py-4 text-sm font-medium text-neutral-500">
+                    <th className="text-left px-4 py-3 text-xs font-medium text-neutral-500 whitespace-nowrap">
                       注册时间
                     </th>
-                    <th className="text-right px-6 py-4 text-sm font-medium text-neutral-500">
+                    <th className="text-right px-4 py-3 text-xs font-medium text-neutral-500 whitespace-nowrap">
                       操作
                     </th>
                   </tr>
@@ -1030,7 +1030,7 @@ export function StaffPage() {
                         key={teacher.id}
                         className="border-b border-neutral-100 hover:bg-neutral-50 transition-colors"
                       >
-                        <td className="px-6 py-4">
+                        <td className="px-4 py-3">
                           <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white font-medium">
                               {(teacher.realName || teacher.username || '?').charAt(0)}
@@ -1049,19 +1049,19 @@ export function StaffPage() {
                             </div>
                           </div>
                         </td>
-                        <td className="px-6 py-4 text-sm text-neutral-700">
+                        <td className="px-4 py-3 text-sm text-neutral-700">
                           {teacher.phone || '-'}
                         </td>
-                        <td className="px-6 py-4 text-sm text-neutral-700">
+                        <td className="px-4 py-3 text-sm text-neutral-700">
                           {teacher.email || '-'}
                         </td>
-                        <td className="px-6 py-4">{statusBadge(teacher.status)}</td>
-                        <td className="px-6 py-4 text-sm text-neutral-700">
+                        <td className="px-4 py-3">{statusBadge(teacher.status)}</td>
+                        <td className="px-4 py-3 text-sm text-neutral-700">
                           {teacher.createdAt
                             ? new Date(teacher.createdAt).toLocaleDateString()
                             : '-'}
                         </td>
-                        <td className="px-6 py-4 text-right">
+                        <td className="px-4 py-3 text-right">
                           <div className="flex items-center justify-end gap-1">
                             <Button
                               variant="ghost"
@@ -1131,7 +1131,7 @@ export function StaffPage() {
 
             {/* Pagination */}
             {!loading && !error && list.length > 0 && (
-              <div className="flex items-center justify-between px-6 py-4 border-t border-neutral-100">
+              <div className="flex items-center justify-between px-4 py-3 border-t border-neutral-100">
                 <div className="text-sm text-neutral-500">
                   第 {pageNum} / {totalPages} 页 · 共 {total} 条
                 </div>
@@ -1169,25 +1169,22 @@ export function StaffPage() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-neutral-200">
-                    <th className="text-left px-6 py-4 text-sm font-medium text-neutral-500">
+                    <th className="text-left px-4 py-3 text-xs font-medium text-neutral-500 whitespace-nowrap">
                       学生
                     </th>
-                    <th className="text-left px-6 py-4 text-sm font-medium text-neutral-500">
+                    <th className="text-left px-4 py-3 text-xs font-medium text-neutral-500 whitespace-nowrap">
                       学号
                     </th>
-                    <th className="text-left px-6 py-4 text-sm font-medium text-neutral-500">
+                    <th className="text-left px-4 py-3 text-xs font-medium text-neutral-500 whitespace-nowrap">
                       班级
                     </th>
-                    <th className="text-left px-6 py-4 text-sm font-medium text-neutral-500">
-                      专业
+                    <th className="text-left px-4 py-3 text-xs font-medium text-neutral-500 whitespace-nowrap">
+                      专业 / 年级
                     </th>
-                    <th className="text-left px-6 py-4 text-sm font-medium text-neutral-500">
-                      年级
-                    </th>
-                    <th className="text-left px-6 py-4 text-sm font-medium text-neutral-500">
+                    <th className="text-left px-4 py-3 text-xs font-medium text-neutral-500 whitespace-nowrap">
                       状态
                     </th>
-                    <th className="text-right px-6 py-4 text-sm font-medium text-neutral-500">
+                    <th className="text-right px-4 py-3 text-xs font-medium text-neutral-500 whitespace-nowrap">
                       操作
                     </th>
                   </tr>
@@ -1195,19 +1192,19 @@ export function StaffPage() {
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-10 text-center text-neutral-400">
+                      <td colSpan={6} className="px-6 py-10 text-center text-neutral-400">
                         数据加载中...
                       </td>
                     </tr>
                   ) : error ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-10 text-center text-danger">
+                      <td colSpan={6} className="px-6 py-10 text-center text-danger">
                         {error}
                       </td>
                     </tr>
                   ) : list.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-10 text-center text-neutral-400">
+                      <td colSpan={6} className="px-6 py-10 text-center text-neutral-400">
                         暂无数据
                       </td>
                     </tr>
@@ -1217,7 +1214,7 @@ export function StaffPage() {
                         key={student.id}
                         className="border-b border-neutral-100 hover:bg-neutral-50 transition-colors"
                       >
-                        <td className="px-6 py-4">
+                        <td className="px-4 py-3">
                           <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-400 to-cyan-600 flex items-center justify-center text-white font-medium">
                               {(student.realName || student.username || '?').charAt(0)}
@@ -1232,20 +1229,18 @@ export function StaffPage() {
                             </div>
                           </div>
                         </td>
-                        <td className="px-6 py-4 text-sm text-neutral-700 font-mono">
+                        <td className="px-4 py-3 text-sm text-neutral-700 font-mono">
                           {student.studentNo || '-'}
                         </td>
-                        <td className="px-6 py-4 text-sm text-neutral-700">
+                        <td className="px-4 py-3 text-sm text-neutral-700">
                           {classNameById(student.classId)}
                         </td>
-                        <td className="px-6 py-4 text-sm text-neutral-700">
-                          {student.major || '-'}
+                        <td className="px-4 py-3 text-sm text-neutral-700">
+                          <div>{student.major || '-'}</div>
+                          <div className="text-[11px] text-neutral-400">{student.grade || '未设置年级'}</div>
                         </td>
-                        <td className="px-6 py-4 text-sm text-neutral-700">
-                          {student.grade || '-'}
-                        </td>
-                        <td className="px-6 py-4">{statusBadge(student.status)}</td>
-                        <td className="px-6 py-4 text-right">
+                        <td className="px-4 py-3">{statusBadge(student.status)}</td>
+                        <td className="px-4 py-3 text-right">
                           <div className="flex items-center justify-end gap-1">
                             <Button
                               variant="ghost"
@@ -1306,7 +1301,7 @@ export function StaffPage() {
 
             {/* Pagination */}
             {!loading && !error && list.length > 0 && (
-              <div className="flex items-center justify-between px-6 py-4 border-t border-neutral-100">
+              <div className="flex items-center justify-between px-4 py-3 border-t border-neutral-100">
                 <div className="text-sm text-neutral-500">
                   第 {pageNum} / {totalPages} 页 · 共 {total} 条
                 </div>
