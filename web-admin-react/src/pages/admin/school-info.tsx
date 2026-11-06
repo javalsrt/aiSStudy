@@ -2,15 +2,19 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import { School, Plus, Save, Trash2, Upload, Info, Search, Power, FileText } from 'lucide-react'
+import { School, Plus, Save, Trash2, Upload, Info, Search, Power, FileText, LayoutGrid, History } from 'lucide-react'
 import {
   bulkImportSchoolInfo,
   deleteSchoolInfo,
   getSchoolInfoList,
+  getSchoolInfoLogs,
+  getSchoolInfoOverview,
   importSchoolInfoFile,
   saveSchoolInfo,
   toggleSchoolInfo,
   type SchoolInfoItem,
+  type SchoolInfoLog,
+  type SchoolInfoOverview,
 } from '@/api/school-info'
 
 /**
@@ -42,6 +46,20 @@ export function SchoolInfoPage() {
   const [bulkText, setBulkText] = useState('')
   const [bulkFile, setBulkFile] = useState<File | null>(null)
   const bulkFileRef = useRef<HTMLInputElement>(null)
+  const [overview, setOverview] = useState<SchoolInfoOverview | null>(null)
+  const [logs, setLogs] = useState<SchoolInfoLog[]>([])
+  /** 最近一次保存结果，显示在按钮旁，避免以为没反应而反复点击 */
+  const [lastSaved, setLastSaved] = useState<string | null>(null)
+
+  const loadStats = useCallback(async () => {
+    try {
+      const [ov, lg] = await Promise.all([getSchoolInfoOverview(), getSchoolInfoLogs(10)])
+      setOverview(ov)
+      setLogs(lg || [])
+    } catch {
+      // 统计失败不影响主流程
+    }
+  }, [])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -49,6 +67,7 @@ export function SchoolInfoPage() {
       const data = await getSchoolInfoList({ category: category || undefined })
       setItems(data.items || [])
       setCategories(data.categories || [])
+      loadStats()
     } catch (e: any) {
       setMessage({ type: 'err', text: e?.message || '加载失败' })
     } finally {
@@ -92,10 +111,13 @@ export function SchoolInfoPage() {
       setMessage({ type: 'err', text: '标题和内容不能为空' })
       return
     }
+    if (saving) return
     setSaving(true)
+    setLastSaved(null)
     try {
       const res = await saveSchoolInfo({ ...form, id: editingId ?? undefined })
       setMessage({ type: 'ok', text: res.msg })
+      setLastSaved(`已保存（${new Date().toLocaleTimeString('zh-CN', { hour12: false })}）`)
       setEditingId(res.id)
       await load()
     } catch (e: any) {
@@ -138,6 +160,7 @@ export function SchoolInfoPage() {
         ? await importSchoolInfoFile(bulkFile)
         : await bulkImportSchoolInfo({ text: bulkText })
       setMessage({ type: 'ok', text: res.msg })
+      setLastSaved(res.msg)
       setBulkOpen(false)
       setBulkText('')
       setBulkFile(null)
@@ -246,6 +269,69 @@ export function SchoolInfoPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* 规定概览 */}
+      <Card>
+        <CardHeader className="flex-row items-center justify-between space-y-0">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <LayoutGrid className="h-4 w-4 text-neutral-400" />
+            规定概览
+          </CardTitle>
+          <span className="text-xs text-neutral-400">
+            共 {overview?.total ?? 0} 条 · 启用 {overview?.enabled ?? 0} · 停用 {overview?.disabled ?? 0}
+          </span>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap gap-2">
+            {(overview?.categories || []).map((c) => (
+              <button
+                key={c.category}
+                type="button"
+                onClick={() => setCategory(category === c.category ? '' : c.category)}
+                className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+                  category === c.category
+                    ? 'border-primary-400 bg-primary-500 text-white'
+                    : 'border-neutral-200 bg-white text-neutral-600 hover:border-primary-300 hover:text-primary-600'
+                }`}
+                title={`最近更新 ${c.updatedAt || '-'}`}
+              >
+                {c.category}
+                <span className={`ml-1 tabular-nums ${category === c.category ? 'text-white/80' : 'text-neutral-400'}`}>
+                  {c.count}
+                </span>
+              </button>
+            ))}
+            {!overview && <span className="text-xs text-neutral-400">加载中…</span>}
+          </div>
+
+          <div className="rounded-lg border border-neutral-100">
+            <div className="border-b border-neutral-100 bg-neutral-50/60 px-3 py-2 text-[11px] text-neutral-400">
+              最近更新
+            </div>
+            <div className="divide-y divide-neutral-100">
+              {(overview?.recent || []).map((r) => (
+                <button
+                  key={r.id}
+                  type="button"
+                  onClick={() => {
+                    const target = items.find((i) => i.id === r.id)
+                    if (target) startEdit(target)
+                  }}
+                  className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-neutral-50"
+                >
+                  <span className="min-w-0 truncate text-[13px] text-neutral-700">{r.title}</span>
+                  <span className="shrink-0 text-[11px] text-neutral-400 tabular-nums">
+                    {r.category} · {r.updatedAt || '-'}
+                  </span>
+                </button>
+              ))}
+              {(overview?.recent || []).length === 0 && (
+                <div className="px-3 py-6 text-center text-xs text-neutral-400">暂无内容</div>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[360px_1fr]">
         {/* 左：条目列表 */}
@@ -421,9 +507,10 @@ export function SchoolInfoPage() {
               </span>
             </div>
 
-            <div className="flex justify-end gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-3">
+              {lastSaved && <span className="text-xs font-medium text-emerald-600">{lastSaved}</span>}
               {editingId && (
-                <Button variant="outline" onClick={startNew}>
+                <Button variant="outline" onClick={startNew} disabled={saving}>
                   新建
                 </Button>
               )}
@@ -435,6 +522,74 @@ export function SchoolInfoPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* 变更记录 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <History className="h-4 w-4 text-neutral-400" />
+            最近变更记录
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {logs.length === 0 ? (
+            <div className="py-6 text-center text-xs text-neutral-400">暂无记录，保存或导入后会自动出现在这里</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-neutral-200 bg-neutral-50/60">
+                    <th className="px-3 py-2 text-left text-[11px] font-medium text-neutral-400 whitespace-nowrap">时间</th>
+                    <th className="px-3 py-2 text-left text-[11px] font-medium text-neutral-400 whitespace-nowrap">操作人</th>
+                    <th className="px-3 py-2 text-left text-[11px] font-medium text-neutral-400 whitespace-nowrap">操作</th>
+                    <th className="px-3 py-2 text-left text-[11px] font-medium text-neutral-400">条目</th>
+                    <th className="px-3 py-2 text-left text-[11px] font-medium text-neutral-400 whitespace-nowrap">分类</th>
+                    <th className="px-3 py-2 text-left text-[11px] font-medium text-neutral-400">说明</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {logs.map((l) => (
+                    <tr key={l.id} className="border-b border-neutral-100 last:border-0">
+                      <td className="px-3 py-2 text-xs text-neutral-500 tabular-nums whitespace-nowrap">{l.createdAt}</td>
+                      <td className="px-3 py-2 text-xs text-neutral-700 whitespace-nowrap">{l.operatorName || '-'}</td>
+                      <td className="px-3 py-2 text-xs whitespace-nowrap">
+                        <span
+                          className={`rounded px-1.5 py-0.5 ${
+                            l.action === 'DELETE'
+                              ? 'bg-red-50 text-red-600'
+                              : l.action === 'IMPORT'
+                                ? 'bg-primary-50 text-primary-700'
+                                : l.action === 'STATUS'
+                                  ? 'bg-neutral-100 text-neutral-600'
+                                  : 'bg-emerald-50 text-emerald-700'
+                          }`}
+                        >
+                          {l.action === 'CREATE'
+                            ? '新增'
+                            : l.action === 'UPDATE'
+                              ? '修改'
+                              : l.action === 'DELETE'
+                                ? '删除'
+                                : l.action === 'IMPORT'
+                                  ? '导入'
+                                  : '启停'}
+                        </span>
+                      </td>
+                      <td className="max-w-[220px] truncate px-3 py-2 text-xs text-neutral-700" title={l.title || ''}>
+                        {l.title || '-'}
+                      </td>
+                      <td className="px-3 py-2 text-xs text-neutral-500 whitespace-nowrap">{l.category || '-'}</td>
+                      <td className="max-w-[320px] truncate px-3 py-2 text-xs text-neutral-500" title={l.detail || ''}>
+                        {l.detail || '-'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }

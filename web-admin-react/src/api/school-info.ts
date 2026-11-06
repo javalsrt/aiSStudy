@@ -43,6 +43,51 @@ export const importSchoolInfoFile = (file: File, category?: string) => {
   })
 }
 
+/* ===== 规定概览 & 变更记录 ===== */
+
+export interface SchoolInfoCategoryStat {
+  category: string
+  count: number
+  enabled: number
+  updatedAt?: string | null
+}
+
+export interface SchoolInfoOverview {
+  total: number
+  enabled: number
+  disabled: number
+  categories: SchoolInfoCategoryStat[]
+  recent: Array<{
+    id: number
+    title: string
+    category: string
+    status: number
+    updatedAt?: string | null
+    updatedBy?: string | null
+  }>
+}
+
+export interface SchoolInfoLog {
+  id: number
+  operatorName?: string | null
+  action: 'CREATE' | 'UPDATE' | 'DELETE' | 'IMPORT' | 'STATUS'
+  itemId?: number | null
+  title?: string | null
+  category?: string | null
+  detail?: string | null
+  createdAt: string
+}
+
+/** 规定概览统计 */
+export const getSchoolInfoOverview = () => {
+  return request.get<any, SchoolInfoOverview>('/admin/school-info/overview')
+}
+
+/** 最近变更记录 */
+export const getSchoolInfoLogs = (limit = 10) => {
+  return request.get<any, SchoolInfoLog[]>('/admin/school-info/logs', { params: { limit } })
+}
+
 /** 删除 */
 export const deleteSchoolInfo = (id: number) => {
   return request.delete<any, { msg: string }>(`/admin/school-info/${id}`)
