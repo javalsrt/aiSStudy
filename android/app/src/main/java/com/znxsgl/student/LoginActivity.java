@@ -58,9 +58,17 @@ public class LoginActivity extends AppCompatActivity {
 
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
 
-        // 首次启动强制登录：清除本地数据（防止被系统备份还原出的旧登录态直接跳过登录）
+        // 首次启动强制登录：只清会话与记住的账号密码，保留设备级设置（请求地址等）
         if (!prefs.getBoolean(KEY_FIRST_LAUNCH, false)) {
-            prefs.edit().clear().putBoolean(KEY_FIRST_LAUNCH, true).apply();
+            prefs.edit()
+                    .remove("token")
+                    .remove("userId")
+                    .remove("role")
+                    .remove(KEY_REMEMBER)
+                    .remove(KEY_SAVED_USERNAME)
+                    .remove(KEY_SAVED_PASSWORD)
+                    .putBoolean(KEY_FIRST_LAUNCH, true)
+                    .apply();
         }
 
         // 已登录直接进主页

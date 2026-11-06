@@ -1,19 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/background"
-    android:fillViewport="true">
+    android:fillViewport="true"
+    android:scrollbars="none">
 
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="match_parent"
         android:orientation="vertical"
         android:gravity="center_horizontal"
-        android:paddingHorizontal="36dp"
-        android:paddingTop="120dp"
-        android:paddingBottom="40dp">
+        android:paddingHorizontal="28dp"
+        android:paddingTop="64dp"
+        android:paddingBottom="20dp">
 
         <!-- 品牌 -->
         <TextView
@@ -21,94 +21,78 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/brand_name"
-            android:textSize="36sp"
-            android:textColor="@color/text_primary"
+            android:textSize="22sp"
+            android:textColor="@color/ink"
             android:fontFamily="@font/harmonyos_sans_sc_medium"
-            android:letterSpacing="-0.02" />
+            android:letterSpacing="-0.01" />
 
+        <!-- 头像 -->
         <TextView
-            android:id="@+id/tv_brand_desc"
+            android:id="@+id/tv_avatar"
+            android:layout_width="92dp"
+            android:layout_height="92dp"
+            android:layout_marginTop="46dp"
+            android:background="@drawable/bg_quick_login_avatar"
+            android:gravity="center"
+            android:text="学"
+            android:textSize="34sp"
+            android:textColor="@color/ink"
+            android:fontFamily="@font/harmonyos_sans_sc_medium" />
+
+        <!-- 姓名 -->
+        <TextView
+            android:id="@+id/tv_username"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            android:textSize="22sp"
+            android:textColor="@color/ink"
+            android:fontFamily="@font/harmonyos_sans_sc_medium" />
+
+        <!-- 账号 -->
+        <TextView
+            android:id="@+id/tv_account"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:textSize="12sp"
+            android:textColor="@color/ink_subtle"
+            android:fontFamily="@font/harmonyos_sans_sc" />
+
+        <!-- 切换账号 -->
+        <TextView
+            android:id="@+id/tv_switch_account"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
-            android:text="@string/brand_desc"
-            android:textSize="14sp"
+            android:padding="6dp"
+            android:text="切换账号"
+            android:textSize="13sp"
             android:textColor="@color/primary"
             android:fontFamily="@font/harmonyos_sans_sc_medium" />
 
-        <!-- 用户卡片（MaterialCardView：整卡可点击登录；左右留出阴影绘制空间） -->
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/card_quick_login"
+        <!-- 一键登录 -->
+        <TextView
+            android:id="@+id/btn_quick_login"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="56dp"
-            android:layout_marginBottom="40dp"
-            android:layout_marginHorizontal="8dp"
-            android:clickable="true"
-            android:focusable="true"
-            app:cardBackgroundColor="#FFFFFF"
-            app:cardForegroundColor="@android:color/transparent"
-            app:cardCornerRadius="20dp"
-            app:cardElevation="6dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:gravity="center"
-                android:paddingTop="28dp"
-                android:paddingBottom="28dp"
-                android:paddingStart="20dp"
-                android:paddingEnd="20dp">
-
-                <!-- 头像：姓名首字 + 圆环 -->
-                <TextView
-                    android:id="@+id/tv_avatar"
-                    android:layout_width="76dp"
-                    android:layout_height="76dp"
-                    android:background="@drawable/bg_quick_login_avatar"
-                    android:gravity="center"
-                    android:text="学"
-                    android:textSize="26sp"
-                    android:textColor="@color/on_primary"
-                    android:fontFamily="@font/harmonyos_sans_sc_medium" />
-
-                <!-- 姓名 -->
-                <TextView
-                    android:id="@+id/tv_username"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="18dp"
-                    android:textSize="18sp"
-                    android:textColor="@color/ink"
-                    android:fontFamily="@font/harmonyos_sans_sc_medium" />
-
-                <!-- 分隔线（对应 social-media:before） -->
-                <View
-                    android:layout_width="match_parent"
-                    android:layout_height="2dp"
-                    android:layout_marginTop="20dp"
-                    android:layout_marginBottom="14dp"
-                    android:background="@color/hairline" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="点击一键登录进入学习"
-                    android:textSize="13sp"
-                    android:textColor="#6B7280"
-                    android:fontFamily="@font/harmonyos_sans_sc" />
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
+            android:layout_height="52dp"
+            android:layout_marginTop="38dp"
+            android:background="@drawable/bg_quick_login_button"
+            android:gravity="center"
+            android:text="一键登录"
+            android:textColor="@color/on_primary"
+            android:textSize="17sp"
+            android:letterSpacing="0.02"
+            android:fontFamily="@font/harmonyos_sans_sc_medium" />
 
         <!-- 同意协议 -->
         <LinearLayout
             android:id="@+id/layout_agree"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
             android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:layout_marginBottom="16dp">
+            android:gravity="center_vertical">
 
             <CheckBox
                 android:id="@+id/cb_agree"
@@ -128,37 +112,123 @@
                 android:id="@+id/tv_agree"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
-                android:textSize="13sp"
-                android:textColor="@color/text_primary"
+                android:layout_marginStart="8dp"
+                android:textSize="12sp"
+                android:textColor="@color/ink_muted"
                 android:fontFamily="@font/harmonyos_sans_sc" />
         </LinearLayout>
 
         <!-- 进度条 -->
         <ProgressBar
             android:id="@+id/progress_bar"
-            android:layout_width="24dp"
-            android:layout_height="24dp"
-            android:layout_marginTop="16dp"
+            android:layout_width="22dp"
+            android:layout_height="22dp"
+            android:layout_marginTop="14dp"
             android:visibility="gone"
             android:indeterminateTint="@color/primary" />
 
         <View
             android:layout_width="match_parent"
             android:layout_height="0dp"
-            android:layout_weight="1" />
+            android:layout_weight="1"
+            android:minHeight="48dp" />
 
-        <!-- 其他账号登录 -->
-        <TextView
-            android:id="@+id/tv_switch_account"
-            android:layout_width="wrap_content"
+        <!-- 底部快捷入口 -->
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
-            android:padding="12dp"
-            android:text="@string/switch_account"
-            android:textSize="14sp"
-            android:textColor="@color/primary"
-            android:fontFamily="@font/harmonyos_sans_sc_medium" />
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_marginBottom="28dp">
+
+            <LinearLayout
+                android:id="@+id/btn_account_login"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="?android:attr/selectableItemBackgroundBorderless">
+
+                <ImageView
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
+                    android:background="@drawable/bg_login_round_icon"
+                    android:padding="12dp"
+                    android:src="@drawable/ic_user"
+                    android:tint="@color/ink_muted"
+                    android:contentDescription="账密登录" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="账密登录"
+                    android:textSize="11sp"
+                    android:textColor="@color/ink_muted"
+                    android:fontFamily="@font/harmonyos_sans_sc" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/btn_user_agreement"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="?android:attr/selectableItemBackgroundBorderless">
+
+                <ImageView
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
+                    android:background="@drawable/bg_login_round_icon"
+                    android:padding="12dp"
+                    android:src="@drawable/ic_doc"
+                    android:contentDescription="服务协议" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="服务协议"
+                    android:textSize="11sp"
+                    android:textColor="@color/ink_muted"
+                    android:fontFamily="@font/harmonyos_sans_sc" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/btn_privacy_policy"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="?android:attr/selectableItemBackgroundBorderless">
+
+                <ImageView
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
+                    android:background="@drawable/bg_login_round_icon"
+                    android:padding="12dp"
+                    android:src="@drawable/ic_shield"
+                    android:contentDescription="隐私政策" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="隐私政策"
+                    android:textSize="11sp"
+                    android:textColor="@color/ink_muted"
+                    android:fontFamily="@font/harmonyos_sans_sc" />
+            </LinearLayout>
+        </LinearLayout>
 
         <!-- 底部合规信息：ICP备案 · 公安备案 · 举报邮箱 -->
         <include layout="@layout/include_login_legal" />

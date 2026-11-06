@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 文档图标：带折角 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="@color/ink_muted">
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M6,2h7l5,5v13a2,2 0,0 1,-2 2H6a2,2 0,0 1,-2 -2V4a2,2 0,0 1,2 -2zM12.5,3.5v4a1,1 0,0 0,1 1h4zM8,12h8v1.6h-8zM8,15.5h8v1.6h-8z" />
+</vector>

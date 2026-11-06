@@ -301,8 +301,27 @@ public class LeaveActivity extends AppCompatActivity {
         head.addView(badge);
         card.addView(head);
 
+        // 回校时间 / 事由 / 审批人身份 / 审批意见
+        StringBuilder info = new StringBuilder();
+        info.append("回校：").append(str(item.get("endText")))
+                .append("\n事由：").append(str(item.get("reason")));
+        String teacherName = str(item.get("teacherName"));
+        String teacherRole = str(item.get("teacherReviewerRole"));
+        if (!teacherName.isEmpty() || !teacherRole.isEmpty()) {
+            info.append("\n初审：").append(teacherName.isEmpty() ? "-" : teacherName);
+            if (!teacherRole.isEmpty()) info.append("（").append(teacherRole).append("）");
+            String tc = str(item.get("teacherComment"));
+            if (!tc.isEmpty()) info.append(" · ").append(tc);
+        }
+        String leaderName = str(item.get("leaderName"));
+        if (!leaderName.isEmpty()) {
+            info.append("\n终审：").append(leaderName);
+            String lr = str(item.get("leaderReviewerRole"));
+            if (!lr.isEmpty()) info.append("（").append(lr).append("）");
+        }
+
         TextView detail = new TextView(this);
-        detail.setText("回校：" + str(item.get("endText")) + "\n事由：" + str(item.get("reason")));
+        detail.setText(info.toString());
         detail.setTextSize(12);
         detail.setTextColor(0xFF6B7280);
         detail.setLineSpacing(dp(2), 1f);
@@ -328,7 +347,9 @@ public class LeaveActivity extends AppCompatActivity {
         }
         if ("RETURNED".equals(status)) {
             TextView done = new TextView(this);
-            done.setText("已于 " + str(item.get("returnAt")) + " 打卡返校");
+            String at = str(item.get("returnAtText"));
+            if (at.isEmpty()) at = str(item.get("returnAt"));
+            done.setText("已于 " + at + " 打卡返校");
             done.setTextSize(11);
             done.setTextColor(0xFF10B981);
             actions.addView(done);

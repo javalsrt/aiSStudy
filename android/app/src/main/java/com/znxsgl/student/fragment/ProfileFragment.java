@@ -17,6 +17,7 @@ import android.view.ViewOutlineProvider;
 import android.view.ViewParent;
 import android.view.Window;
 import android.widget.HorizontalScrollView;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -307,6 +308,19 @@ public class ProfileFragment extends Fragment implements WebSocketManager.OnChat
             });
         }
 
+        // 请求地址（服务器 / 本地）
+        TextView tvBaseUrl = dialog.findViewById(R.id.tv_base_url);
+        if (tvBaseUrl != null) {
+            tvBaseUrl.setText(RetrofitClient.isServer() ? "教务系统" : "本地离线");
+        }
+        View rowBaseUrl = dialog.findViewById(R.id.row_base_url);
+        if (rowBaseUrl != null) {
+            rowBaseUrl.setOnClickListener(v -> {
+                dialog.dismiss();
+                showBaseUrlPicker();
+            });
+        }
+
         View rowLogout = dialog.findViewById(R.id.row_logout);
         if (rowLogout != null) {
             rowLogout.setOnClickListener(v -> {
@@ -319,6 +333,51 @@ public class ProfileFragment extends Fragment implements WebSocketManager.OnChat
         if (btnCancel != null) btnCancel.setOnClickListener(v -> dialog.dismiss());
 
         dialog.show();
+    }
+
+    /** 请求地址切换：教务系统 / 本地离线（与设置面板同款底部卡片） */
+    private void showBaseUrlPicker() {
+        if (!isAdded()) return;
+        Dialog dialog = new Dialog(getContext());
+        dialog.setContentView(R.layout.dialog_base_url);
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            window.setGravity(Gravity.BOTTOM);
+            window.setDimAmount(0.45f);
+        }
+
+        boolean server = RetrofitClient.isServer();
+        ImageView checkServer = dialog.findViewById(R.id.check_server);
+        ImageView checkLocal = dialog.findViewById(R.id.check_local);
+        checkServer.setVisibility(server ? View.VISIBLE : View.INVISIBLE);
+        checkLocal.setVisibility(server ? View.INVISIBLE : View.VISIBLE);
+
+        dialog.findViewById(R.id.row_server).setOnClickListener(v -> {
+            dialog.dismiss();
+            switchBaseUrl(RetrofitClient.URL_SERVER, "教务系统");
+        });
+        dialog.findViewById(R.id.row_local).setOnClickListener(v -> {
+            dialog.dismiss();
+            switchBaseUrl(RetrofitClient.URL_LOCAL, "本地离线");
+        });
+        dialog.findViewById(R.id.btn_cancel).setOnClickListener(v -> dialog.dismiss());
+
+        dialog.show();
+    }
+
+    private void switchBaseUrl(String url, String label) {
+        if (url.equals(RetrofitClient.getBaseUrl())) {
+            Toast.makeText(RetrofitClient.safeContext(getContext()),
+                    "当前已是 " + label, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        RetrofitClient.setBaseUrl(requireContext(), url);
+        Toast.makeText(RetrofitClient.safeContext(getContext()),
+                "已切换到 " + label + "，请重新登录", Toast.LENGTH_LONG).show();
+        // 两套环境的 token 不通用，切换后回到登录页
+        doLogout();
     }
 
     /** 课程图标生成入口 */
@@ -343,12 +402,18 @@ public class ProfileFragment extends Fragment implements WebSocketManager.OnChat
         boolean remember = prefs.getBoolean("remember", false);
         String realName = prefs.getString("realName", "");
 
+        // 请求地址属于设备级设置，退出登录时保留
+        String baseUrl = RetrofitClient.getBaseUrl();
+
         prefs.edit().clear().apply();
         SharedPreferences.Editor editor = prefs.edit();
         editor.putBoolean("remember", remember)
                 .putString("saved_username", savedUsername)
                 .putString("saved_password", savedPassword)
-                .putString("realName", realName);
+                .putString("realName", realName)
+                .putString(RetrofitClient.KEY_BASE_URL, baseUrl)
+                // 设备级标记：保留后登录页不会再执行一次「首次启动清空」
+                .putBoolean("first_launch_done", true);
         editor.apply();
 
         com.znxsgl.student.network.WebSocketManager.getInstance().disconnect();

@@ -20,10 +20,36 @@ import java.util.concurrent.TimeUnit;
 
 public class RetrofitClient {
 
-    // 线上服务器：http://8.163.105.116:8081（nginx 反代 /api/ 与 /ws/）
-    // 本地开发：模拟器用 10.0.2.2:8080（映射宿主机），真机用电脑局域网 IP
+    /** 线上服务器（nginx 反代 /api/ 与 /ws/） */
+    public static final String URL_SERVER = "http://8.163.105.116:8081";
+    /** 本地开发：模拟器固定用 10.0.2.2（自动映射到宿主机 localhost:8080） */
+    public static final String URL_LOCAL = "http://10.0.2.2:8080";
+
+    private static final String PREFS_NAME = "znxsgl";
+    public static final String KEY_BASE_URL = "base_url";
+
+    /** 当前请求地址：默认服务器，可在 App「设置 → 请求地址」中切换为本地并持久化 */
     public static String getBaseUrl() {
-        return "http://8.163.105.116:8081";
+        if (appContext == null) return URL_SERVER;
+        return appContext.getSharedPreferences(PREFS_NAME, 0).getString(KEY_BASE_URL, URL_SERVER);
+    }
+
+    public static boolean isServer() {
+        return URL_SERVER.equals(getBaseUrl());
+    }
+
+    /**
+     * 切换请求地址。切换后旧 token 在新服务器上无效，调用方应引导用户重新登录。
+     * 同时销毁 Retrofit 单例，下一次请求按新地址重建。
+     */
+    public static void setBaseUrl(Context context, String url) {
+        Context ctx = context != null ? context.getApplicationContext() : appContext;
+        if (ctx != null) {
+            appContext = ctx;
+            // 用 commit 保证紧接着的 getBaseUrl() 读到新值
+            ctx.getSharedPreferences(PREFS_NAME, 0).edit().putString(KEY_BASE_URL, url).commit();
+        }
+        instance = null;
     }
 
     /**

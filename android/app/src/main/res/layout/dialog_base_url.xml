@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 请求地址选择：与设置面板同款底部弹出卡片，选中项右侧打勾 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingHorizontal="10dp"
+    android:paddingBottom="16dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="@drawable/bg_sheet_top">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="请求地址"
+            android:textSize="17sp"
+            android:textColor="@color/ink"
+            android:fontFamily="@font/harmonyos_sans_sc_medium"
+            android:gravity="center"
+            android:paddingTop="18dp"
+            android:paddingBottom="12dp" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginStart="20dp"
+            android:background="@color/hairline" />
+
+        <!-- 教务系统 -->
+        <LinearLayout
+            android:id="@+id/row_server"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="20dp"
+            android:paddingVertical="16dp"
+            android:background="@drawable/bg_sheet_row"
+            android:clickable="true"
+            android:focusable="true">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="教务系统"
+                android:textSize="16sp"
+                android:textColor="@color/ink"
+                android:fontFamily="@font/harmonyos_sans_sc" />
+
+            <ImageView
+                android:id="@+id/check_server"
+                android:layout_width="18dp"
+                android:layout_height="18dp"
+                android:src="@drawable/ic_check"
+                android:tint="@color/primary"
+                android:contentDescription="已选中"
+                android:visibility="invisible" />
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginStart="20dp"
+            android:background="@color/hairline" />
+
+        <!-- 本地离线 -->
+        <LinearLayout
+            android:id="@+id/row_local"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="20dp"
+            android:paddingVertical="16dp"
+            android:background="@drawable/bg_sheet_row"
+            android:clickable="true"
+            android:focusable="true">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="本地离线"
+                android:textSize="16sp"
+                android:textColor="@color/ink"
+                android:fontFamily="@font/harmonyos_sans_sc" />
+
+            <ImageView
+                android:id="@+id/check_local"
+                android:layout_width="18dp"
+                android:layout_height="18dp"
+                android:src="@drawable/ic_check"
+                android:tint="@color/primary"
+                android:contentDescription="已选中"
+                android:visibility="invisible" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/btn_cancel"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:layout_marginTop="10dp"
+        android:background="@drawable/bg_sheet_cancel"
+        android:gravity="center"
+        android:text="取消"
+        android:textSize="16sp"
+        android:textColor="@color/ink"
+        android:fontFamily="@font/harmonyos_sans_sc_medium"
+        android:clickable="true"
+        android:focusable="true" />
+
+</LinearLayout>

@@ -20,7 +20,6 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 
-import com.znxsgl.student.animation.DecryptedTextAnimation;
 import com.znxsgl.student.animation.ShinyTextAnimation;
 import com.znxsgl.student.model.LoginRequest;
 import com.znxsgl.student.model.LoginResponse;
@@ -43,12 +42,11 @@ public class QuickLoginActivity extends AppCompatActivity {
     private static final String KEY_SAVED_USERNAME = "saved_username";
     private static final String KEY_SAVED_PASSWORD = "saved_password";
 
-    private TextView tvBrandName, tvBrandDesc, tvUsername, tvAvatar, tvAgree, tvSwitchAccount;
-    private View cardQuickLogin;
+    private TextView tvBrandName, tvUsername, tvAccount, tvAvatar, tvAgree, tvSwitchAccount;
+    private View btnQuickLogin;
     private ProgressBar progressBar;
     private CheckBox cbAgree;
     private ApiService apiService;
-    private DecryptedTextAnimation decryptedAnimation;
 
     private String savedUsername;
     private String savedPassword;
@@ -77,48 +75,63 @@ public class QuickLoginActivity extends AppCompatActivity {
         }
 
         tvBrandName = findViewById(R.id.tv_brand_name);
-        tvBrandDesc = findViewById(R.id.tv_brand_desc);
         tvUsername = findViewById(R.id.tv_username);
         tvAvatar = findViewById(R.id.tv_avatar);
+        tvAccount = findViewById(R.id.tv_account);
+        tvAgree = findViewById(R.id.tv_agree);
+        tvSwitchAccount = findViewById(R.id.tv_switch_account);
+        btnQuickLogin = findViewById(R.id.btn_quick_login);
+        progressBar = findViewById(R.id.progress_bar);
+        cbAgree = findViewById(R.id.cb_agree);
 
         // 显示姓名（无则回退为账号），头像显示姓名首字
         String realName = prefs.getString("realName", "");
         String displayName = TextUtils.isEmpty(realName) ? savedUsername : realName;
         tvUsername.setText(displayName);
         tvAvatar.setText(displayName.isEmpty() ? "学" : String.valueOf(displayName.charAt(0)));
-        tvAgree = findViewById(R.id.tv_agree);
-        tvSwitchAccount = findViewById(R.id.tv_switch_account);
-        cardQuickLogin = findViewById(R.id.card_quick_login);
-        progressBar = findViewById(R.id.progress_bar);
-        cbAgree = findViewById(R.id.cb_agree);
+        tvAccount.setText("账号 " + savedUsername);
 
         // 品牌动画
         ShinyTextAnimation.applyShimmer(tvBrandName);
-        decryptedAnimation = new DecryptedTextAnimation(tvBrandDesc, getString(R.string.brand_desc));
-        decryptedAnimation.start();
 
-        tvUsername.setText(savedUsername);
-
-        // 协议默认勾选；未勾选时点击卡片会提示
+        // 协议默认勾选；未勾选时点击登录会提示
         setupAgreementText();
 
-        // 点击卡片即一键登录
-        cardQuickLogin.setOnClickListener(v -> attemptQuickLogin());
-        tvSwitchAccount.setOnClickListener(v -> {
-            // 清空记住的账号密码，进入普通登录页
-            prefs.edit()
-                    .remove(KEY_REMEMBER)
-                    .remove(KEY_SAVED_USERNAME)
-                    .remove(KEY_SAVED_PASSWORD)
-                    .apply();
-            startActivity(new Intent(this, LoginActivity.class));
-            finish();
-        });
+        btnQuickLogin.setOnClickListener(v -> attemptQuickLogin());
+        tvSwitchAccount.setOnClickListener(v -> switchAccount());
+
+        // 底部快捷入口
+        findViewById(R.id.btn_account_login).setOnClickListener(v -> switchAccount());
+        findViewById(R.id.btn_user_agreement).setOnClickListener(v ->
+                openProtocol(getString(R.string.protocol_title_user), buildUserAgreement()));
+        findViewById(R.id.btn_privacy_policy).setOnClickListener(v ->
+                openProtocol(getString(R.string.protocol_title_privacy), buildPrivacyPolicy()));
+
+        updateLoginButtonState();
     }
 
-    private void updateQuickLoginCardState() {
-        cardQuickLogin.setEnabled(cbAgree.isChecked());
-        cardQuickLogin.setAlpha(cbAgree.isChecked() ? 1f : 0.6f);
+    /** 切换账号：清空记住的账号密码，进入普通登录页 */
+    private void switchAccount() {
+        getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit()
+                .remove(KEY_REMEMBER)
+                .remove(KEY_SAVED_USERNAME)
+                .remove(KEY_SAVED_PASSWORD)
+                .apply();
+        startActivity(new Intent(this, LoginActivity.class));
+        finish();
+    }
+
+    private void openProtocol(String title, String content) {
+        Intent intent = new Intent(this, ProtocolActivity.class);
+        intent.putExtra(ProtocolActivity.EXTRA_TITLE, title);
+        intent.putExtra(ProtocolActivity.EXTRA_CONTENT, content);
+        startActivity(intent);
+    }
+
+    private void updateLoginButtonState() {
+        boolean ready = cbAgree.isChecked();
+        btnQuickLogin.setEnabled(ready);
+        btnQuickLogin.setAlpha(ready ? 1f : 0.5f);
     }
 
     private void setupAgreementText() {
@@ -151,6 +164,7 @@ public class QuickLoginActivity extends AppCompatActivity {
                 cbAgree.setChecked(!cbAgree.isChecked());
             }
         });
+        cbAgree.setOnCheckedChangeListener((b, checked) -> updateLoginButtonState());
     }
 
     private String buildUserAgreement() {
@@ -179,16 +193,15 @@ public class QuickLoginActivity extends AppCompatActivity {
             return;
         }
 
-        cardQuickLogin.setEnabled(false); // 防止连点
+        btnQuickLogin.setEnabled(false); // 防止连点
         progressBar.setVisibility(View.VISIBLE);
 
         LoginRequest request = new LoginRequest(savedUsername, savedPassword);
         apiService.login(request).enqueue(new Callback<LoginResponse>() {
             @Override
             public void onResponse(Call<LoginResponse> call, retrofit2.Response<LoginResponse> response) {
-                cardQuickLogin.setEnabled(true);
                 progressBar.setVisibility(View.GONE);
-                updateQuickLoginCardState();
+                updateLoginButtonState();
 
                 if (response.isSuccessful() && response.body() != null) {
                     LoginResponse data = response.body();
@@ -225,9 +238,8 @@ public class QuickLoginActivity extends AppCompatActivity {
 
             @Override
             public void onFailure(Call<LoginResponse> call, Throwable t) {
-                cardQuickLogin.setEnabled(true);
                 progressBar.setVisibility(View.GONE);
-                updateQuickLoginCardState();
+                updateLoginButtonState();
                 Toast.makeText(QuickLoginActivity.this,
                         UiMsg.network(t), Toast.LENGTH_SHORT).show();
             }
@@ -238,9 +250,6 @@ public class QuickLoginActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
         ShinyTextAnimation.stopShimmer(tvBrandName);
-        if (decryptedAnimation != null) {
-            decryptedAnimation.stop();
-        }
     }
 
     private class ProtocolClickSpan extends ClickableSpan {

@@ -200,6 +200,75 @@ public class LeaveController {
         return ResponseEntity.ok(list);
     }
 
+    /** 已处理记录：审批完成后的申请（含返校打卡信息），教师看本班，领导/管理员看全校 */
+    @GetMapping("/records")
+    public ResponseEntity<?> records(@RequestParam(value = "limit", defaultValue = "200") int limit,
+                                     Authentication auth) {
+        Long userId = uid(auth);
+        if (userId == null) return ResponseEntity.status(401).body(Map.of("error", "请先登录"));
+        int n = Math.min(Math.max(limit, 1), 500);
+        boolean admin = hasRole(auth, "ROLE_ADMIN");
+        boolean leader = isLeader(userId);
+
+        String sql = "SELECT r.*, u.real_name AS studentName, u.student_no AS studentNo, ci.class_name AS className, " +
+                "ht.real_name AS headTeacherName, t1.real_name AS teacherName, t2.real_name AS leaderName " +
+                "FROM leave_request r " +
+                "LEFT JOIN user u ON u.id = r.user_id " +
+                "LEFT JOIN class_info ci ON ci.id = r.class_id " +
+                "LEFT JOIN teacher ht ON ht.id = ci.head_teacher_id " +
+                "LEFT JOIN user t1 ON t1.id = r.teacher_id_op " +
+                "LEFT JOIN user t2 ON t2.id = r.leader_id_op " +
+                "WHERE r.status IN ('APPROVED','REJECTED','RETURNED','CANCELED') ";
+        List<Map<String, Object>> rows;
+        if (admin || leader) {
+            rows = jdbc.queryForList(sql + "ORDER BY r.id DESC LIMIT ?", n);
+        } else {
+            rows = jdbc.queryForList(sql + "AND (r.teacher_id = ? OR ci.head_teacher_id IN (" +
+                            "SELECT t.id FROM teacher t JOIN user tu ON tu.real_name = t.real_name WHERE tu.id = ?)) " +
+                            "ORDER BY r.id DESC LIMIT ?", userId, userId, n);
+        }
+        return ResponseEntity.ok(decorate(rows));
+    }
+
+    /** 批量审批：body = { ids:[...], action: approve|reject, comment: "" } */
+    @PostMapping("/batch-review")
+    public ResponseEntity<?> batchReview(@RequestBody Map<String, Object> body, Authentication auth) {
+        Long userId = uid(auth);
+        if (userId == null) return ResponseEntity.status(401).body(Map.of("error", "请先登录"));
+        if (!(body.get("ids") instanceof List<?> raw) || raw.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "请先勾选要审批的申请"));
+        }
+        String action = "reject".equalsIgnoreCase(str(body.get("action"))) ? "reject" : "approve";
+        String comment = str(body.get("comment")).trim();
+
+        int ok = 0;
+        List<Map<String, Object>> failed = new ArrayList<>();
+        for (Object o : raw) {
+            Long id = o instanceof Number num ? num.longValue() : null;
+            if (id == null) continue;
+            try {
+                Map<String, Object> one = new LinkedHashMap<>();
+                one.put("action", action);
+                one.put("comment", comment);
+                ResponseEntity<?> r = doReview(id, one, auth);
+                if (r.getStatusCode().is2xxSuccessful()) {
+                    ok++;
+                } else {
+                    Object err = r.getBody() instanceof Map<?, ?> m ? m.get("error") : null;
+                    failed.add(Map.of("id", id, "error", err == null ? "审批失败" : String.valueOf(err)));
+                }
+            } catch (Exception e) {
+                failed.add(Map.of("id", id, "error", String.valueOf(e.getMessage())));
+            }
+        }
+        Map<String, Object> resp = new LinkedHashMap<>();
+        resp.put("success", ok);
+        resp.put("failed", failed);
+        resp.put("msg", "已" + ("reject".equals(action) ? "驳回" : "通过") + " " + ok + " 条"
+                + (failed.isEmpty() ? "" : "，" + failed.size() + " 条失败"));
+        return ResponseEntity.ok(resp);
+    }
+
     /** 审批：action=approve|reject */
     @PostMapping("/{id}/review")
     public ResponseEntity<?> review(@PathVariable Long id, @RequestBody Map<String, Object> body, Authentication auth) {
@@ -299,6 +368,14 @@ public class LeaveController {
             m.put("teacherReviewerRole", r.get("teacher_reviewer_role"));
             m.put("leaderReviewerRole", r.get("leader_reviewer_role"));
             m.put("headTeacherName", r.get("headTeacherName"));
+            m.put("teacherName", r.get("teacherName"));
+            m.put("leaderName", r.get("leaderName"));
+            // 返校打卡（定位 + 拍照）
+            m.put("returnPhoto", r.get("return_photo"));
+            m.put("returnLat", r.get("return_lat"));
+            m.put("returnLng", r.get("return_lng"));
+            m.put("returnAtText", r.get("return_at") == null ? null : fmt(r.get("return_at")));
+            m.put("hasCheckIn", r.get("return_at") != null);
             list.add(m);
         }
         return list;
