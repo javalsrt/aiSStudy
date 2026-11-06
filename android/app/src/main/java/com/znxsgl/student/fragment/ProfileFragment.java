@@ -494,70 +494,118 @@ public class ProfileFragment extends Fragment implements WebSocketManager.OnChat
         View root = LayoutInflater.from(getContext()).inflate(R.layout.dialog_contacts, null);
         LinearLayout llClassmates = root.findViewById(R.id.ll_classmates);
         LinearLayout llTeachers = root.findViewById(R.id.ll_teachers);
+        LinearLayout llCadres = root.findViewById(R.id.ll_cadres);
         TextView tvNoClassmates = root.findViewById(R.id.tv_no_classmates);
         TextView tvNoTeachers = root.findViewById(R.id.tv_no_teachers);
+        TextView tvNoCadres = root.findViewById(R.id.tv_no_cadres);
+        TextView tvCadreTitle = root.findViewById(R.id.tv_cadre_title);
 
         List<Map<String, Object>> classmates = (List<Map<String, Object>>) data.get("classmates");
         List<Map<String, Object>> teachers = (List<Map<String, Object>>) data.get("teachers");
 
-        // 班主任提示
+        // 本班班主任
         TextView tvHead = root.findViewById(R.id.tv_head_teacher);
-        Object headName = data.get("headTeacher");
-        if (headName != null && !String.valueOf(headName).isEmpty()) {
+        String headName = str(data.get("headTeacher"));
+        int headId = intOf(data.get("headTeacherId"));
+        if (!headName.isEmpty()) {
             tvHead.setText("班主任：" + headName);
             tvHead.setVisibility(View.VISIBLE);
         }
 
-        // 教师置顶显示：领导 > 班主任 > 其他
+        // ---------- 任课教师：校级职务 > 班主任 > 职称高 ----------
         TextView tvTeacherTitle = root.findViewById(R.id.tv_teacher_title);
-        if (teachers != null && !teachers.isEmpty()) {
-            tvTeacherTitle.setText("任课教师 · " + teachers.size());
-        }
         if (teachers == null || teachers.isEmpty()) {
             tvNoTeachers.setVisibility(View.VISIBLE);
         } else {
-            for (Map<String, Object> item : teachers) {
+            tvTeacherTitle.setText("任课教师 · " + teachers.size());
+            List<Map<String, Object>> sorted = new ArrayList<>(teachers);
+            Collections.sort(sorted, (a, b) -> {
+                // 本班班主任固定置顶
+                boolean headA = headId > 0 && intOf(a.get("teacherId")) == headId;
+                boolean headB = headId > 0 && intOf(b.get("teacherId")) == headId;
+                if (headA != headB) return headA ? -1 : 1;
+                int r = teacherRank(a) - teacherRank(b);
+                if (r != 0) return r;
+                r = titleRank(str(b.get("title"))) - titleRank(str(a.get("title")));
+                if (r != 0) return r;
+                return str(a.get("realName")).compareTo(str(b.get("realName")));
+            });
+            for (Map<String, Object> item : sorted) {
                 String name = str(item.get("realName"));
                 String title = str(item.get("title"));
                 String duty = str(item.get("duty"));
                 String courses = str(item.get("courseNames"));
                 int isLeader = intOf(item.get("isLeader"));
+                boolean isHead = headId > 0 && intOf(item.get("teacherId")) == headId;
 
                 String badge;
                 int badgeColor;
-                if (isLeader == 1) {
-                    badge = duty.isEmpty() ? "领导" : duty;
-                    badgeColor = 0xFFF59E0B;          // 领导：琥珀色
+                if (isHead) {
+                    badge = "班主任";                              // 本班班主任优先展示
+                    badgeColor = 0xFF3B6EF6;                       // 班主任：主题蓝
+                } else if (isLeader == 1 || isSchoolOffice(duty)) {
+                    badge = duty.isEmpty() ? "校级领导" : duty;   // 教导主任 / 副校长……
+                    badgeColor = 0xFFF59E0B;                       // 领导：琥珀色
                 } else if ("班主任".equals(duty)) {
                     badge = "班主任";
-                    badgeColor = 0xFF3B6EF6;          // 班主任：主题蓝
+                    badgeColor = 0xFF3B6EF6;
+                } else if (!duty.isEmpty() && !"教师".equals(duty)) {
+                    badge = duty;                                  // 其他自定义职务原样显示
+                    badgeColor = 0xFF3B6EF6;
                 } else if (!title.isEmpty()) {
-                    badge = title;                     // 讲师 / 副教授（职称）
+                    badge = title;                                 // 职称：教授/副教授/讲师/助教
                     badgeColor = 0xFF9CA3AF;
                 } else {
                     badge = "教师";
                     badgeColor = 0xFF9CA3AF;
                 }
-                String sub = courses.isEmpty() ? "任课教师" : courses;
-                addContactItem(llTeachers, name, sub, badge, badgeColor);
+
+                // 副标题：任教课程 + 职称 + 行政职务（班主任身份已在徽标上体现）
+                StringBuilder sub = new StringBuilder(courses.isEmpty() ? "任课教师" : courses);
+                if (!title.isEmpty()) sub.append(" · ").append(title);
+                if (!duty.isEmpty() && !"教师".equals(duty) && !"班主任".equals(duty)) {
+                    sub.append(" · ").append(duty);
+                }
+                addContactItem(llTeachers, name, sub.toString(), badge, badgeColor);
             }
         }
 
-        TextView tvClassmateTitle = root.findViewById(R.id.tv_classmate_title);
-        if (classmates != null && !classmates.isEmpty()) {
-            tvClassmateTitle.setText("同班同学 · " + classmates.size());
+        // ---------- 班级干部 ----------
+        List<Map<String, Object>> cadres = new ArrayList<>();
+        List<Map<String, Object>> others = new ArrayList<>();
+        if (classmates != null) {
+            for (Map<String, Object> item : classmates) {
+                if (str(item.get("position")).isEmpty()) others.add(item);
+                else cadres.add(item);
+            }
         }
-        if (classmates == null || classmates.isEmpty()) {
+        Collections.sort(cadres, (a, b) -> {
+            int r = cadreRank(str(a.get("position"))) - cadreRank(str(b.get("position")));
+            if (r != 0) return r;
+            return str(a.get("realName")).compareTo(str(b.get("realName")));
+        });
+        if (cadres.isEmpty()) {
+            tvNoCadres.setVisibility(View.VISIBLE);
+        } else {
+            tvCadreTitle.setText("班级干部 · " + cadres.size());
+            for (Map<String, Object> item : cadres) {
+                String no = str(item.get("studentNo"));
+                addContactItem(llCadres, str(item.get("realName")),
+                        no.isEmpty() ? "班干部" : "学号 " + no,
+                        str(item.get("position")), 0xFF10B981);
+            }
+        }
+
+        // ---------- 同班同学 ----------
+        TextView tvClassmateTitle = root.findViewById(R.id.tv_classmate_title);
+        if (others.isEmpty()) {
             tvNoClassmates.setVisibility(View.VISIBLE);
         } else {
-            for (Map<String, Object> item : classmates) {
-                String name = str(item.get("realName"));
+            tvClassmateTitle.setText("同班同学 · " + others.size());
+            for (Map<String, Object> item : others) {
                 String no = str(item.get("studentNo"));
-                if (no.isEmpty()) no = "暂无";
-                String position = str(item.get("position"));
-                addContactItem(llClassmates, name, "学号 " + no,
-                        position.isEmpty() ? null : position,
-                        position.isEmpty() ? 0 : 0xFF10B981);
+                addContactItem(llClassmates, str(item.get("realName")),
+                        no.isEmpty() ? "暂无学号" : "学号 " + no, null, 0);
             }
         }
 
@@ -575,11 +623,13 @@ public class ProfileFragment extends Fragment implements WebSocketManager.OnChat
         dlg.setOnShowListener(d -> {
             android.view.Window w = dlg.getWindow();
             if (w != null) {
-                int side = dp(18);
+                int side = dp(20);
                 w.getDecorView().setPadding(side, 0, side, 0);
                 android.view.WindowManager.LayoutParams lp = new android.view.WindowManager.LayoutParams();
                 lp.copyFrom(w.getAttributes());
-                lp.width = ViewGroup.LayoutParams.MATCH_PARENT;
+                // 限制最大宽度：两侧留出可见的遮罩背景，平板/大屏上不至于拉满
+                int screenW = getResources().getDisplayMetrics().widthPixels;
+                lp.width = Math.min(screenW - side * 2, dp(380));
                 // 高度放宽到 82%，留出更多滚动空间，避免拥挤
                 lp.height = (int) (getResources().getDisplayMetrics().heightPixels * 0.82);
                 lp.gravity = Gravity.CENTER;
@@ -590,6 +640,44 @@ public class ProfileFragment extends Fragment implements WebSocketManager.OnChat
             }
         });
         dlg.show();
+    }
+
+    /** 班干部职务排序（与后台职务字典一致） */
+    private static final String[] CADRE_ORDER = {
+            "班长", "副班长", "团支书", "学习委员", "纪律委员", "生活委员",
+            "文娱委员", "体育委员", "心理委员", "宣传委员", "劳动委员", "课代表"
+    };
+
+    /** 教师排序权重：0 校级职务，1 班主任，2 其他职务，3 普通教师 */
+    private int teacherRank(Map<String, Object> t) {
+        String duty = str(t.get("duty"));
+        if (intOf(t.get("isLeader")) == 1 || isSchoolOffice(duty)) return 0;
+        if ("班主任".equals(duty)) return 1;
+        if (!duty.isEmpty() && !"教师".equals(duty)) return 2;
+        return 3;
+    }
+
+    /** 校级 / 处室职务：校长、副校长、书记、教导主任等 */
+    private boolean isSchoolOffice(String duty) {
+        return duty.contains("校长") || duty.contains("书记") || duty.contains("主任");
+    }
+
+    /** 职称高低：教授 4 > 副教授 3 > 讲师 2 > 助教 1 > 未填 0 */
+    private int titleRank(String title) {
+        switch (title) {
+            case "教授": return 4;
+            case "副教授": return 3;
+            case "讲师": return 2;
+            case "助教": return 1;
+            default: return 0;
+        }
+    }
+
+    private int cadreRank(String position) {
+        for (int i = 0; i < CADRE_ORDER.length; i++) {
+            if (CADRE_ORDER[i].equals(position)) return i;
+        }
+        return CADRE_ORDER.length;
     }
 
     private void addContactItem(ViewGroup parent, String name, String sub) {

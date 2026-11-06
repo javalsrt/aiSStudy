@@ -129,18 +129,49 @@ public class LeaveActivity extends AppCompatActivity {
     }
 
     private void pickDateTime(boolean isStart) {
+        // 先用副本收集用户选择，日期 + 时间都确认后再写回，避免取消时间框却把日期改掉
         Calendar base = isStart ? startCal : endCal;
-        new DatePickerDialog(this, (view, y, m, d) -> {
-            base.set(Calendar.YEAR, y);
-            base.set(Calendar.MONTH, m);
-            base.set(Calendar.DAY_OF_MONTH, d);
+        final Calendar picked = (Calendar) base.clone();
+
+        DatePickerDialog dp = new DatePickerDialog(this, (view, y, m, d) -> {
+            picked.set(Calendar.YEAR, y);
+            picked.set(Calendar.MONTH, m);
+            picked.set(Calendar.DAY_OF_MONTH, d);
+
             new TimePickerDialog(this, (tv, h, min) -> {
-                base.set(Calendar.HOUR_OF_DAY, h);
-                base.set(Calendar.MINUTE, min);
-                base.set(Calendar.SECOND, 0);
-                renderTimes();
-            }, base.get(Calendar.HOUR_OF_DAY), base.get(Calendar.MINUTE), true).show();
-        }, base.get(Calendar.YEAR), base.get(Calendar.MONTH), base.get(Calendar.DAY_OF_MONTH)).show();
+                picked.set(Calendar.HOUR_OF_DAY, h);
+                picked.set(Calendar.MINUTE, min);
+                picked.set(Calendar.SECOND, 0);
+                picked.set(Calendar.MILLISECOND, 0);
+                if (isStart) startCal.setTimeInMillis(picked.getTimeInMillis());
+                else endCal.setTimeInMillis(picked.getTimeInMillis());
+                ensureTimeOrder();
+            }, picked.get(Calendar.HOUR_OF_DAY), picked.get(Calendar.MINUTE), true).show();
+        }, picked.get(Calendar.YEAR), picked.get(Calendar.MONTH), picked.get(Calendar.DAY_OF_MONTH));
+
+        if (!isStart) {
+            // 回校日期不允许早于出校日期
+            Calendar min = (Calendar) startCal.clone();
+            min.set(Calendar.HOUR_OF_DAY, 0);
+            min.set(Calendar.MINUTE, 0);
+            min.set(Calendar.SECOND, 0);
+            min.set(Calendar.MILLISECOND, 0);
+            final long minMs = min.getTimeInMillis();
+            dp.setOnShowListener(d -> dp.getDatePicker().setMinDate(minMs));
+        }
+        dp.show();
+    }
+
+    /** 保证「回校时间」晚于「出校时间」，不合法时自动顺延并提示 */
+    private void ensureTimeOrder() {
+        if (!endCal.after(startCal)) {
+            endCal.setTimeInMillis(startCal.getTimeInMillis());
+            endCal.add(Calendar.HOUR_OF_DAY, 4);
+            Toast.makeText(this,
+                    "回校时间已顺延为 " + FMT.format(endCal.getTime()) + "（须晚于出校时间）",
+                    Toast.LENGTH_LONG).show();
+        }
+        renderTimes();
     }
 
     private void renderTimes() {
@@ -159,7 +190,8 @@ public class LeaveActivity extends AppCompatActivity {
             return;
         }
         if (!endCal.after(startCal)) {
-            Toast.makeText(this, "回校时间必须晚于出校时间", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "回校时间需晚于出校时间（当前出校 " + FMT.format(startCal.getTime()) + "）",
+                    Toast.LENGTH_SHORT).show();
             return;
         }
         if (!cbParent.isChecked()) {

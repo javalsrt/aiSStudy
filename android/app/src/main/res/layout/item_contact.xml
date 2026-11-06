@@ -5,11 +5,11 @@
     android:layout_height="wrap_content"
     android:orientation="horizontal"
     android:gravity="center_vertical"
-    android:minHeight="62dp"
+    android:minHeight="58dp"
     android:background="@drawable/bg_contact_row"
-    android:paddingStart="12dp"
-    android:paddingEnd="12dp"
-    android:paddingVertical="9dp">
+    android:paddingStart="8dp"
+    android:paddingEnd="8dp"
+    android:paddingVertical="8dp">
 
     <!-- 方形封面头像 -->
     <TextView

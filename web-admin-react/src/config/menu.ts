@@ -26,6 +26,8 @@ export interface MenuItem {
 
 export const teacherMenus: MenuItem[] = [
   { path: '/dashboard', title: '数据总览', icon: LayoutDashboard },
+  { path: '/teacher/class', title: '班级管理', icon: Users },
+  { path: '/teacher/leave', title: '请假审批', icon: ClipboardCheck },
   { path: '/courses', title: '课程管理', icon: BookOpen },
   { path: '/course-chapters', title: '章节管理', icon: ListTree },
   { path: '/stats', title: '学习统计', icon: BarChart3 },

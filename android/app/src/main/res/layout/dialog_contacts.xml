@@ -4,8 +4,8 @@
     android:layout_height="wrap_content"
     android:background="@drawable/bg_contacts_card"
     android:orientation="vertical"
-    android:paddingStart="20dp"
-    android:paddingEnd="20dp"
+    android:paddingStart="14dp"
+    android:paddingEnd="14dp"
     android:paddingTop="18dp"
     android:paddingBottom="12dp">
 
@@ -94,12 +94,40 @@
                 android:textSize="14sp"
                 android:visibility="gone" />
 
+            <!-- 班级干部 -->
+            <TextView
+                android:id="@+id/tv_cadre_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:text="班级干部"
+                android:textColor="@color/primary"
+                android:textSize="13sp"
+                android:fontFamily="@font/harmonyos_sans_sc_medium" />
+
+            <LinearLayout
+                android:id="@+id/ll_cadres"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginTop="8dp" />
+
+            <TextView
+                android:id="@+id/tv_no_cadres"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="暂未设置班干部"
+                android:textColor="@color/ink_subtle"
+                android:textSize="13sp"
+                android:visibility="gone" />
+
             <!-- 同班同学 -->
             <TextView
                 android:id="@+id/tv_classmate_title"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="22dp"
+                android:layout_marginTop="20dp"
                 android:text="同班同学"
                 android:textColor="@color/primary"
                 android:textSize="13sp"

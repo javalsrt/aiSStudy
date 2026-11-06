@@ -166,13 +166,35 @@ public class ScheduleController {
         Long classId = ((Number) userRows.get(0).get("class_id")).longValue();
 
         // 同班同学：同班级、角色为学生、排除自己
-        // 同班同学：附带班级职务（班长/学习委员等）
+        // 同班同学：附带班级职务（班长/学习委员等），有职务的排前面
         List<Map<String, Object>> classmates = jdbc.queryForList(
             "SELECT id AS userId, real_name AS realName, student_no AS studentNo, position " +
             "FROM user WHERE class_id = ? AND role = 1 AND id != ? " +
-            "ORDER BY position IS NULL, position, student_no, real_name", classId, userId);
+            "ORDER BY (position IS NULL OR position = ''), position, student_no, real_name", classId, userId);
 
-        // 教我的老师：附带职务（班主任/教导主任）与是否领导，按领导 > 班主任 > 姓名排序
+        // 本班班主任（姓名 + id）：通讯录里班主任要置顶，所以先查出来
+        String headTeacher = null;
+        Long headTeacherId = null;
+        try {
+            List<Map<String, Object>> ht = jdbc.queryForList(
+                "SELECT t.id, t.real_name FROM class_info ci JOIN teacher t ON t.id = ci.head_teacher_id WHERE ci.id = ?",
+                classId);
+            if (!ht.isEmpty()) {
+                headTeacherId = ((Number) ht.get(0).get("id")).longValue();
+                headTeacher = String.valueOf(ht.get(0).get("real_name"));
+            }
+        } catch (Exception ignored) {
+        }
+
+        // 教我的老师：附带职务（班主任/教导主任/副校长）与是否领导
+        // 排序：本班班主任置顶 > 其他校级职务 > 班主任 > 其余；同档内按职称由高到低
+        String teacherOrder =
+            "ORDER BY (t.id = ?) DESC, t.is_leader DESC, " +
+            "CASE WHEN t.duty IN ('副校长','校长','书记','教导主任','教导处主任') THEN 0 " +
+            "     WHEN t.duty = '班主任' THEN 1 WHEN t.duty IS NULL OR t.duty = '' OR t.duty = '教师' THEN 3 " +
+            "     ELSE 2 END, " +
+            "CASE t.title WHEN '教授' THEN 0 WHEN '副教授' THEN 1 WHEN '讲师' THEN 2 WHEN '助教' THEN 3 ELSE 4 END, " +
+            "t.real_name";
         List<Map<String, Object>> teachers;
         try {
             teachers = jdbc.queryForList(
@@ -188,7 +210,7 @@ public class ScheduleController {
                 "  SELECT cc.course_id FROM course_class cc WHERE cc.class_id = ? " +
                 ") " +
                 "GROUP BY t.id, t.real_name, t.title, t.duty, t.is_leader " +
-                "ORDER BY t.is_leader DESC, t.duty = '班主任' DESC, t.real_name", classId, classId);
+                teacherOrder, classId, classId, headTeacherId == null ? 0L : headTeacherId);
         } catch (Exception e) {
             // 未执行迁移 22 时降级
             teachers = jdbc.queryForList(
@@ -199,23 +221,16 @@ public class ScheduleController {
                 "  SELECT DISTINCT s.course_id FROM schedule s JOIN user u ON u.id = s.user_id " +
                 "  WHERE u.class_id = ? AND s.status = 1 AND s.course_id IS NOT NULL " +
                 "  UNION SELECT cc.course_id FROM course_class cc WHERE cc.class_id = ? " +
-                ") GROUP BY t.id, t.real_name, t.title ORDER BY t.real_name", classId, classId);
-        }
-
-        // 本班班主任
-        String headTeacher = null;
-        try {
-            List<String> ht = jdbc.queryForList(
-                "SELECT t.real_name FROM class_info ci JOIN teacher t ON t.id = ci.head_teacher_id WHERE ci.id = ?",
-                String.class, classId);
-            if (!ht.isEmpty()) headTeacher = ht.get(0);
-        } catch (Exception ignored) {
+                ") GROUP BY t.id, t.real_name, t.title " +
+                "ORDER BY CASE t.title WHEN '教授' THEN 0 WHEN '副教授' THEN 1 WHEN '讲师' THEN 2 WHEN '助教' THEN 3 ELSE 4 END, " +
+                "t.real_name", classId, classId);
         }
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("classmates", classmates);
         result.put("teachers", teachers);
         result.put("headTeacher", headTeacher);
+        result.put("headTeacherId", headTeacherId);
         return ResponseEntity.ok(result);
     }
 

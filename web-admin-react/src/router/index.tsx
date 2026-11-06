@@ -16,6 +16,7 @@ import { CourseChaptersPage } from '@/pages/course-chapters'
 import { ExamHomeworkPage } from '@/pages/exam-homework'
 import ExamTakePage from '@/pages/exam-take'
 import { TeacherChatPage } from '@/pages/teacher-chat'
+import { MyClassPage } from '@/pages/teacher/my-class'
 import { useAuthStore } from '@/store/auth'
 import { useEffect, useState } from 'react'
 
@@ -146,6 +147,22 @@ export const router = createBrowserRouter(
           element: (
             <TeacherRoute>
               <TeacherChatPage />
+            </TeacherRoute>
+          ),
+        },
+        {
+          path: 'teacher/class',
+          element: (
+            <TeacherRoute>
+              <MyClassPage />
+            </TeacherRoute>
+          ),
+        },
+        {
+          path: 'teacher/leave',
+          element: (
+            <TeacherRoute>
+              <LeaveApprovalPage />
             </TeacherRoute>
           ),
         },
