@@ -168,6 +168,9 @@ export function TeacherDutyPage() {
           <p className="mt-1 text-sm text-neutral-500">
             设置教师职务与校级领导；为每个班级指定班主任。请假 3 天内由班主任审批，超过 3 天由领导终审。
           </p>
+          <p className="mt-1 text-xs text-primary-600">
+            更换班主任：在下方「班级班主任设置」中搜索班级 → 点「更换」→ 选择教师（含领导）→ 保存；点「取消班主任」可清空。
+          </p>
         </div>
         <div className="relative">
           <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
@@ -193,128 +196,6 @@ export function TeacherDutyPage() {
       )}
 
       {loading && <div className="py-10 text-center text-sm text-neutral-400">加载中…</div>}
-
-      {/* 校级领导 */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Crown className="h-4 w-4 text-amber-500" />
-            校级领导（{leaders.length}）
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          {leaders.length === 0 && <div className="text-xs text-neutral-400">暂无领导，可在下方教师中勾选「设为领导」</div>}
-          {leaders.map((t) => (
-            <div key={t.id} className="flex flex-wrap items-center gap-3 rounded-lg border border-amber-100 bg-amber-50/40 px-3 py-2">
-              <span className="text-sm font-medium text-neutral-900">{t.name}</span>
-              <span className="rounded bg-amber-100 px-2 py-0.5 text-[11px] text-amber-700">{t.duty}</span>
-              {t.headClasses.length > 0 && (
-                <span className="text-[11px] text-neutral-500">兼班主任：{t.headClasses.join('、')}</span>
-              )}
-              <div className="ml-auto flex items-center gap-2">
-                <select
-                  className="h-8 rounded-md border border-neutral-200 px-2 text-xs"
-                  value={t.duty}
-                  disabled={saving === t.id}
-                  onChange={(e) => changeDuty(t, e.target.value)}
-                >
-                  {DUTIES.map((d) => (
-                    <option key={d} value={d}>
-                      {d}
-                    </option>
-                  ))}
-                </select>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 px-3 text-xs"
-                  disabled={saving === t.id}
-                  onClick={() => toggleLeader(t, false)}
-                >
-                  取消领导身份
-                </Button>
-              </div>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
-
-      {/* 班主任列表 */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <UserCheck className="h-4 w-4 text-primary-500" />
-            班主任（{headTeachers.length}）
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
-          {headTeachers.map((t) => (
-            <div key={t.id} className="rounded-lg border border-neutral-200 px-3 py-2">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-sm font-medium text-neutral-900">{t.name}</span>
-                <span className="text-[11px] text-neutral-400">{t.title || '未填职称'}</span>
-              </div>
-              <div className="mt-1 text-[11px] text-neutral-500">带班：{t.headClasses.join('、') || '-'}</div>
-              <div className="mt-2 flex items-center justify-end gap-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 px-2 text-[11px]"
-                  onClick={() => toggleLeader(t, true)}
-                  disabled={saving === t.id}
-                >
-                  设为领导
-                </Button>
-              </div>
-            </div>
-          ))}
-          {headTeachers.length === 0 && <div className="text-xs text-neutral-400">暂无班主任</div>}
-        </CardContent>
-      </Card>
-
-      {/* 全部教师 */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <GraduationCap className="h-4 w-4 text-neutral-400" />
-            其他教师（{others.length}）
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
-          {others.map((t) => (
-            <div key={t.id} className="flex items-center justify-between gap-2 rounded-lg border border-neutral-100 px-3 py-2">
-              <div className="min-w-0">
-                <div className="truncate text-sm text-neutral-800">{t.name}</div>
-                <div className="text-[11px] text-neutral-400">{t.duty} · {t.title || '未填职称'}</div>
-              </div>
-              <div className="flex items-center gap-1">
-                <select
-                  className="h-7 rounded-md border border-neutral-200 px-1 text-[11px]"
-                  value={t.duty}
-                  disabled={saving === t.id}
-                  onChange={(e) => changeDuty(t, e.target.value)}
-                >
-                  {DUTIES.map((d) => (
-                    <option key={d} value={d}>
-                      {d}
-                    </option>
-                  ))}
-                </select>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 px-2 text-[11px]"
-                  onClick={() => toggleLeader(t, true)}
-                  disabled={saving === t.id}
-                >
-                  设为领导
-                </Button>
-              </div>
-            </div>
-          ))}
-          {others.length === 0 && <div className="text-xs text-neutral-400">无</div>}
-        </CardContent>
-      </Card>
 
       {/* 班级班主任设置 */}
       <Card>
@@ -457,6 +338,130 @@ export function TeacherDutyPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* 校级领导 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Crown className="h-4 w-4 text-amber-500" />
+            校级领导（{leaders.length}）
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {leaders.length === 0 && <div className="text-xs text-neutral-400">暂无领导，可在下方教师中勾选「设为领导」</div>}
+          {leaders.map((t) => (
+            <div key={t.id} className="flex flex-wrap items-center gap-3 rounded-lg border border-amber-100 bg-amber-50/40 px-3 py-2">
+              <span className="text-sm font-medium text-neutral-900">{t.name}</span>
+              <span className="rounded bg-amber-100 px-2 py-0.5 text-[11px] text-amber-700">{t.duty}</span>
+              {t.headClasses.length > 0 && (
+                <span className="text-[11px] text-neutral-500">兼班主任：{t.headClasses.join('、')}</span>
+              )}
+              <div className="ml-auto flex items-center gap-2">
+                <select
+                  className="h-8 rounded-md border border-neutral-200 px-2 text-xs"
+                  value={t.duty}
+                  disabled={saving === t.id}
+                  onChange={(e) => changeDuty(t, e.target.value)}
+                >
+                  {DUTIES.map((d) => (
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
+                  ))}
+                </select>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 px-3 text-xs"
+                  disabled={saving === t.id}
+                  onClick={() => toggleLeader(t, false)}
+                >
+                  取消领导身份
+                </Button>
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      {/* 班主任列表 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <UserCheck className="h-4 w-4 text-primary-500" />
+            班主任（{headTeachers.length}）
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
+          {headTeachers.map((t) => (
+            <div key={t.id} className="rounded-lg border border-neutral-200 px-3 py-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-medium text-neutral-900">{t.name}</span>
+                <span className="text-[11px] text-neutral-400">{t.title || '未填职称'}</span>
+              </div>
+              <div className="mt-1 text-[11px] text-neutral-500">带班：{t.headClasses.join('、') || '-'}</div>
+              <div className="mt-2 flex items-center justify-end gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-[11px]"
+                  onClick={() => toggleLeader(t, true)}
+                  disabled={saving === t.id}
+                >
+                  设为领导
+                </Button>
+              </div>
+            </div>
+          ))}
+          {headTeachers.length === 0 && <div className="text-xs text-neutral-400">暂无班主任</div>}
+        </CardContent>
+      </Card>
+
+      {/* 全部教师 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <GraduationCap className="h-4 w-4 text-neutral-400" />
+            其他教师（{others.length}）
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
+          {others.map((t) => (
+            <div key={t.id} className="flex items-center justify-between gap-2 rounded-lg border border-neutral-100 px-3 py-2">
+              <div className="min-w-0">
+                <div className="truncate text-sm text-neutral-800">{t.name}</div>
+                <div className="text-[11px] text-neutral-400">{t.duty} · {t.title || '未填职称'}</div>
+              </div>
+              <div className="flex items-center gap-1">
+                <select
+                  className="h-7 rounded-md border border-neutral-200 px-1 text-[11px]"
+                  value={t.duty}
+                  disabled={saving === t.id}
+                  onChange={(e) => changeDuty(t, e.target.value)}
+                >
+                  {DUTIES.map((d) => (
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
+                  ))}
+                </select>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-[11px]"
+                  onClick={() => toggleLeader(t, true)}
+                  disabled={saving === t.id}
+                >
+                  设为领导
+                </Button>
+              </div>
+            </div>
+          ))}
+          {others.length === 0 && <div className="text-xs text-neutral-400">无</div>}
+        </CardContent>
+      </Card>
+
+
 
       {/* 班主任调整记录 */}
       <Card>
