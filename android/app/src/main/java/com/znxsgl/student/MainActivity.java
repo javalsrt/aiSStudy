@@ -117,8 +117,8 @@ public class MainActivity extends AppCompatActivity {
         }
         if (v instanceof android.widget.ImageView) {
             // BottomNavigationMenuView 会在测量时重置图标尺寸，这里用缩放实现真正的放大
-            v.setScaleX(1.65f);
-            v.setScaleY(1.65f);
+            v.setScaleX(1.95f);
+            v.setScaleY(1.95f);
             if (v.getParent() instanceof ViewGroup parent) parent.setClipChildren(false);
         }
         if (v instanceof ViewGroup g) {
@@ -141,7 +141,8 @@ public class MainActivity extends AppCompatActivity {
                 icon.getLocationInWindow(iconPos);
                 float itemCenter = item.getHeight() / 2f;
                 float iconCenter = (iconPos[1] - itemPos[1]) + icon.getHeight() / 2f;
-                icon.setTranslationY(itemCenter - iconCenter);
+                // 星星图形重心偏下，略微上移视觉更居中
+                icon.setTranslationY(itemCenter - iconCenter - dp(5));
             } catch (Exception ignored) {
             }
         }, 60);
