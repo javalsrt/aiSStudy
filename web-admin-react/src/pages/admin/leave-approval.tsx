@@ -6,7 +6,6 @@ import {
   Check,
   X,
   RefreshCw,
-  Image as ImageIcon,
   ShieldCheck,
   Users2,
   Download,
@@ -75,6 +74,8 @@ export function LeaveApprovalPage() {
   /** 待审批：按班级 / 关键字筛选 */
   const [pendingClass, setPendingClass] = useState('ALL')
   const [pendingKeyword, setPendingKeyword] = useState('')
+  /** 打卡照片放大预览 */
+  const [preview, setPreview] = useState<string | null>(null)
   const [message, setMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
 
   const load = useCallback(async () => {
@@ -624,30 +625,39 @@ export function LeaveApprovalPage() {
                       </td>
                       <td className="px-3 py-2 text-xs">
                         {r.hasCheckIn ? (
-                          <div className="space-y-1">
-                            <div className="text-neutral-700">{r.returnAtText}</div>
-                            {r.returnLat != null && r.returnLng != null && (
-                              <a
-                                href={`https://uri.amap.com/marker?position=${r.returnLng},${r.returnLat}&name=返校打卡`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex items-center gap-1 text-primary-600 hover:underline"
-                              >
-                                <MapPin className="h-3.5 w-3.5" />
-                                {Number(r.returnLat).toFixed(5)}, {Number(r.returnLng).toFixed(5)}
-                              </a>
-                            )}
+                          <div className="flex items-start gap-2">
                             {r.returnPhoto && (
-                              <a
-                                href={r.returnPhoto}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="flex items-center gap-1 text-primary-600 hover:underline"
-                              >
-                                <ImageIcon className="h-3.5 w-3.5" />
-                                查看打卡照片
-                              </a>
+                              <img
+                                src={r.returnPhoto}
+                                alt="返校打卡照片"
+                                className="h-14 w-14 shrink-0 cursor-zoom-in rounded-md object-cover ring-1 ring-neutral-200"
+                                onClick={() => setPreview(r.returnPhoto!)}
+                              />
                             )}
+                            <div className="min-w-0 space-y-1">
+                              <div className="text-neutral-700">{r.returnAtText}</div>
+                              {r.returnLat != null && r.returnLng != null && (
+                                <a
+                                  href={`https://uri.amap.com/marker?position=${r.returnLng},${r.returnLat}&name=返校打卡`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="flex items-start gap-1 text-primary-600 hover:underline"
+                                >
+                                  <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                                  <span className="max-w-[140px] break-words leading-relaxed">
+                                    {r.returnAddress ? (
+                                      r.returnAddress
+                                    ) : (
+                                      <>
+                                        北纬 {Number(r.returnLat).toFixed(5)}°
+                                        <br />
+                                        东经 {Number(r.returnLng).toFixed(5)}°
+                                      </>
+                                    )}
+                                  </span>
+                                </a>
+                              )}
+                            </div>
                           </div>
                         ) : (
                           <span className="text-neutral-300">未打卡</span>
@@ -667,6 +677,28 @@ export function LeaveApprovalPage() {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* 打卡照片放大预览 */}
+      {preview && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-6"
+          onClick={() => setPreview(null)}
+        >
+          <img
+            src={preview}
+            alt="返校打卡照片"
+            className="max-h-[90vh] max-w-[90vw] rounded-lg shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+          <button
+            className="absolute right-6 top-6 flex h-9 w-9 items-center justify-center rounded-full bg-white/15 text-white hover:bg-white/25"
+            onClick={() => setPreview(null)}
+            aria-label="关闭"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
       )}
     </div>
   )

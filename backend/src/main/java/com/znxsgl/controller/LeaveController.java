@@ -132,6 +132,7 @@ public class LeaveController {
                                           @RequestParam("photo") MultipartFile photo,
                                           @RequestParam(value = "lat", required = false) Double lat,
                                           @RequestParam(value = "lng", required = false) Double lng,
+                                          @RequestParam(value = "address", required = false) String address,
                                           Authentication auth) {
         Long userId = uid(auth);
         if (userId == null) return ResponseEntity.status(401).body(Map.of("error", "请先登录"));
@@ -156,8 +157,15 @@ public class LeaveController {
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", "照片保存失败：" + e.getMessage()));
         }
-        jdbc.update("UPDATE leave_request SET status = 'RETURNED', return_photo = ?, return_lat = ?, " +
-                "return_lng = ?, return_at = NOW() WHERE id = ?", url, lat, lng, id);
+        try {
+            jdbc.update("UPDATE leave_request SET status = 'RETURNED', return_photo = ?, return_lat = ?, " +
+                            "return_lng = ?, return_address = ?, return_at = NOW() WHERE id = ?",
+                    url, lat, lng, address == null || address.isBlank() ? null : address.trim(), id);
+        } catch (Exception e) {
+            // 未执行迁移 26 时降级：地址不入库，其余照常
+            jdbc.update("UPDATE leave_request SET status = 'RETURNED', return_photo = ?, return_lat = ?, " +
+                    "return_lng = ?, return_at = NOW() WHERE id = ?", url, lat, lng, id);
+        }
         Map<String, Object> resp = new LinkedHashMap<>();
         resp.put("msg", "返校打卡成功");
         resp.put("photoUrl", url);
@@ -375,6 +383,7 @@ public class LeaveController {
             m.put("returnLat", r.get("return_lat"));
             m.put("returnLng", r.get("return_lng"));
             m.put("returnAtText", r.get("return_at") == null ? null : fmt(r.get("return_at")));
+            m.put("returnAddress", r.get("return_address"));
             m.put("hasCheckIn", r.get("return_at") != null);
             list.add(m);
         }

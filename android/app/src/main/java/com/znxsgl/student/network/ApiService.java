@@ -59,7 +59,8 @@ public interface ApiService {
             @Path("id") long id,
             @Part MultipartBody.Part photo,
             @Part("lat") RequestBody lat,
-            @Part("lng") RequestBody lng);
+            @Part("lng") RequestBody lng,
+            @Part("address") RequestBody address);
 
     @POST("/api/auth/login")
     Call<LoginResponse> login(@Body LoginRequest request);

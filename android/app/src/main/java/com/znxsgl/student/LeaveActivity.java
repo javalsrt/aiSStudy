@@ -9,6 +9,8 @@ import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.location.Address;
+import android.location.Geocoder;
 import android.location.Location;
 import android.location.LocationManager;
 import android.os.Bundle;
@@ -432,16 +434,28 @@ public class LeaveActivity extends AppCompatActivity {
         bitmap.compress(Bitmap.CompressFormat.JPEG, 80, bos);
         byte[] bytes = bos.toByteArray();
 
+        final byte[] photoBytes = bytes;
+        final double[] loc = lastLocation();
+        final long id = pendingReturnId;
+        pendingReturnId = null;
+
+        // 反查地址可能走网络，放到子线程，避免卡住主线程
+        new Thread(() -> {
+            final String addr = reverseAddress(loc);
+            runOnUiThread(() -> uploadReturn(id, photoBytes, loc, addr));
+        }, "return-address").start();
+    }
+
+    /** 上传打卡照片 + 定位 + 地址 */
+    private void uploadReturn(long id, byte[] bytes, double[] loc, String address) {
         RequestBody photoBody = RequestBody.create(bytes, MediaType.parse("image/jpeg"));
         MultipartBody.Part part = MultipartBody.Part.createFormData("photo", "return.jpg", photoBody);
-        double[] loc = lastLocation();
         RequestBody latBody = RequestBody.create(String.valueOf(loc == null ? "" : loc[0]), MediaType.parse("text/plain"));
         RequestBody lngBody = RequestBody.create(String.valueOf(loc == null ? "" : loc[1]), MediaType.parse("text/plain"));
+        RequestBody addrBody = RequestBody.create(address == null ? "" : address, MediaType.parse("text/plain"));
 
-        long id = pendingReturnId;
-        pendingReturnId = null;
         ApiService api = RetrofitClient.getInstance().create(ApiService.class);
-        api.returnLeave(token, id, part, latBody, lngBody).enqueue(new Callback<Map<String, Object>>() {
+        api.returnLeave(token, id, part, latBody, lngBody, addrBody).enqueue(new Callback<Map<String, Object>>() {
             @Override
             public void onResponse(Call<Map<String, Object>> call, Response<Map<String, Object>> resp) {
                 if (resp.isSuccessful()) {
@@ -476,6 +490,26 @@ public class LeaveActivity extends AppCompatActivity {
             return best == null ? null : new double[]{best.getLatitude(), best.getLongitude()};
         } catch (Exception e) {
             return null;
+        }
+    }
+
+    /** 用系统 Geocoder 把经纬度反查成地址；机型/网络不支持时返回空串，由后端显示经纬度 */
+    private String reverseAddress(double[] loc) {
+        if (loc == null) return "";
+        try {
+            Geocoder geocoder = new Geocoder(this, Locale.CHINA);
+            java.util.List<Address> list = geocoder.getFromLocation(loc[0], loc[1], 1);
+            if (list == null || list.isEmpty()) return "";
+            Address a = list.get(0);
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i <= a.getMaxAddressLineIndex(); i++) {
+                String line = a.getAddressLine(i);
+                if (line != null && !line.isEmpty()) sb.append(line);
+            }
+            if (sb.length() == 0 && a.getFeatureName() != null) sb.append(a.getFeatureName());
+            return sb.length() > 190 ? sb.substring(0, 190) : sb.toString();
+        } catch (Exception e) {
+            return "";
         }
     }
 

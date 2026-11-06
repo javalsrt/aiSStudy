@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS `leave_request` (
   `return_photo`    VARCHAR(300) NULL COMMENT '返校打卡照片',
   `return_lat`      DECIMAL(10,6) NULL,
   `return_lng`      DECIMAL(10,6) NULL,
+  `return_address`  VARCHAR(200) NULL COMMENT '打卡定位地址（App 反查）',
   `return_at`       DATETIME     NULL,
   `created_at`      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at`      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

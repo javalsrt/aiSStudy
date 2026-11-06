@@ -37,6 +37,8 @@ export interface LeaveItem {
   returnLng?: number | null
   returnAt?: string | null
   returnAtText?: string | null
+  /** 打卡定位地址（App 反查，可能为空） */
+  returnAddress?: string | null
   hasCheckIn?: boolean
   createdText: string
 }
