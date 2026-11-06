@@ -297,7 +297,7 @@ public class ChatController {
             String contentType = determineContentType(filename);
             return ResponseEntity.ok()
                     .contentType(MediaType.parseMediaType(contentType))
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + filename + "\"")
+                    .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition("inline", filename))
                     .body(resource);
         } catch (Exception e) {
             log.error("文件下载失败: url={}", url, e);
@@ -377,6 +377,24 @@ public class ChatController {
             return "📄 [文件] " + (ps > 0 ? fn.substring(0, Math.min(ps, 20)) : fn.substring(0, 20));
         }
         return content.length() > 60 ? content.substring(0, 60) + "..." : content;
+    }
+
+    /**
+     * 生成合法的 Content-Disposition。
+     * HTTP 头只接受 ISO-8859-1，中文文件名必须用 RFC 5987 的 filename*=UTF-8'' 形式，
+     * 否则 Tomcat 会抛 IllegalArgumentException 并把整个头丢掉（表现为预览时文件名异常）。
+     */
+    private String contentDisposition(String type, String filename) {
+        String name = filename == null || filename.isBlank() ? "file" : filename;
+        String ascii = name.replaceAll("[^\\x20-\\x7E]", "_");
+        String encoded;
+        try {
+            encoded = java.net.URLEncoder.encode(name, java.nio.charset.StandardCharsets.UTF_8)
+                    .replace("+", "%20");
+        } catch (Exception e) {
+            encoded = ascii;
+        }
+        return type + "; filename=\"" + ascii + "\"; filename*=UTF-8''" + encoded;
     }
 
     private String determineContentType(String filename) {
