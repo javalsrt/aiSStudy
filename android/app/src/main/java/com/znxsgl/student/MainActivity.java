@@ -78,6 +78,8 @@ public class MainActivity extends AppCompatActivity {
                 return true;
             }
             switchFragment(getFragmentById(id));
+            // 选中态会重排页签内部视图，重新应用一次样式，避免文字或位置回弹
+            bottomNav.post(this::styleAiTab);
             return true;
         });
 
@@ -94,11 +96,15 @@ public class MainActivity extends AppCompatActivity {
     /** AI 页签：隐藏「AI 助手」文字，仅放大星星图标 */
     private void styleAiTab() {
         if (bottomNav == null) return;
+        // 标题置空：Material 在选中时会重新显示 largeLabel，只有清空标题才能彻底不出现文字
+        android.view.MenuItem aiMenu = bottomNav.getMenu().findItem(R.id.nav_ai);
+        if (aiMenu != null) aiMenu.setTitle("");
         bottomNav.post(() -> {
             try {
                 ViewGroup menuView = (ViewGroup) bottomNav.getChildAt(0);
                 if (menuView == null || menuView.getChildCount() <= 2) return;
                 View aiItem = menuView.getChildAt(2);
+                aiItem.setContentDescription("AI 助手");
                 menuView.setClipChildren(false);
                 if (aiItem instanceof ViewGroup) ((ViewGroup) aiItem).setClipChildren(false);
                 hideLabelAndEnlargeIcon(aiItem);
