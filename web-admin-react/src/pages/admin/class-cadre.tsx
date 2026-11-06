@@ -4,9 +4,11 @@ import { Search, UserCheck, Users } from 'lucide-react'
 import { getClassHeadList, type ClassHeadItem } from '@/api/teacher-duty'
 import {
   getClassPositions,
+  getPositionLogs,
   getPositionOptions,
   setStudentPosition,
   type ClassStudentPosition,
+  type PositionLog,
 } from '@/api/student-position'
 
 /**
@@ -19,6 +21,8 @@ export function ClassCadrePage() {
   const [students, setStudents] = useState<ClassStudentPosition[]>([])
   const [options, setOptions] = useState<string[]>([])
   const [keyword, setKeyword] = useState('')
+  const [classSearch, setClassSearch] = useState('')
+  const [logs, setLogs] = useState<PositionLog[]>([])
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState<number | null>(null)
   const [message, setMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
@@ -27,9 +31,14 @@ export function ClassCadrePage() {
   useEffect(() => {
     (async () => {
       try {
-        const [cs, opt] = await Promise.all([getClassHeadList(), getPositionOptions()])
+        const [cs, opt, lg] = await Promise.all([
+          getClassHeadList(),
+          getPositionOptions(),
+          getPositionLogs(20),
+        ])
         setClasses(cs)
         setOptions([...(opt.cadres || []), ...(opt.adminOnly || [])])
+        setLogs(lg || [])
         if (cs.length > 0) {
           setClassId(cs[0].id)
           loadStudents(cs[0].id)
@@ -58,6 +67,7 @@ export function ClassCadrePage() {
       const r = await setStudentPosition(s.id, position)
       setStudents((prev) => prev.map((x) => (x.id === s.id ? { ...x, position: r.position } : x)))
       setMessage({ type: 'ok', text: `${s.name}：${r.msg}` })
+      getPositionLogs(20).then(setLogs).catch(() => {})
     } catch (e: any) {
       setMessage({ type: 'err', text: e?.response?.data?.error || '设置失败' })
     } finally {
@@ -71,12 +81,34 @@ export function ClassCadrePage() {
     return students.filter((s) => (s.name || '').includes(k) || (s.studentNo || '').includes(k))
   }, [students, keyword])
 
+  /** 班级搜索：过滤下拉选项（班级名/年级/专业/班主任） */
+  const filteredClasses = useMemo(() => {
+    const k = classSearch.trim()
+    if (!k) return classes
+    return classes.filter(
+      (c) =>
+        (c.className || '').includes(k) ||
+        (c.grade || '').includes(k) ||
+        (c.major || '').includes(k) ||
+        (c.headTeacherName || '').includes(k)
+    )
+  }, [classes, classSearch])
+
   const currentClass = classes.find((c) => c.id === classId)
   const assigned = students.filter((s) => s.position).length
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
+        <div className="relative">
+          <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-neutral-400" />
+          <input
+            className="h-9 w-52 rounded-md border border-neutral-200 pl-7 pr-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary-500"
+            placeholder="搜索班级 / 年级 / 专业"
+            value={classSearch}
+            onChange={(e) => setClassSearch(e.target.value)}
+          />
+        </div>
         <select
           className="h-9 w-64 rounded-md border border-neutral-200 px-2 text-sm"
           value={classId}
@@ -88,13 +120,16 @@ export function ClassCadrePage() {
           }}
         >
           <option value="">选择班级…</option>
-          {classes.map((c) => (
+          {filteredClasses.map((c) => (
             <option key={c.id} value={c.id}>
               {c.className}
               {c.grade ? `（${c.grade}）` : ''}
             </option>
           ))}
         </select>
+        {classSearch && (
+          <span className="text-[11px] text-neutral-400">匹配 {filteredClasses.length} 个班</span>
+        )}
 
         <div className="relative">
           <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-neutral-400" />
@@ -178,6 +213,46 @@ export function ClassCadrePage() {
               </div>
             ))}
           </div>
+        </CardContent>
+      </Card>
+
+      {/* 调整记录 */}
+      <Card>
+        <CardHeader className="flex-row items-center justify-between space-y-0">
+          <CardTitle className="text-base">班干部调整记录</CardTitle>
+          <span className="text-xs text-neutral-400">最近 20 条</span>
+        </CardHeader>
+        <CardContent>
+          {logs.length === 0 ? (
+            <div className="py-6 text-center text-xs text-neutral-400">暂无记录</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-neutral-200 bg-neutral-50/60">
+                    <th className="px-3 py-2 text-left text-[11px] font-medium text-neutral-400 whitespace-nowrap">时间</th>
+                    <th className="px-3 py-2 text-left text-[11px] font-medium text-neutral-400 whitespace-nowrap">操作人</th>
+                    <th className="px-3 py-2 text-left text-[11px] font-medium text-neutral-400">学生</th>
+                    <th className="px-3 py-2 text-left text-[11px] font-medium text-neutral-400 whitespace-nowrap">班级</th>
+                    <th className="px-3 py-2 text-left text-[11px] font-medium text-neutral-400">变更</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {logs.map((l) => (
+                    <tr key={l.id} className="border-b border-neutral-100 last:border-0">
+                      <td className="px-3 py-2 text-xs text-neutral-500 tabular-nums whitespace-nowrap">{l.createdAt}</td>
+                      <td className="px-3 py-2 text-xs text-neutral-700 whitespace-nowrap">{l.operatorName || '-'}</td>
+                      <td className="px-3 py-2 text-xs text-neutral-700 whitespace-nowrap">{l.studentName || '-'}</td>
+                      <td className="px-3 py-2 text-xs text-neutral-500 whitespace-nowrap">{l.className || '-'}</td>
+                      <td className="px-3 py-2 text-xs text-neutral-600">
+                        {l.oldPosition || '普通学生'} → <span className="font-medium">{l.newPosition || '普通学生'}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </CardContent>
       </Card>
 

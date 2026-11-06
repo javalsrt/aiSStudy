@@ -43,10 +43,26 @@ export const getClassHeadList = () => {
   return request.get<any, ClassHeadItem[]>('/admin/teacher-duty/classes')
 }
 
-/** 指定班级班主任 */
-export const setClassHeadTeacher = (classId: number, teacherId: number) => {
-  return request.post<any, { msg: string; headTeacherName: string }>(
+/** 指定班级班主任（teacherId 传 null/0 表示取消） */
+export const setClassHeadTeacher = (classId: number, teacherId: number | null) => {
+  return request.post<any, { msg: string; headTeacherName?: string | null }>(
     `/admin/teacher-duty/classes/${classId}/head-teacher`,
     { teacherId }
   )
+}
+
+export interface HeadTeacherLog {
+  id: number
+  operatorName?: string | null
+  classId: number
+  className?: string | null
+  action: 'SET' | 'CLEAR'
+  oldTeacher?: string | null
+  newTeacher?: string | null
+  createdAt: string
+}
+
+/** 班主任调整记录 */
+export const getHeadTeacherLogs = (limit = 20) => {
+  return request.get<any, HeadTeacherLog[]>('/admin/teacher-duty/logs', { params: { limit } })
 }

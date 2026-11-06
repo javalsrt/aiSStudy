@@ -84,9 +84,66 @@ public class StudentPositionController {
             return ResponseEntity.badRequest().body(Map.of("error", "未知职务"));
         }
 
+        String oldPosition = null;
+        List<Map<String, Object>> olds = jdbc.queryForList(
+                "SELECT position FROM user WHERE id = ?", userId);
+        if (!olds.isEmpty() && olds.get(0).get("position") != null) {
+            oldPosition = String.valueOf(olds.get(0).get("position"));
+        }
+
         jdbc.update("UPDATE user SET position = ? WHERE id = ?", position.isEmpty() ? null : position, userId);
+
+        // 记录调整
+        try {
+            String className = null;
+            if (classId != null) {
+                List<String> cn = jdbc.queryForList("SELECT class_name FROM class_info WHERE id = ?", String.class, classId);
+                if (!cn.isEmpty()) className = cn.get(0);
+            }
+            String operator = operatorName(auth);
+            jdbc.update("INSERT INTO student_position_log (operator_id, operator_name, student_id, student_name, " +
+                            "class_id, class_name, old_position, new_position) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    uid(auth), operator, userId, String.valueOf(target.get("real_name")), classId, className,
+                    oldPosition, position.isEmpty() ? null : position);
+        } catch (Exception ignored) {
+        }
+
         return ResponseEntity.ok(Map.of("msg", position.isEmpty() ? "已清除职务" : "已设为「" + position + "」",
                 "position", position));
+    }
+
+    /** 学生职务调整记录：管理员看全校，教师看自己班级 */
+    @GetMapping("/logs")
+    public ResponseEntity<List<Map<String, Object>>> logs(
+            @RequestParam(value = "limit", defaultValue = "20") int limit,
+            Authentication auth) {
+        int n = Math.min(Math.max(limit, 1), 100);
+        String sql = "SELECT l.id, l.operator_name AS operatorName, l.student_name AS studentName, " +
+                "l.class_name AS className, l.old_position AS oldPosition, l.new_position AS newPosition, " +
+                "DATE_FORMAT(l.created_at, '%m-%d %H:%i') AS createdAt " +
+                "FROM student_position_log l WHERE 1=1 ";
+        if (hasRole(auth, "ROLE_ADMIN")) {
+            return ResponseEntity.ok(jdbc.queryForList(sql + "ORDER BY l.id DESC LIMIT ?", n));
+        }
+        Long uid = uid(auth);
+        return ResponseEntity.ok(jdbc.queryForList(
+                sql + "AND l.class_id IN (" +
+                        "SELECT ci.id FROM class_info ci JOIN teacher t ON t.id = ci.head_teacher_id " +
+                        "JOIN user u ON u.real_name = t.real_name WHERE u.id = ?" +
+                        " UNION SELECT cc.class_id FROM course_class cc JOIN course c ON c.id = cc.course_id " +
+                        "JOIN teacher t2 ON t2.id = c.teacher_id JOIN user u2 ON u2.real_name = t2.real_name WHERE u2.id = ?" +
+                        ") ORDER BY l.id DESC LIMIT ?", uid, uid, n));
+    }
+
+    private Long uid(Authentication auth) {
+        return (auth != null && auth.getPrincipal() instanceof Long id) ? id : null;
+    }
+
+    private String operatorName(Authentication auth) {
+        Long id = uid(auth);
+        if (id == null) return null;
+        List<String> names = jdbc.queryForList("SELECT real_name FROM user WHERE id = ?", String.class, id);
+        return names.isEmpty() ? null : names.get(0);
     }
 
     /** 是否可管理该班：管理员 / 该班班主任 / 该班任课教师 */

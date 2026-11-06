@@ -80,43 +80,104 @@ public class TeacherDutyController {
                         "ORDER BY ci.grade, ci.class_name"));
     }
 
-    /** 指定班主任（任意教师均可，含领导） */
+    /**
+     * 指定 / 取消班主任（teacherId 为空或 0 表示取消）。
+     * 任意教师均可担任，含校级领导。
+     */
     @PostMapping("/classes/{classId}/head-teacher")
-    public ResponseEntity<?> setHeadTeacher(@PathVariable Long classId, @RequestBody Map<String, Object> body) {
-        Long teacherId = body.get("teacherId") == null ? null : Long.valueOf(String.valueOf(body.get("teacherId")));
-        if (teacherId == null) return ResponseEntity.badRequest().body(Map.of("error", "请选择教师"));
+    public ResponseEntity<?> setHeadTeacher(@PathVariable Long classId, @RequestBody Map<String, Object> body,
+                                            org.springframework.security.core.Authentication auth) {
+        List<Map<String, Object>> ci = jdbc.queryForList(
+                "SELECT class_name, head_teacher_id FROM class_info WHERE id = ?", classId);
+        if (ci.isEmpty()) return ResponseEntity.badRequest().body(Map.of("error", "班级不存在"));
+        String className = String.valueOf(ci.get(0).get("class_name"));
+        Long oldId = ci.get(0).get("head_teacher_id") == null ? null
+                : ((Number) ci.get(0).get("head_teacher_id")).longValue();
+        String oldName = oldId == null ? null : teacherName(oldId);
+
+        Object rawId = body.get("teacherId");
+        Long teacherId = (rawId == null || String.valueOf(rawId).isBlank() || "0".equals(String.valueOf(rawId)))
+                ? null : Long.valueOf(String.valueOf(rawId));
+
+        // ===== 取消班主任 =====
+        if (teacherId == null) {
+            if (oldId == null) {
+                return ResponseEntity.badRequest().body(Map.of("error", "该班当前没有班主任"));
+            }
+            jdbc.update("UPDATE class_info SET head_teacher_id = NULL WHERE id = ?", classId);
+            revertDuty(oldId);
+            writeLog(auth, classId, className, "CLEAR", oldName, null);
+            Map<String, Object> resp = new LinkedHashMap<>();
+            resp.put("msg", "已取消「" + className + "」的班主任");
+            resp.put("headTeacherId", null);
+            resp.put("headTeacherName", null);
+            return ResponseEntity.ok(resp);
+        }
+
+        // ===== 设置班主任 =====
         List<Map<String, Object>> t = jdbc.queryForList(
                 "SELECT id, real_name, duty, is_leader FROM teacher WHERE id = ?", teacherId);
         if (t.isEmpty()) return ResponseEntity.badRequest().body(Map.of("error", "教师不存在"));
-
-        Long oldId = null;
-        List<Map<String, Object>> ci = jdbc.queryForList(
-                "SELECT head_teacher_id FROM class_info WHERE id = ?", classId);
-        if (ci.isEmpty()) return ResponseEntity.badRequest().body(Map.of("error", "班级不存在"));
-        if (ci.get(0).get("head_teacher_id") != null) {
-            oldId = ((Number) ci.get(0).get("head_teacher_id")).longValue();
-        }
+        String newName = String.valueOf(t.get(0).get("real_name"));
 
         jdbc.update("UPDATE class_info SET head_teacher_id = ? WHERE id = ?", teacherId, classId);
-        // 新班主任：非领导则职务改为「班主任」
         int isLeader = ((Number) t.get(0).get("is_leader")).intValue();
         if (isLeader == 0) {
             jdbc.update("UPDATE teacher SET duty = '班主任' WHERE id = ?", teacherId);
         }
-        // 旧班主任：如果不再带任何班，职务回落为「教师」
         if (oldId != null && !oldId.equals(teacherId)) {
-            Integer remain = jdbc.queryForObject(
-                    "SELECT COUNT(*) FROM class_info WHERE head_teacher_id = ?", Integer.class, oldId);
-            Integer oldLeader = jdbc.queryForObject(
-                    "SELECT is_leader FROM teacher WHERE id = ?", Integer.class, oldId);
-            if (remain != null && remain == 0 && (oldLeader == null || oldLeader == 0)) {
-                jdbc.update("UPDATE teacher SET duty = '教师' WHERE id = ?", oldId);
-            }
+            revertDuty(oldId);
         }
+        writeLog(auth, classId, className, "SET", oldName, newName);
+
         Map<String, Object> resp = new LinkedHashMap<>();
-        resp.put("msg", "已将「" + t.get(0).get("real_name") + "」设为该班班主任");
+        resp.put("msg", "已将「" + newName + "」设为「" + className + "」班主任");
         resp.put("headTeacherId", teacherId);
-        resp.put("headTeacherName", t.get(0).get("real_name"));
+        resp.put("headTeacherName", newName);
         return ResponseEntity.ok(resp);
+    }
+
+    /** 班主任调整记录（最近 N 条） */
+    @GetMapping("/logs")
+    public ResponseEntity<List<Map<String, Object>>> logs(
+            @RequestParam(value = "limit", defaultValue = "20") int limit) {
+        int n = Math.min(Math.max(limit, 1), 100);
+        return ResponseEntity.ok(jdbc.queryForList(
+                "SELECT id, operator_name AS operatorName, class_id AS classId, class_name AS className, " +
+                        "action, old_teacher AS oldTeacher, new_teacher AS newTeacher, " +
+                        "DATE_FORMAT(created_at, '%m-%d %H:%i') AS createdAt " +
+                        "FROM class_head_log ORDER BY id DESC LIMIT ?", n));
+    }
+
+    private String teacherName(Long id) {
+        List<String> names = jdbc.queryForList("SELECT real_name FROM teacher WHERE id = ?", String.class, id);
+        return names.isEmpty() ? null : names.get(0);
+    }
+
+    /** 教师不再担任任何班级班主任时，职务回落到「教师」（领导保持不变） */
+    private void revertDuty(Long teacherId) {
+        Integer remain = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM class_info WHERE head_teacher_id = ?", Integer.class, teacherId);
+        Integer leader = jdbc.queryForObject(
+                "SELECT is_leader FROM teacher WHERE id = ?", Integer.class, teacherId);
+        if (remain != null && remain == 0 && (leader == null || leader == 0)) {
+            jdbc.update("UPDATE teacher SET duty = '教师' WHERE id = ?", teacherId);
+        }
+    }
+
+    private void writeLog(org.springframework.security.core.Authentication auth, Long classId, String className,
+                          String action, String oldTeacher, String newTeacher) {
+        try {
+            Long uid = (auth != null && auth.getPrincipal() instanceof Long id) ? id : null;
+            String name = null;
+            if (uid != null) {
+                List<String> names = jdbc.queryForList("SELECT real_name FROM user WHERE id = ?", String.class, uid);
+                if (!names.isEmpty()) name = names.get(0);
+            }
+            jdbc.update("INSERT INTO class_head_log (operator_id, operator_name, class_id, class_name, action, " +
+                            "old_teacher, new_teacher) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    uid, name, classId, className, action, oldTeacher, newTeacher);
+        } catch (Exception ignored) {
+        }
     }
 }

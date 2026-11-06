@@ -5,10 +5,12 @@ import { Label } from '@/components/ui/label'
 import { Users2, Search, Save, Crown, GraduationCap, UserCheck } from 'lucide-react'
 import {
   getClassHeadList,
+  getHeadTeacherLogs,
   getTeacherDutyList,
   setClassHeadTeacher,
   updateTeacherDuty,
   type ClassHeadItem,
+  type HeadTeacherLog,
   type TeacherDutyItem,
 } from '@/api/teacher-duty'
 
@@ -32,13 +34,19 @@ export function TeacherDutyPage() {
   const [editingClass, setEditingClass] = useState<number | null>(null)
   const [classKeyword, setClassKeyword] = useState('')
   const [gradeFilter, setGradeFilter] = useState('')
+  const [logs, setLogs] = useState<HeadTeacherLog[]>([])
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const [ts, cs] = await Promise.all([getTeacherDutyList(), getClassHeadList()])
+      const [ts, cs, lg] = await Promise.all([
+        getTeacherDutyList(),
+        getClassHeadList(),
+        getHeadTeacherLogs(20),
+      ])
       setTeachers(ts)
       setClasses(cs)
+      setLogs(lg || [])
       setPicked(Object.fromEntries(cs.map((c) => [c.id, c.headTeacherId ?? ''])))
     } catch (e: any) {
       setMessage({ type: 'err', text: e?.message || '加载失败' })
@@ -119,6 +127,22 @@ export function TeacherDutyPage() {
       await load()
     } catch (e: any) {
       setMessage({ type: 'err', text: e?.response?.data?.error || e?.message || '设置失败' })
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  /** 取消班主任 */
+  const clearHead = async (c: ClassHeadItem) => {
+    if (!window.confirm(`确定取消「${c.className}」的班主任（${c.headTeacherName || ''}）？`)) return
+    setSaving(c.id)
+    try {
+      const res = await setClassHeadTeacher(c.id, null)
+      setMessage({ type: 'ok', text: res.msg })
+      setEditingClass(null)
+      await load()
+    } catch (e: any) {
+      setMessage({ type: 'err', text: e?.response?.data?.error || e?.message || '取消失败' })
     } finally {
       setSaving(null)
     }
@@ -405,6 +429,17 @@ export function TeacherDutyPage() {
                       <Save className="mr-1 h-3 w-3" />
                       保存
                     </Button>
+                    {c.headTeacherName && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 shrink-0 px-2 text-[11px] text-danger"
+                        disabled={saving === c.id}
+                        onClick={() => clearHead(c)}
+                      >
+                        取消班主任
+                      </Button>
+                    )}
                   </div>
                 )}
               </div>
@@ -413,6 +448,56 @@ export function TeacherDutyPage() {
 
           {filteredClasses.length === 0 && (
             <div className="py-8 text-center text-xs text-neutral-400">没有匹配的班级</div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* 班主任调整记录 */}
+      <Card>
+        <CardHeader className="flex-row items-center justify-between space-y-0">
+          <CardTitle className="text-base">班主任调整记录</CardTitle>
+          <span className="text-xs text-neutral-400">最近 20 条</span>
+        </CardHeader>
+        <CardContent>
+          {logs.length === 0 ? (
+            <div className="py-6 text-center text-xs text-neutral-400">暂无记录</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-neutral-200 bg-neutral-50/60">
+                    <th className="px-3 py-2 text-left text-[11px] font-medium text-neutral-400 whitespace-nowrap">时间</th>
+                    <th className="px-3 py-2 text-left text-[11px] font-medium text-neutral-400 whitespace-nowrap">操作人</th>
+                    <th className="px-3 py-2 text-left text-[11px] font-medium text-neutral-400">班级</th>
+                    <th className="px-3 py-2 text-left text-[11px] font-medium text-neutral-400 whitespace-nowrap">操作</th>
+                    <th className="px-3 py-2 text-left text-[11px] font-medium text-neutral-400">变更</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {logs.map((l) => (
+                    <tr key={l.id} className="border-b border-neutral-100 last:border-0">
+                      <td className="px-3 py-2 text-xs text-neutral-500 tabular-nums whitespace-nowrap">{l.createdAt}</td>
+                      <td className="px-3 py-2 text-xs text-neutral-700 whitespace-nowrap">{l.operatorName || '-'}</td>
+                      <td className="px-3 py-2 text-xs text-neutral-700 whitespace-nowrap">{l.className || '-'}</td>
+                      <td className="px-3 py-2 text-xs whitespace-nowrap">
+                        <span
+                          className={`rounded px-1.5 py-0.5 ${
+                            l.action === 'CLEAR' ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-700'
+                          }`}
+                        >
+                          {l.action === 'CLEAR' ? '取消' : '设置'}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-xs text-neutral-600">
+                        {l.action === 'CLEAR'
+                          ? `${l.oldTeacher || '-'} → 空`
+                          : `${l.oldTeacher || '空'} → ${l.newTeacher || '-'}`}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </CardContent>
       </Card>
