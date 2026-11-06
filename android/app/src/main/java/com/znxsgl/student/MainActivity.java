@@ -141,6 +141,8 @@ public class MainActivity extends AppCompatActivity {
             try {
                 android.widget.ImageView icon = findIcon(item);
                 if (icon == null || item.getHeight() == 0) return;
+                // 归零后再测量：选中/未选中布局不同，且多次调用会叠加位移
+                icon.setTranslationY(0f);
                 int[] itemPos = new int[2];
                 int[] iconPos = new int[2];
                 item.getLocationInWindow(itemPos);
@@ -148,10 +150,10 @@ public class MainActivity extends AppCompatActivity {
                 float itemCenter = item.getHeight() / 2f;
                 float iconCenter = (iconPos[1] - itemPos[1]) + icon.getHeight() / 2f;
                 // 星星图形重心偏下，略微上移视觉更居中
-                icon.setTranslationY(itemCenter - iconCenter - dp(5));
+                icon.setTranslationY(itemCenter - iconCenter - dp(4));
             } catch (Exception ignored) {
             }
-        }, 60);
+        }, 100);
     }
 
     private android.widget.ImageView findIcon(View v) {
