@@ -43,6 +43,10 @@ public class StudentCourse {
     @SerializedName("lastMessage")
     private String lastMessage;
 
+    /** 最后一条消息时间戳（毫秒），用于列表按活跃度排序 */
+    @SerializedName("lastMessageAt")
+    private long lastMessageAt;
+
     @SerializedName("pendingExams")
     private List<Map<String, Object>> pendingExams;
 
@@ -73,6 +77,9 @@ public class StudentCourse {
 
     public String getLastMessage() { return lastMessage; }
     public void setLastMessage(String v) { this.lastMessage = v; }
+
+    public long getLastMessageAt() { return lastMessageAt; }
+    public void setLastMessageAt(long v) { this.lastMessageAt = v; }
 
     public List<Map<String, Object>> getPendingExams() { return pendingExams; }
     public void setPendingExams(List<Map<String, Object>> v) { this.pendingExams = v; }

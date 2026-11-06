@@ -1075,25 +1075,33 @@ public class ProfileFragment extends Fragment implements WebSocketManager.OnChat
     /**
      * 会话列表式排序（QQ/微信语义）：
      * 1) 有未读消息的课程置顶，未读越多越靠前；
-     * 2) 无未读的课程保持用户手动拖拽/默认顺序，不打扰已读列表；
-     * 3) 只做稳定分区，不改变同组内的相对顺序。
+     * 2) 已读完但最近有消息的课程，按最后一条消息时间倒序（老师刚发过言的课程会自动上浮）；
+     * 3) 完全没有聊天记录的课程排在最后，保持用户手动拖拽顺序。
      */
     private void applyChatSorting() {
         if (courseList.size() <= 1) return;
         List<StudentCourse> unread = new ArrayList<>();
-        List<StudentCourse> read = new ArrayList<>();
+        List<StudentCourse> recent = new ArrayList<>();
+        List<StudentCourse> rest = new ArrayList<>();
         for (StudentCourse c : courseList) {
             int n = unreadMap.getOrDefault(c.getCourseId(), c.getUnreadCount());
             if (n > 0) unread.add(c);
-            else read.add(c);
+            else if (c.getLastMessageAt() > 0) recent.add(c);
+            else rest.add(c);
         }
-        if (unread.isEmpty()) return;
-        unread.sort((a, b) -> Integer.compare(
-                unreadMap.getOrDefault(b.getCourseId(), b.getUnreadCount()),
-                unreadMap.getOrDefault(a.getCourseId(), a.getUnreadCount())));
+        if (unread.isEmpty() && recent.isEmpty()) return;
+        unread.sort((a, b) -> {
+            int na = unreadMap.getOrDefault(a.getCourseId(), a.getUnreadCount());
+            int nb = unreadMap.getOrDefault(b.getCourseId(), b.getUnreadCount());
+            if (na != nb) return Integer.compare(nb, na);
+            return Long.compare(b.getLastMessageAt(), a.getLastMessageAt());
+        });
+        // 已经读完但最近有消息的课程，按消息时间倒序跟随在未读之后
+        recent.sort((a, b) -> Long.compare(b.getLastMessageAt(), a.getLastMessageAt()));
         courseList.clear();
         courseList.addAll(unread);
-        courseList.addAll(read);
+        courseList.addAll(recent);
+        courseList.addAll(rest);
     }
 
     /** 打开请假/外出一体页（type=LEAVE / OUTING） */

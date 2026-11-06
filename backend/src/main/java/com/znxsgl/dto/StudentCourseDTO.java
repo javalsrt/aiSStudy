@@ -23,5 +23,6 @@ public class StudentCourseDTO {
     private String scheduleInfo;   // 排课信息摘要
     private int unreadCount;       // 未读消息数（>0 显示红点）
     private String lastMessage;    // 课程最后一条聊天消息摘要
+    private long lastMessageAt;    // 最后一条消息时间戳（毫秒），用于列表按活跃度排序
     private List<Map<String, Object>> pendingExams; // 该课程下待完成的考试/作业
 }

@@ -625,7 +625,7 @@ public class ScheduleService {
             // 查询该学生可见的最后一条聊天消息摘要（教师消息 / 自己的消息 / @自己的）
             try {
                 List<Map<String, Object>> lastMsgs = jdbc.queryForList(
-                    "SELECT content, sender_role, sender_name FROM chat_message " +
+                    "SELECT content, sender_role, sender_name, created_at FROM chat_message " +
                     "WHERE course_id = ? " +
                     "  AND (sender_role <> 'student' OR user_id = ?) " +
                     "  AND (mention_user_id IS NULL OR mention_user_id = ?) " +
@@ -633,6 +633,20 @@ public class ScheduleService {
                     dto.getCourseId(), userId, userId);
                 if (!lastMsgs.isEmpty()) {
                     dto.setLastMessage(buildLastMessagePreview(lastMsgs.get(0)));
+                    // created_at 可能被驱动映射为 Timestamp 或 LocalDateTime，两种都要兼容
+                    Object ca = lastMsgs.get(0).get("created_at");
+                    long at = 0L;
+                    if (ca instanceof java.sql.Timestamp ts) {
+                        at = ts.getTime();
+                    } else if (ca instanceof java.time.LocalDateTime ldt) {
+                        at = ldt.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli();
+                    } else if (ca != null) {
+                        try {
+                            at = java.sql.Timestamp.valueOf(String.valueOf(ca).replace('T', ' ')).getTime();
+                        } catch (Exception ignored) {
+                        }
+                    }
+                    dto.setLastMessageAt(at);
                 }
             } catch (Exception e) {
                 log.warn("查询课程最后一条消息失败: courseId={}, userId={}", dto.getCourseId(), userId, e);
