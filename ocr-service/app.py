@@ -256,6 +256,8 @@ def ocr_base64(payload: Base64Payload):
 
 
 if __name__ == "__main__":
+    import os
+
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8100)
+    uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("OCR_PORT", "8100")))

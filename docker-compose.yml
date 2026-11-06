@@ -61,13 +61,15 @@ services:
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
       APP_REDIS_ENABLED: "true"
-      JWT_SECRET: ZnxsglRAGLearningApp2026SecretKeyForJWTTokenG
+      JWT_SECRET: ZnxsglRAGLearningApp2026SecretKeyForJWTTokenGenerationMustBe256Bits
       # 作息表图片识别（OpenAI 兼容多模态模型）：不配置则管理端「图片识别」按钮提示未启用
       VISION_API_KEY: ${VISION_API_KEY:-}
       VISION_URL: ${VISION_URL:-https://api.siliconflow.cn/v1/chat/completions}
       VISION_MODEL: ${VISION_MODEL:-Qwen/Qwen2.5-VL-7B-Instruct}
       # 本地 OCR 服务（作息表图片识别，离线零成本）
-      OCR_SERVICE_URL: http://ocr:8100enerationMustBe256Bits
+      OCR_SERVICE_URL: http://ocr:8100
+      # 容器内用独立 ocr 容器，禁止后端自启 Python 进程
+      OCR_AUTO_START: "false"
       JWT_EXPIRATION: "86400000"
       # LLM 对话模型（DeepSeek），Key 需在服务器上通过 .env 提供
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}

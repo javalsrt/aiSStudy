@@ -68,6 +68,13 @@ vision:
 # 本地作息表 OCR 服务（RapidOCR + 版式解析，离线零成本，优先于视觉模型）
 ocr:
   url: ${OCR_SERVICE_URL:http://localhost:8100}
+  # 是否随 Spring Boot 自动启动本地 OCR 进程（需本机安装 ocr-service/requirements.txt 依赖）
+  auto-start: ${OCR_AUTO_START:true}
+  port: ${OCR_PORT:8100}
+  # Python 命令：Windows 一般 python，Linux/macOS 可能为 python3
+  python-cmd: ${OCR_PYTHON:python}
+  # 服务目录，留空自动探测（项目根/backend 上级目录下的 ocr-service）
+  work-dir:
 
 # 本地 BGE-M3 Embedding 服务配置，宽带是数据流量大小，吞吐是发送接收的效率，物理层，传输层，数据链路层，网络层，会话层，应用层
 embedding:
