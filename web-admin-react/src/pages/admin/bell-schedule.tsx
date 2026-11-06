@@ -12,9 +12,20 @@ import {
   Users,
   Check,
   ScanLine,
+  Layers,
+  History,
 } from 'lucide-react'
 import { getClasses } from '@/api/staff'
-import { getAdminBell, recognizeBellImage, saveAdminBell, type BellPeriodRow } from '@/api/bell'
+import {
+  getAdminBell,
+  getBellLogs,
+  getBellOverview,
+  recognizeBellImage,
+  saveAdminBell,
+  type BellChangeLog,
+  type BellOverview,
+  type BellPeriodRow,
+} from '@/api/bell'
 import type { ClassInfo } from '@/types'
 
 /**
@@ -36,6 +47,24 @@ export function BellSchedulePage() {
   const [recognizing, setRecognizing] = useState(false)
   const [message, setMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
   const imageRef = useRef<HTMLInputElement>(null)
+  const [overview, setOverview] = useState<BellOverview | null>(null)
+  const [logs, setLogs] = useState<BellChangeLog[]>([])
+  /** 最近一次保存结果（同时显示在保存按钮旁，避免用户以为没反馈） */
+  const [lastSaved, setLastSaved] = useState<string | null>(null)
+
+  const loadOverview = useCallback(async () => {
+    try {
+      const [ov, lg] = await Promise.all([getBellOverview(), getBellLogs(8)])
+      setOverview(ov)
+      setLogs(lg || [])
+    } catch {
+      // 概览失败不影响主流程
+    }
+  }, [])
+
+  useEffect(() => {
+    loadOverview()
+  }, [loadOverview])
 
   useEffect(() => {
     getClasses()
@@ -180,6 +209,7 @@ export function BellSchedulePage() {
       }
     }
     setSaving(true)
+    setLastSaved(null)
     try {
       const res = await saveAdminBell({
         classIds: scope === 'classes' ? selected : undefined,
@@ -187,22 +217,31 @@ export function BellSchedulePage() {
         semester,
         periods: rows,
       })
-      setMessage({
-        type: 'ok',
-        text:
-          res.msg +
-          `（${res.saved} 个节次）` +
-          (res.syncedSchedules > 0
-            ? `，已同步 ${res.syncedSchedules} 条课表的上下课时间`
-            : '，当前没有需要同步的已排课记录'),
-      })
+      const okText =
+        res.msg +
+        `（${res.saved} 个节次）` +
+        (res.syncedSchedules > 0
+          ? `，已同步 ${res.syncedSchedules} 条课表的上下课时间`
+          : '，当前没有需要同步的已排课记录')
+      setMessage({ type: 'ok', text: okText + '，已更新下方「各班作息概览」与变更记录' })
+      setLastSaved(`✓ 已保存 · ${res.saved} 个节次 · 同步 ${res.syncedSchedules} 条课表`)
       const data = await getAdminBell({ classId: previewClassId ?? undefined })
       setEffective(data.effective || [])
+      // 刷新方案概览与变更记录，让「保存结果」可追溯
+      loadOverview()
     } catch (e: any) {
       setMessage({ type: 'err', text: e?.message || '保存失败，请稍后重试' })
     } finally {
       setSaving(false)
     }
+  }
+
+  /** 概览里点击班级：切到按班级配置并选中它 */
+  const pickClass = (id: number) => {
+    setScope('classes')
+    setSelected([id])
+    setMessage(null)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   const scopeText =
@@ -390,6 +429,66 @@ export function BellSchedulePage() {
         </CardContent>
       </Card>
 
+      {/* ===== 各班作息概览（相同时间自动归组） ===== */}
+      <Card>
+        <CardHeader className="flex-row items-center justify-between space-y-0">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Layers className="h-4 w-4 text-neutral-400" />
+            各班作息概览
+          </CardTitle>
+          <span className="text-xs text-neutral-400">
+            共 {overview?.totalClasses ?? 0} 个班级 · 时间完全相同的自动归为一组
+          </span>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {!overview && <div className="py-6 text-center text-xs text-neutral-400">加载中…</div>}
+          {overview?.groups.map((g) => (
+            <div key={g.signature} className="rounded-xl border border-neutral-200 p-3">
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <span
+                  className={`rounded-md px-2 py-0.5 text-xs font-medium ${
+                    g.isDefault ? 'bg-neutral-100 text-neutral-600' : 'bg-primary-50 text-primary-700'
+                  }`}
+                >
+                  {g.label}
+                </span>
+                <span className="text-xs text-neutral-400">{g.classCount} 个班级</span>
+                <span className="text-[11px] text-neutral-400">
+                  {g.periods
+                    .slice(0, 4)
+                    .map((p) => `第${p.node}节 ${p.startTime?.slice(0, 5)}–${p.endTime?.slice(0, 5)}`)
+                    .join('  ')}
+                  {g.periods.length > 4 ? ` 等 ${g.periods.length} 节` : ''}
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {g.classes.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => pickClass(c.id)}
+                    title="点击编辑该班级作息"
+                    className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
+                      selected.includes(c.id)
+                        ? 'border-primary-400 bg-primary-500 text-white'
+                        : 'border-neutral-200 bg-white text-neutral-600 hover:border-primary-300 hover:text-primary-600'
+                    }`}
+                  >
+                    {c.name}
+                    {c.source === 'class' && (
+                      <span className={`ml-1 text-[10px] ${selected.includes(c.id) ? 'text-white/80' : 'text-primary-500'}`}>
+                        自定义
+                      </span>
+                    )}
+                  </button>
+                ))}
+                {g.classes.length === 0 && <span className="text-xs text-neutral-400">（暂无班级）</span>}
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
       {/* ===== 节次编辑 ===== */}
       <Card>
         <CardHeader className="flex-row items-center justify-between space-y-0">
@@ -471,11 +570,68 @@ export function BellSchedulePage() {
             <div className="text-xs text-neutral-400">
               保存将覆盖所选范围内原有的通用作息；「图片识别」支持拍照/截图，自动忽略起床铃、早读、午休等非教学时段（本地 OCR，无需联网）。
             </div>
-            <Button onClick={submit} disabled={saving || loading}>
-              <Save className="mr-1 h-4 w-4" />
-              {saving ? '保存中…' : scope === 'classes' ? `保存到 ${selected.length} 个班级` : '保存默认作息'}
-            </Button>
+            <div className="flex items-center gap-3">
+              {lastSaved && <span className="text-xs font-medium text-emerald-600">{lastSaved}</span>}
+              <Button onClick={submit} disabled={saving || loading}>
+                <Save className="mr-1 h-4 w-4" />
+                {saving ? '保存中…' : scope === 'classes' ? `保存到 ${selected.length} 个班级` : '保存默认作息'}
+              </Button>
+            </div>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* ===== 最近变更记录 ===== */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <History className="h-4 w-4 text-neutral-400" />
+            最近变更记录
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {logs.length === 0 ? (
+            <div className="py-6 text-center text-xs text-neutral-400">暂无记录，保存一次作息后会出现在这里</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-neutral-200 bg-neutral-50/60">
+                    <th className="px-3 py-2 text-left text-[11px] font-medium text-neutral-400 whitespace-nowrap">时间</th>
+                    <th className="px-3 py-2 text-left text-[11px] font-medium text-neutral-400 whitespace-nowrap">操作人</th>
+                    <th className="px-3 py-2 text-left text-[11px] font-medium text-neutral-400">范围</th>
+                    <th className="px-3 py-2 text-left text-[11px] font-medium text-neutral-400 whitespace-nowrap">节次</th>
+                    <th className="px-3 py-2 text-left text-[11px] font-medium text-neutral-400 whitespace-nowrap">同步课表</th>
+                    <th className="px-3 py-2 text-left text-[11px] font-medium text-neutral-400 whitespace-nowrap">学期</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {logs.map((l) => (
+                    <tr key={l.id} className="border-b border-neutral-100 last:border-0">
+                      <td className="px-3 py-2 text-xs text-neutral-500 tabular-nums whitespace-nowrap">{l.createdAt}</td>
+                      <td className="px-3 py-2 text-xs text-neutral-700 whitespace-nowrap">{l.operatorName || '-'}</td>
+                      <td className="px-3 py-2 text-xs text-neutral-700">
+                        {l.scopeType === 'DEFAULT' ? (
+                          <span className="rounded bg-neutral-100 px-1.5 py-0.5">默认作息</span>
+                        ) : (
+                          <span className="rounded bg-primary-50 px-1.5 py-0.5 text-primary-700">
+                            {l.classNames || `${l.classCount} 个班级`}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-xs text-neutral-600 tabular-nums whitespace-nowrap">{l.nodeCount} 节</td>
+                      <td className="px-3 py-2 text-xs text-neutral-600 tabular-nums whitespace-nowrap">
+                        {l.syncedSchedules} 条
+                      </td>
+                      <td className="px-3 py-2 text-xs text-neutral-500 tabular-nums whitespace-nowrap">
+                        {l.semester || '-'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </CardContent>
       </Card>
 

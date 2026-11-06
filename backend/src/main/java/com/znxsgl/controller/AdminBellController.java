@@ -224,7 +224,8 @@ public class AdminBellController {
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
     @Transactional
-    public ResponseEntity<Map<String, Object>> save(@RequestBody Map<String, Object> body) {
+    public ResponseEntity<Map<String, Object>> save(@RequestBody Map<String, Object> body,
+                                                    org.springframework.security.core.Authentication auth) {
         Long classId = parseLong(body.get("classId"));
         String semester = resolveSemester((String) body.get("semester"));
         Object periodsObj = body.get("periods");
@@ -319,14 +320,135 @@ public class AdminBellController {
 
         bellTimeService.evictCache();
 
+        // 变更记录：谁、什么时候、改了哪些班、同步了多少条课表
+        Long operatorId = (auth != null && auth.getPrincipal() instanceof Long uid) ? uid : null;
+        String operatorName = null;
+        if (operatorId != null) {
+            List<String> names = jdbc.queryForList("SELECT real_name FROM user WHERE id = ?", String.class, operatorId);
+            if (!names.isEmpty()) operatorName = names.get(0);
+        }
+        StringBuilder classNames = new StringBuilder();
+        for (Long cid : targets) {
+            List<String> cn = jdbc.queryForList("SELECT class_name FROM class_info WHERE id = ?", String.class, cid);
+            if (!cn.isEmpty()) {
+                if (classNames.length() > 0) classNames.append("、");
+                classNames.append(cn.get(0));
+            }
+        }
+        String classNameText = classNames.length() > 900 ? classNames.substring(0, 900) + "…" : classNames.toString();
+        jdbc.update("INSERT INTO bell_change_log (operator_id, operator_name, scope_type, class_names, " +
+                        "class_count, node_count, synced_schedules, semester) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                operatorId, operatorName, defaultScope ? "DEFAULT" : "CLASS", classNameText,
+                defaultScope ? 0 : targets.size(), nodes.size(), synced, semester);
+
         Map<String, Object> resp = new LinkedHashMap<>();
         resp.put("msg", defaultScope
                 ? "默认作息已保存"
-                : (targets.size() == 1 ? "本班作息已保存" : targets.size() + " 个班级的作息已保存"));
+                : (targets.size() == 1 ? "「" + classNameText + "」作息已保存"
+                : targets.size() + " 个班级的作息已保存"));
         resp.put("saved", nodes.size());
         resp.put("classes", defaultScope ? 0 : targets.size());
         resp.put("syncedSchedules", synced);
+        resp.put("classNames", classNameText);
         return ResponseEntity.ok(resp);
+    }
+
+    /** 作息方案概览：哪些班级用同一套时间、哪些不一样 */
+    @GetMapping("/overview")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Map<String, Object>> overview() {
+        List<Map<String, Object>> classes = jdbc.queryForList(
+                "SELECT id, class_name, grade FROM class_info ORDER BY grade, class_name");
+
+        // 各班是否有独立配置 / 年级配置
+        Map<Long, Integer> ownCount = new LinkedHashMap<>();
+        jdbc.queryForList("SELECT class_id, COUNT(*) AS c FROM bell_schedule " +
+                        "WHERE class_id IS NOT NULL AND week_parity = 0 GROUP BY class_id")
+                .forEach(r -> ownCount.put(((Number) r.get("class_id")).longValue(), ((Number) r.get("c")).intValue()));
+        Map<String, Integer> gradeCount = new LinkedHashMap<>();
+        jdbc.queryForList("SELECT grade, COUNT(*) AS c FROM bell_schedule " +
+                        "WHERE class_id IS NULL AND grade IS NOT NULL AND grade <> '' AND week_parity = 0 GROUP BY grade")
+                .forEach(r -> gradeCount.put(String.valueOf(r.get("grade")), ((Number) r.get("c")).intValue()));
+
+        List<Map<String, Object>> defaults = bellTimeService.bellsByParity(null, null, 0);
+        String defaultSig = signature(defaults);
+
+        Map<String, Map<String, Object>> groups = new LinkedHashMap<>();
+        Map<String, Object> defaultGroup = new LinkedHashMap<>();
+        defaultGroup.put("signature", defaultSig);
+        defaultGroup.put("periods", defaults);
+        defaultGroup.put("classes", new ArrayList<Map<String, Object>>());
+        groups.put(defaultSig, defaultGroup);
+
+        for (Map<String, Object> c : classes) {
+            long cid = ((Number) c.get("id")).longValue();
+            String grade = (String) c.get("grade");
+            List<Map<String, Object>> periods = bellTimeService.bellsByParity(cid, grade, 0);
+            String sig = signature(periods);
+            Map<String, Object> g = groups.computeIfAbsent(sig, k -> {
+                Map<String, Object> m = new LinkedHashMap<>();
+                m.put("signature", k);
+                m.put("periods", periods);
+                m.put("classes", new ArrayList<Map<String, Object>>());
+                return m;
+            });
+            boolean own = ownCount.containsKey(cid);
+            String source = own ? "class" : (grade != null && gradeCount.containsKey(grade) ? "grade" : "default");
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("id", cid);
+            item.put("name", c.get("class_name"));
+            item.put("grade", grade);
+            item.put("source", source);
+            ((List<Map<String, Object>>) g.get("classes")).add(item);
+        }
+
+        List<Map<String, Object>> list = new ArrayList<>();
+        String[] labels = {"一", "二", "三", "四", "五", "六", "七", "八", "九", "十"};
+        int idx = 0;
+        for (Map.Entry<String, Map<String, Object>> e : groups.entrySet()) {
+            Map<String, Object> g = e.getValue();
+            List<Map<String, Object>> cl = (List<Map<String, Object>>) g.get("classes");
+            if (cl.isEmpty() && !e.getKey().equals(defaultSig)) continue;
+            boolean isDefault = e.getKey().equals(defaultSig);
+            g.put("label", isDefault ? "默认作息（继承）" : "作息方案" + (idx < labels.length ? labels[idx++] : ""));
+            g.put("classCount", cl.size());
+            g.put("isDefault", isDefault);
+            list.add(g);
+        }
+        // 班级多的方案靠前，默认组始终第一
+        list.sort((a, b) -> {
+            boolean ad = Boolean.TRUE.equals(a.get("isDefault"));
+            boolean bd = Boolean.TRUE.equals(b.get("isDefault"));
+            if (ad != bd) return ad ? -1 : 1;
+            return Integer.compare((int) b.get("classCount"), (int) a.get("classCount"));
+        });
+
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("totalClasses", classes.size());
+        data.put("groups", list);
+        return ResponseEntity.ok(data);
+    }
+
+    /** 最近作息变更记录 */
+    @GetMapping("/logs")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<List<Map<String, Object>>> logs(@RequestParam(value = "limit", defaultValue = "10") int limit) {
+        int n = Math.min(Math.max(limit, 1), 50);
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT id, operator_name AS operatorName, scope_type AS scopeType, class_names AS classNames, " +
+                        "class_count AS classCount, node_count AS nodeCount, synced_schedules AS syncedSchedules, " +
+                        "semester, DATE_FORMAT(created_at, '%m-%d %H:%i') AS createdAt " +
+                        "FROM bell_change_log ORDER BY id DESC LIMIT ?", n);
+        return ResponseEntity.ok(rows);
+    }
+
+    /** 作息签名：节次 + 起止时间，用于判断两套作息是否完全一致 */
+    private String signature(List<Map<String, Object>> periods) {
+        StringBuilder sb = new StringBuilder();
+        for (Map<String, Object> p : periods) {
+            sb.append(p.get("node")).append('=').append(p.get("startTime")).append('-').append(p.get("endTime")).append(';');
+        }
+        return sb.toString();
     }
 
     private List<Map<String, Object>> preset() {

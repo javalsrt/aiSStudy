@@ -61,6 +61,52 @@ export const recognizeBellImage = (file: File) => {
   )
 }
 
+/* ===== 作息方案概览 & 变更记录 ===== */
+
+export interface BellOverviewClass {
+  id: number
+  name: string
+  grade?: string | null
+  /** class=班级独立配置 grade=按年级 default=继承默认 */
+  source: 'class' | 'grade' | 'default'
+}
+
+export interface BellOverviewGroup {
+  signature: string
+  label: string
+  periods: BellPeriodRow[]
+  classCount: number
+  isDefault: boolean
+  classes: BellOverviewClass[]
+}
+
+export interface BellOverview {
+  totalClasses: number
+  groups: BellOverviewGroup[]
+}
+
+export interface BellChangeLog {
+  id: number
+  operatorName?: string | null
+  scopeType: 'CLASS' | 'DEFAULT'
+  classNames?: string | null
+  classCount: number
+  nodeCount: number
+  syncedSchedules: number
+  semester?: string | null
+  createdAt: string
+}
+
+/** 各班作息方案分组（哪些班级时间一致） */
+export const getBellOverview = () => {
+  return request.get<any, BellOverview>('/admin/bell/overview')
+}
+
+/** 最近作息变更记录 */
+export const getBellLogs = (limit = 8) => {
+  return request.get<any, BellChangeLog[]>('/admin/bell/logs', { params: { limit } })
+}
+
 /** 保存作息（classIds 批量 > classId 单个 > 默认作息），同时同步已排课时间 */
 export const saveAdminBell = (data: {
   classId?: number | null
