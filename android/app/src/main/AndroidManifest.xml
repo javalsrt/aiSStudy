@@ -31,6 +31,10 @@
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />
         <activity
+            android:name=".LeaveActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
             android:name=".CourseDetailActivity"
             android:exported="false"
             android:parentActivityName=".MainActivity"

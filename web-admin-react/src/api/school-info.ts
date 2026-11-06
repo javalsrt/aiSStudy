@@ -33,6 +33,16 @@ export const bulkImportSchoolInfo = (data: { category?: string; text: string }) 
   return request.post<any, { msg: string; imported: number }>('/admin/school-info/bulk', data)
 }
 
+/** 一键导入新规：支持 docx/txt/md（WPS 请另存为 docx） */
+export const importSchoolInfoFile = (file: File, category?: string) => {
+  const form = new FormData()
+  form.append('file', file)
+  if (category) form.append('category', category)
+  return request.post<any, { msg: string; imported: number }>('/admin/school-info/import-file', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+}
+
 /** 删除 */
 export const deleteSchoolInfo = (id: number) => {
   return request.delete<any, { msg: string }>(`/admin/school-info/${id}`)

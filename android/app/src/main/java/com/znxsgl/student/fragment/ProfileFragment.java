@@ -111,6 +111,8 @@ public class ProfileFragment extends Fragment implements WebSocketManager.OnChat
 
         // 通讯录入口
         view.findViewById(R.id.ll_contacts).setOnClickListener(v -> showContacts());
+        view.findViewById(R.id.ll_leave).setOnClickListener(v -> openLeave("LEAVE"));
+        view.findViewById(R.id.ll_outing).setOnClickListener(v -> openLeave("OUTING"));
 
         // 课程列表
         rvCourses = view.findViewById(R.id.rv_courses);
@@ -867,6 +869,14 @@ public class ProfileFragment extends Fragment implements WebSocketManager.OnChat
         courseList.clear();
         courseList.addAll(unread);
         courseList.addAll(read);
+    }
+
+    /** 打开请假/外出一体页（type=LEAVE / OUTING） */
+    private void openLeave(String type) {
+        if (!isAdded()) return;
+        android.content.Intent it = new android.content.Intent(requireContext(), com.znxsgl.student.LeaveActivity.class);
+        it.putExtra(com.znxsgl.student.LeaveActivity.EXTRA_TYPE, type);
+        startActivity(it);
     }
 
     /** 刷新未读数：统一由 MainActivity 拉取后下发，避免重复请求 */

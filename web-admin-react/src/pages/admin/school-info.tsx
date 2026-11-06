@@ -1,12 +1,13 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import { School, Plus, Save, Trash2, Upload, Info, Search, Power } from 'lucide-react'
+import { School, Plus, Save, Trash2, Upload, Info, Search, Power, FileText } from 'lucide-react'
 import {
   bulkImportSchoolInfo,
   deleteSchoolInfo,
   getSchoolInfoList,
+  importSchoolInfoFile,
   saveSchoolInfo,
   toggleSchoolInfo,
   type SchoolInfoItem,
@@ -40,6 +41,8 @@ export function SchoolInfoPage() {
   const [bulkOpen, setBulkOpen] = useState(false)
   const [bulkText, setBulkText] = useState('')
   const [bulkCategory, setBulkCategory] = useState('规章制度')
+  const [bulkFile, setBulkFile] = useState<File | null>(null)
+  const bulkFileRef = useRef<HTMLInputElement>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -124,24 +127,29 @@ export function SchoolInfoPage() {
     }
   }
 
-  const runBulk = async () => {
-    if (!bulkText.trim()) {
-      setMessage({ type: 'err', text: '请粘贴要导入的内容' })
+  /** 一键导入：文件优先，无文件时用粘贴文本 */
+  const runImport = async () => {
+    if (!bulkFile && !bulkText.trim()) {
+      setMessage({ type: 'err', text: '请选择文件或粘贴内容' })
       return
     }
     setSaving(true)
     try {
-      const res = await bulkImportSchoolInfo({ category: bulkCategory, text: bulkText })
-      setMessage({ type: 'ok', text: res.msg + '（可继续编辑或启用）' })
+      const res = bulkFile
+        ? await importSchoolInfoFile(bulkFile, bulkCategory)
+        : await bulkImportSchoolInfo({ category: bulkCategory, text: bulkText })
+      setMessage({ type: 'ok', text: res.msg })
       setBulkOpen(false)
       setBulkText('')
+      setBulkFile(null)
       await load()
     } catch (e: any) {
-      setMessage({ type: 'err', text: e?.message || '导入失败' })
+      setMessage({ type: 'err', text: e?.response?.data?.error || e?.message || '导入失败' })
     } finally {
       setSaving(false)
     }
   }
+
 
   return (
     <div className="space-y-6">
@@ -158,7 +166,7 @@ export function SchoolInfoPage() {
         <div className="flex items-center gap-2">
           <Button variant="outline" onClick={() => setBulkOpen((v) => !v)}>
             <Upload className="mr-1 h-4 w-4" />
-            批量导入
+            一键导入新规
           </Button>
           <Button onClick={startNew}>
             <Plus className="mr-1 h-4 w-4" />
@@ -182,9 +190,9 @@ export function SchoolInfoPage() {
       {bulkOpen && (
         <Card>
           <CardHeader className="flex-row items-center justify-between space-y-0">
-            <CardTitle className="text-base">批量导入</CardTitle>
+            <CardTitle className="text-base">一键导入新规</CardTitle>
             <span className="text-xs text-neutral-400">
-              按「## 标题」分段，每段正文自动成为一条知识
+              支持 WPS / Word 另存的 .docx，以及 .txt / .md
             </span>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -201,18 +209,46 @@ export function SchoolInfoPage() {
                   </option>
                 ))}
               </select>
+              <Button variant="outline" size="sm" onClick={() => bulkFileRef.current?.click()}>
+                <FileText className="mr-1 h-4 w-4" />
+                选择文档
+              </Button>
+              <input
+                ref={bulkFileRef}
+                type="file"
+                accept=".docx,.txt,.md,.doc,.wps"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0] || null
+                  setBulkFile(f)
+                  e.target.value = ''
+                }}
+              />
+              <span className="text-xs text-neutral-500">
+                {bulkFile ? bulkFile.name : '未选择文件（也可在下方直接粘贴）'}
+              </span>
             </div>
+
             <textarea
-              className="h-48 w-full rounded-lg border border-neutral-200 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-              placeholder={'## 学生请假管理办法\n学生请假须提前向班主任提交书面申请……\n\n## 宿舍管理规定\n宿舍 22:30 熄灯……'}
+              className="h-40 w-full rounded-lg border border-neutral-200 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              placeholder={'可直接粘贴文本，按「## 标题」分段：\n## 学生请假管理办法\n学生请假须提前向班主任提交书面申请……'}
               value={bulkText}
               onChange={(e) => setBulkText(e.target.value)}
             />
+
+            <div className="flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
+              <Info className="mt-0.5 h-4 w-4 flex-shrink-0" />
+              <span>
+                从 WPS 或 Word 导入时，请先将文件「另存为 .docx」（旧版 .doc/.wps 二进制格式无法解析）；
+                文档中的一级标题行会被识别为条目标题，其余正文归入该条目。
+              </span>
+            </div>
+
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setBulkOpen(false)}>
                 取消
               </Button>
-              <Button onClick={runBulk} disabled={saving}>
+              <Button onClick={runImport} disabled={saving}>
                 <Upload className="mr-1 h-4 w-4" />
                 {saving ? '导入中…' : '开始导入'}
               </Button>

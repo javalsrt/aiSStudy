@@ -224,7 +224,7 @@ export function BellSchedulePage() {
           ? `，已同步 ${res.syncedSchedules} 条课表的上下课时间`
           : '，当前没有需要同步的已排课记录')
       setMessage({ type: 'ok', text: okText + '，已更新下方「各班作息概览」与变更记录' })
-      setLastSaved(`✓ 已保存 · ${res.saved} 个节次 · 同步 ${res.syncedSchedules} 条课表`)
+      setLastSaved(`已保存 · ${res.saved} 个节次 · 同步 ${res.syncedSchedules} 条课表`)
       const data = await getAdminBell({ classId: previewClassId ?? undefined })
       setEffective(data.effective || [])
       // 刷新方案概览与变更记录，让「保存结果」可追溯

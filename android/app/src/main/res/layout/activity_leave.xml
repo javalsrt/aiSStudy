@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#F7F7FA">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp"
+        android:paddingEnd="8dp"
+        android:background="#FFFFFF"
+        android:elevation="2dp">
+
+        <TextView
+            android:id="@+id/tvTitle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="请假申请"
+            android:textColor="#111111"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/btnClose"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:gravity="center"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:text="关闭"
+            android:textColor="#666666"
+            android:textSize="13sp" />
+    </LinearLayout>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <!-- 类型切换 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:background="@drawable/bg_leave_card"
+                android:padding="4dp">
+
+                <TextView
+                    android:id="@+id/tabLeave"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:layout_weight="1"
+                    android:gravity="center"
+                    android:text="请假"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tabOuting"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:layout_weight="1"
+                    android:gravity="center"
+                    android:text="临时外出"
+                    android:textSize="14sp" />
+            </LinearLayout>
+
+            <!-- 表单 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:orientation="vertical"
+                android:background="@drawable/bg_leave_card"
+                android:padding="14dp">
+
+                <TextView style="@style/LeaveLabel" android:text="事由" />
+
+                <EditText
+                    android:id="@+id/etReason"
+                    style="@style/LeaveInput"
+                    android:hint="如：家中有事 / 就医 / 参加比赛"
+                    android:inputType="textMultiLine"
+                    android:maxLines="3" />
+
+                <TextView style="@style/LeaveLabel" android:text="去向" />
+
+                <EditText
+                    android:id="@+id/etDestination"
+                    style="@style/LeaveInput"
+                    android:hint="如：武鸣区家中 / 南宁市第一人民医院"
+                    android:inputType="text" />
+
+                <TextView style="@style/LeaveLabel" android:text="出校时间" />
+
+                <TextView
+                    android:id="@+id/tvStart"
+                    style="@style/LeaveInput"
+                    android:text="点击选择时间" />
+
+                <TextView style="@style/LeaveLabel" android:text="预计回校时间" />
+
+                <TextView
+                    android:id="@+id/tvEnd"
+                    style="@style/LeaveInput"
+                    android:text="点击选择时间" />
+
+                <CheckBox
+                    android:id="@+id/cbParent"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:buttonTint="#3B6EF6"
+                    android:text="已告知家长并发送短信"
+                    android:textColor="#374151"
+                    android:textSize="13sp" />
+
+                <TextView style="@style/LeaveLabel" android:text="家长联系电话" />
+
+                <EditText
+                    android:id="@+id/etParentPhone"
+                    style="@style/LeaveInput"
+                    android:hint="用于学校核验"
+                    android:inputType="phone"
+                    android:maxLength="11" />
+
+                <TextView
+                    android:id="@+id/tvRuleHint"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:text="请假 3 天以内由班主任审批；超过 3 天需班主任初审后报学生处终审。返校后须定位拍照打卡。"
+                    android:textColor="#8A93A6"
+                    android:textSize="11sp"
+                    android:lineSpacingExtra="2dp" />
+
+                <Button
+                    android:id="@+id/btnSubmit"
+                    android:layout_width="match_parent"
+                    android:layout_height="46dp"
+                    android:layout_marginTop="14dp"
+                    android:background="@drawable/bg_ai_send"
+                    android:text="提交申请"
+                    android:textColor="#FFFFFF"
+                    android:textSize="15sp"
+                    android:stateListAnimator="@null" />
+            </LinearLayout>
+
+            <!-- 我的申请 -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="18dp"
+                android:layout_marginBottom="8dp"
+                android:text="我的申请"
+                android:textColor="#6B7280"
+                android:textSize="13sp" />
+
+            <LinearLayout
+                android:id="@+id/boxRecords"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

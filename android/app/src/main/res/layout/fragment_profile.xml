@@ -207,6 +207,92 @@
                 android:importantForAccessibility="no" />
         </LinearLayout>
 
+        <!-- 请假申请入口 -->
+        <LinearLayout
+            android:id="@+id/ll_leave"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="16dp"
+            android:layout_marginTop="12dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:background="@drawable/bg_card_entry"
+            android:paddingHorizontal="16dp"
+            android:paddingVertical="16dp"
+            android:clickable="true"
+            android:focusable="true">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="请假申请"
+                android:textSize="14sp"
+                android:textColor="@color/ink"
+                android:drawableStart="@drawable/ic_profile"
+                android:drawableTint="@color/primary"
+                android:drawablePadding="8dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="填写事由与时间 · 班主任审批"
+                android:textSize="13sp"
+                android:textColor="@color/ink_subtle" />
+
+            <ImageView
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:layout_marginStart="4dp"
+                android:src="@drawable/ic_chevron_right"
+                android:tint="@color/ink_tertiary"
+                android:contentDescription="@null"
+                android:importantForAccessibility="no" />
+        </LinearLayout>
+
+        <!-- 临时外出入口 -->
+        <LinearLayout
+            android:id="@+id/ll_outing"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="16dp"
+            android:layout_marginTop="12dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:background="@drawable/bg_card_entry"
+            android:paddingHorizontal="16dp"
+            android:paddingVertical="16dp"
+            android:clickable="true"
+            android:focusable="true">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="临时外出"
+                android:textSize="14sp"
+                android:textColor="@color/ink"
+                android:drawableStart="@drawable/ic_schedule"
+                android:drawableTint="@color/primary"
+                android:drawablePadding="8dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="当天往返 · 返校定位打卡"
+                android:textSize="13sp"
+                android:textColor="@color/ink_subtle" />
+
+            <ImageView
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:layout_marginStart="4dp"
+                android:src="@drawable/ic_chevron_right"
+                android:tint="@color/ink_tertiary"
+                android:contentDescription="@null"
+                android:importantForAccessibility="no" />
+        </LinearLayout>
+
         <!-- 我的课程 -->
         <LinearLayout
             android:layout_width="match_parent"

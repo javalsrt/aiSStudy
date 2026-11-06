@@ -62,6 +62,55 @@ public class SchoolInfoController {
         return ResponseEntity.ok(Map.of("msg", "成功导入 " + imported + " 条", "imported", imported));
     }
 
+    /**
+     * 一键导入新规：支持 .docx（WPS/Word 均可另存为 docx）、.txt、.md。
+     * 按「## 标题」或独立「标题：」行分段；旧版 .doc/.wps 二进制格式请先另存为 docx。
+     */
+    @PostMapping("/import-file")
+    public ResponseEntity<?> importFile(@RequestParam("file") org.springframework.web.multipart.MultipartFile file,
+                                        @RequestParam(value = "category", required = false) String category,
+                                        Authentication auth) {
+        if (file == null || file.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "请选择文件"));
+        }
+        String name = String.valueOf(file.getOriginalFilename()).toLowerCase();
+        String text;
+        try {
+            if (name.endsWith(".docx")) {
+                try (java.io.InputStream in = file.getInputStream();
+                     org.apache.poi.xwpf.usermodel.XWPFDocument doc =
+                             new org.apache.poi.xwpf.usermodel.XWPFDocument(in)) {
+                    StringBuilder sb = new StringBuilder();
+                    for (org.apache.poi.xwpf.usermodel.XWPFParagraph p : doc.getParagraphs()) {
+                        String line = p.getText();
+                        boolean heading = p.getStyle() != null && p.getStyle().toLowerCase().contains("heading");
+                        if (heading && line != null && !line.isBlank()) {
+                            sb.append("## ").append(line.trim()).append('\n');
+                        } else if (line != null && !line.isBlank()) {
+                            sb.append(line.trim()).append('\n');
+                        }
+                    }
+                    text = sb.toString();
+                }
+            } else if (name.endsWith(".txt") || name.endsWith(".md")) {
+                text = new String(file.getBytes(), java.nio.charset.StandardCharsets.UTF_8);
+            } else if (name.endsWith(".doc") || name.endsWith(".wps")) {
+                return ResponseEntity.badRequest().body(Map.of(
+                        "error", "暂不支持旧版 .doc/.wps 二进制格式，请在 WPS/Word 中另存为 .docx 后再导入"));
+            } else {
+                return ResponseEntity.badRequest().body(Map.of("error", "仅支持 .docx / .txt / .md 文件"));
+            }
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", "文件解析失败：" + e.getMessage()));
+        }
+        if (text == null || text.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "文件内容为空"));
+        }
+        int imported = schoolInfoService.bulkImport(category, text, operatorName(auth));
+        return ResponseEntity.ok(Map.of("msg", imported > 0 ? "成功导入 " + imported + " 条新规" : "未发现新条目（标题重复或格式不符）",
+                "imported", imported));
+    }
+
     /** 删除 */
     @DeleteMapping("/{id}")
     public ResponseEntity<Map<String, Object>> delete(@PathVariable Long id) {

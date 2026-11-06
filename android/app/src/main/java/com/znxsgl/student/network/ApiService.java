@@ -36,6 +36,31 @@ public interface ApiService {
     Call<Map<String, Object>> getAssistantQuick(
             @Header("Authorization") String token);
 
+    /* ===== 请假 / 临时外出 ===== */
+
+    @POST("/api/leave/apply")
+    Call<Map<String, Object>> applyLeave(
+            @Header("Authorization") String token,
+            @Body Map<String, Object> body);
+
+    @GET("/api/leave/my")
+    Call<List<Map<String, Object>>> getMyLeaves(
+            @Header("Authorization") String token);
+
+    @POST("/api/leave/{id}/cancel")
+    Call<Map<String, Object>> cancelLeave(
+            @Header("Authorization") String token,
+            @Path("id") long id);
+
+    @Multipart
+    @POST("/api/leave/{id}/return")
+    Call<Map<String, Object>> returnLeave(
+            @Header("Authorization") String token,
+            @Path("id") long id,
+            @Part MultipartBody.Part photo,
+            @Part("lat") RequestBody lat,
+            @Part("lng") RequestBody lng);
+
     @POST("/api/auth/login")
     Call<LoginResponse> login(@Body LoginRequest request);
 
