@@ -78,6 +78,9 @@ services:
       EMBEDDING_LOCAL_URL: http://embedding:8000/embeddings
     ports:
       - "8080:8080"
+    volumes:
+      # 上传文件持久化（返校打卡照片等），重建容器不丢
+      - ./uploads:/app/uploads
 
   # ===== Nginx（官网:80 + 管理端:8081，前端构建于 Dockerfile.frontend）=====
   nginx:

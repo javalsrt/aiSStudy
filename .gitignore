@@ -69,3 +69,5 @@ test/screenshots/
 *.apk
 
 *.err
+
+uploads/

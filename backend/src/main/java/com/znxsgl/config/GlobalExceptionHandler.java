@@ -105,6 +105,16 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(body);
     }
 
+    /** 静态资源不存在（如上传的照片已被清理 / 容器重建丢失） */
+    @ExceptionHandler(org.springframework.web.servlet.resource.NoResourceFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleNoResource(
+            org.springframework.web.servlet.resource.NoResourceFoundException ex,
+            HttpServletRequest request) {
+        Map<String, Object> body = baseBody(HttpStatus.NOT_FOUND, request, "文件不存在或已被清理");
+        log.warn("静态资源不存在：path={}", request.getRequestURI());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
+    }
+
     /** 兜底异常 */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleAll(Exception ex, HttpServletRequest request) {
