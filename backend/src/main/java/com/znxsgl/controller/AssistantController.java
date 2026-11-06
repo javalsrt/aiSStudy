@@ -54,14 +54,15 @@ public class AssistantController {
                 Map.of("key", "course", "title", "课程问答", "desc", "章节重点、习题解析"),
                 Map.of("key", "score", "title", "我的成绩", "desc", "考试成绩与答题记录"),
                 Map.of("key", "wrong", "title", "错题复盘", "desc", "薄弱知识点分析"),
-                Map.of("key", "schedule", "title", "我的课表", "desc", "今天/本周上什么课"),
-                Map.of("key", "career", "title", "就业升学", "desc", "专业方向与升学政策")
+                Map.of("key", "report", "title", "学习报告", "desc", "时长/进度/待办"),
+                Map.of("key", "schedule", "title", "我的课表", "desc", "今天/本周上什么课")
         ));
         data.put("suggestions", List.of(
-                "宿舍几点熄灯？",
-                "请假需要什么流程？",
-                "我上次考试考了多少分？",
+                "我最近学得怎么样？",
+                "我这周学了多久？",
                 "我哪门课错题最多？",
+                "我还有作业没交吗？",
+                "我的请假批了吗？",
                 "今天我有几节课？"
         ));
         return ResponseEntity.ok(data);
