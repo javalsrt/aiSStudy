@@ -72,6 +72,9 @@ export function LeaveApprovalPage() {
   const [selected, setSelected] = useState<number[]>([])
   const [statusFilter, setStatusFilter] = useState('ALL')
   const [keyword, setKeyword] = useState('')
+  /** 待审批：按班级 / 关键字筛选 */
+  const [pendingClass, setPendingClass] = useState('ALL')
+  const [pendingKeyword, setPendingKeyword] = useState('')
   const [message, setMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
 
   const load = useCallback(async () => {
@@ -95,20 +98,47 @@ export function LeaveApprovalPage() {
     load()
   }, [load])
 
+  // 切换筛选条件时清空勾选，避免批量操作误伤看不见的条目
+  useEffect(() => {
+    setSelected([])
+  }, [pendingClass, pendingKeyword])
+
+  /** 待审批可选的班级列表 */
+  const pendingClasses = useMemo(
+    () => Array.from(new Set(items.map((it) => it.className || '未知班级'))).sort((a, b) => a.localeCompare(b, 'zh')),
+    [items]
+  )
+
+  /** 待审批：班级 + 关键字筛选 */
+  const filteredPending = useMemo(() => {
+    const k = pendingKeyword.trim()
+    return items.filter((it) => {
+      if (pendingClass !== 'ALL' && (it.className || '未知班级') !== pendingClass) return false
+      if (!k) return true
+      return (
+        (it.studentName || '').includes(k) ||
+        (it.studentNo || '').includes(k) ||
+        (it.className || '').includes(k) ||
+        (it.reason || '').includes(k) ||
+        (it.destination || '').includes(k)
+      )
+    })
+  }, [items, pendingClass, pendingKeyword])
+
   /** 按班级分组（待审批） */
   const groups = useMemo(() => {
     const map = new Map<string, { className: string; headTeacher?: string | null; list: LeaveItem[] }>()
-    for (const it of items) {
+    for (const it of filteredPending) {
       const key = it.className || '未知班级'
       if (!map.has(key)) map.set(key, { className: key, headTeacher: it.headTeacherName, list: [] })
       map.get(key)!.list.push(it)
     }
     return Array.from(map.values()).sort((a, b) => a.className.localeCompare(b.className, 'zh'))
-  }, [items])
+  }, [filteredPending])
 
   const selectableIds = useMemo(
-    () => items.filter((it) => it.canReview !== false).map((it) => it.id),
-    [items]
+    () => filteredPending.filter((it) => it.canReview !== false).map((it) => it.id),
+    [filteredPending]
   )
   const allSelected = selectableIds.length > 0 && selected.length === selectableIds.length
 
@@ -187,7 +217,7 @@ export function LeaveApprovalPage() {
     if (tab === 'pending') {
       const rows: (string | number | null | undefined)[][] = [
         ['学号', '姓名', '班级', '类型', '出校时间', '预计回校', '天数', '状态', '事由', '去向', '家长电话', '已告知家长', '申请时间'],
-        ...items.map((it) => [
+        ...filteredPending.map((it) => [
           it.studentNo,
           it.studentName,
           it.className,
@@ -332,40 +362,87 @@ export function LeaveApprovalPage() {
               <CardContent className="py-12 text-center text-sm text-neutral-400">暂无待审批申请</CardContent>
             </Card>
           ) : (
-            <div className="flex flex-wrap items-center gap-3 rounded-lg bg-white px-3 py-2 ring-1 ring-neutral-200">
-              <label className="flex items-center gap-2 text-xs text-neutral-600">
+            <>
+              {/* 筛选：班级 + 关键字 */}
+              <div className="flex flex-wrap items-center gap-2 rounded-lg bg-white px-3 py-2 ring-1 ring-neutral-200">
+                <select
+                  className="h-8 rounded-md border border-neutral-200 bg-white px-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  value={pendingClass}
+                  onChange={(e) => setPendingClass(e.target.value)}
+                >
+                  <option value="ALL">全部班级</option>
+                  {pendingClasses.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
                 <input
-                  type="checkbox"
-                  className="h-4 w-4 accent-primary-500"
-                  checked={allSelected}
-                  disabled={selectableIds.length === 0}
-                  onChange={toggleAll}
+                  className="h-8 w-52 rounded-md border border-neutral-200 px-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  placeholder="搜索姓名 / 学号 / 事由"
+                  value={pendingKeyword}
+                  onChange={(e) => setPendingKeyword(e.target.value)}
                 />
-                全选（可审批 {selectableIds.length} 条）
-              </label>
-              <span className="text-xs text-neutral-400">已选 {selected.length} 条</span>
-              <div className="ml-auto flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 px-3 text-xs text-danger"
-                  disabled={batching || selected.length === 0}
-                  onClick={() => batchReview('reject')}
-                >
-                  <X className="mr-1 h-4 w-4" />
-                  批量驳回
-                </Button>
-                <Button
-                  size="sm"
-                  className="h-8 px-3 text-xs"
-                  disabled={batching || selected.length === 0}
-                  onClick={() => batchReview('approve')}
-                >
-                  <CheckCheck className="mr-1 h-4 w-4" />
-                  批量通过
-                </Button>
+                {(pendingClass !== 'ALL' || pendingKeyword.trim() !== '') && (
+                  <button
+                    className="h-8 rounded-md px-2 text-xs text-primary-600 hover:bg-primary-50"
+                    onClick={() => {
+                      setPendingClass('ALL')
+                      setPendingKeyword('')
+                    }}
+                  >
+                    重置
+                  </button>
+                )}
+                <span className="ml-auto text-xs text-neutral-400">
+                  筛选出 {filteredPending.length} / {items.length} 条
+                </span>
               </div>
-            </div>
+
+              {/* 批量操作 */}
+              <div className="flex flex-wrap items-center gap-3 rounded-lg bg-white px-3 py-2 ring-1 ring-neutral-200">
+                <label className="flex items-center gap-2 text-xs text-neutral-600">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 accent-primary-500"
+                    checked={allSelected}
+                    disabled={selectableIds.length === 0}
+                    onChange={toggleAll}
+                  />
+                  全选（可审批 {selectableIds.length} 条）
+                </label>
+                <span className="text-xs text-neutral-400">已选 {selected.length} 条</span>
+                <div className="ml-auto flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 px-3 text-xs text-danger"
+                    disabled={batching || selected.length === 0}
+                    onClick={() => batchReview('reject')}
+                  >
+                    <X className="mr-1 h-4 w-4" />
+                    批量驳回
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="h-8 px-3 text-xs"
+                    disabled={batching || selected.length === 0}
+                    onClick={() => batchReview('approve')}
+                  >
+                    <CheckCheck className="mr-1 h-4 w-4" />
+                    批量通过
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+
+          {items.length > 0 && filteredPending.length === 0 && (
+            <Card>
+              <CardContent className="py-12 text-center text-sm text-neutral-400">
+                没有符合条件的申请，换个班级或关键字试试
+              </CardContent>
+            </Card>
           )}
 
           {groups.map((g) => (
