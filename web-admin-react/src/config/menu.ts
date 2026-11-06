@@ -11,6 +11,7 @@ import {
   ClipboardList,
   MessageSquare,
   Clock,
+  BookMarked,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -38,6 +39,7 @@ export const adminMenus: MenuItem[] = [
   { path: '/admin/semester', title: '学期管理', icon: CalendarClock },
   { path: '/admin/schedule', title: '排课管理', icon: CalendarDays },
   { path: '/admin/bell', title: '作息设置', icon: Clock },
+  { path: '/admin/school-info', title: '校园信息', icon: BookMarked },
   { path: '/courses', title: '课程管理', icon: BookOpen },
   { path: '/course-chapters', title: '章节管理', icon: ListTree },
   { path: '/stats', title: '学习统计', icon: BarChart3 },

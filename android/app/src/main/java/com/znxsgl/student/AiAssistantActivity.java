@@ -1,0 +1,303 @@
+package com.znxsgl.student;
+
+import android.content.SharedPreferences;
+import android.graphics.Color;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
+import android.os.Bundle;
+import android.text.TextUtils;
+import android.view.Gravity;
+import android.view.View;
+import android.view.inputmethod.EditorInfo;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.GridLayout;
+import android.widget.ImageButton;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import androidx.appcompat.app.AppCompatActivity;
+
+import com.znxsgl.student.network.ApiService;
+import com.znxsgl.student.network.RetrofitClient;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+
+/**
+ * 校园 AI 助手：校内规定（底层知识）、课程资料、个人成绩课表问答。
+ */
+public class AiAssistantActivity extends AppCompatActivity {
+
+    private String token;
+    private LinearLayout boxMessages;
+    private LinearLayout boxSuggestions;
+    private GridLayout gridCapabilities;
+    private View welcomeCard;
+    private EditText etInput;
+    private Button btnSend;
+    private ScrollView scroll;
+    private boolean loading = false;
+
+    private static final String[][] FALLBACK_CAPS = {
+            {"校园规定", "作息/宿舍/请假"},
+            {"课程问答", "章节重点解析"},
+            {"我的成绩", "考试与答题"},
+            {"错题复盘", "薄弱知识点"},
+            {"我的课表", "今天上什么课"},
+            {"就业升学", "专业与升学"}
+    };
+
+    private static final String[] FALLBACK_SUGGESTIONS = {
+            "宿舍几点熄灯？",
+            "请假需要什么流程？",
+            "我上次考试考了多少分？",
+            "我哪门课错题最多？",
+            "今天我有几节课？"
+    };
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_ai_assistant);
+
+        SharedPreferences prefs = getSharedPreferences("znxsgl", 0);
+        token = "Bearer " + prefs.getString("token", "");
+
+        boxMessages = findViewById(R.id.boxMessages);
+        boxSuggestions = findViewById(R.id.boxSuggestions);
+        gridCapabilities = findViewById(R.id.gridCapabilities);
+        welcomeCard = findViewById(R.id.welcomeCard);
+        etInput = findViewById(R.id.etInput);
+        btnSend = findViewById(R.id.btnSend);
+        scroll = findViewById(R.id.scroll);
+
+        findViewById(R.id.btnClose).setOnClickListener(v -> finish());
+        btnSend.setOnClickListener(v -> submit());
+        etInput.setOnEditorActionListener((v, actionId, event) -> {
+            if (actionId == EditorInfo.IME_ACTION_SEND) {
+                submit();
+                return true;
+            }
+            return false;
+        });
+
+        renderFallback();
+        loadQuick();
+    }
+
+    /** 拉取欢迎页能力与推荐问题 */
+    private void loadQuick() {
+        ApiService api = RetrofitClient.getInstance().create(ApiService.class);
+        api.getAssistantQuick(token).enqueue(new Callback<Map<String, Object>>() {
+            @Override
+            public void onResponse(Call<Map<String, Object>> call, Response<Map<String, Object>> resp) {
+                if (!resp.isSuccessful() || resp.body() == null) return;
+                Map<String, Object> data = resp.body();
+                Object greeting = data.get("greeting");
+                if (greeting != null) {
+                    ((TextView) findViewById(R.id.tvGreeting)).setText(String.valueOf(greeting));
+                }
+                Object subtitle = data.get("subtitle");
+                if (subtitle != null) {
+                    ((TextView) findViewById(R.id.tvSubtitle)).setText(String.valueOf(subtitle));
+                }
+                Object caps = data.get("capabilities");
+                if (caps instanceof List && !((List<?>) caps).isEmpty()) {
+                    gridCapabilities.removeAllViews();
+                    for (Object o : (List<?>) caps) {
+                        if (o instanceof Map) {
+                            Map<?, ?> m = (Map<?, ?>) o;
+                            addCapability(String.valueOf(m.get("title")), String.valueOf(m.get("desc")));
+                        }
+                    }
+                }
+                Object suggestions = data.get("suggestions");
+                if (suggestions instanceof List && !((List<?>) suggestions).isEmpty()) {
+                    boxSuggestions.removeAllViews();
+                    for (Object o : (List<?>) suggestions) {
+                        addSuggestion(String.valueOf(o));
+                    }
+                }
+            }
+
+            @Override
+            public void onFailure(Call<Map<String, Object>> call, Throwable t) {
+                // 保留兜底内容，不打扰用户
+            }
+        });
+    }
+
+    private void renderFallback() {
+        gridCapabilities.removeAllViews();
+        boxSuggestions.removeAllViews();
+        for (String[] c : FALLBACK_CAPS) addCapability(c[0], c[1]);
+        for (String s : FALLBACK_SUGGESTIONS) addSuggestion(s);
+    }
+
+    /** 能力卡片（3 列宫格） */
+    private void addCapability(String title, String desc) {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(dp(10), dp(10), dp(10), dp(10));
+        box.setBackground(roundBg(0xFFF5F7FF, 12, 0xFFE6ECFF));
+        GridLayout.LayoutParams lp = new GridLayout.LayoutParams(
+                GridLayout.spec(GridLayout.UNDEFINED, 1f), GridLayout.spec(GridLayout.UNDEFINED, 1f));
+        lp.width = 0;
+        lp.setMargins(dp(3), dp(3), dp(3), dp(3));
+        box.setLayoutParams(lp);
+
+        TextView t = new TextView(this);
+        t.setText(title);
+        t.setTextSize(13);
+        t.setTypeface(Typeface.DEFAULT_BOLD);
+        t.setTextColor(0xFF2B3A67);
+        box.addView(t);
+
+        TextView d = new TextView(this);
+        d.setText(desc);
+        d.setTextSize(10.5f);
+        d.setTextColor(0xFF8A93A6);
+        d.setPadding(0, dp(3), 0, 0);
+        box.addView(d);
+
+        box.setOnClickListener(v -> {
+            String q = "校园规定".equals(title) ? "学校有哪些规定？" : title;
+            etInput.setText(q);
+            etInput.setSelection(q.length());
+        });
+        gridCapabilities.addView(box);
+    }
+
+    /** 推荐问题 */
+    private void addSuggestion(String text) {
+        TextView t = new TextView(this);
+        t.setText("# " + text);
+        t.setTextSize(13);
+        t.setTextColor(0xFF4A5468);
+        t.setPadding(0, dp(8), 0, dp(8));
+        t.setOnClickListener(v -> {
+            etInput.setText(text);
+            submit();
+        });
+        boxSuggestions.addView(t);
+    }
+
+    private void submit() {
+        if (loading) return;
+        String text = etInput.getText() == null ? "" : etInput.getText().toString().trim();
+        if (TextUtils.isEmpty(text)) {
+            Toast.makeText(this, "请输入问题", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        etInput.setText("");
+        hideWelcome();
+        addBubble(text, true);
+
+        final TextView loadingBubble = addBubble("正在思考…", false);
+        setLoading(true);
+
+        ApiService api = RetrofitClient.getInstance().create(ApiService.class);
+        Map<String, String> body = new java.util.HashMap<>();
+        body.put("message", text);
+        api.askAssistant(token, body).enqueue(new Callback<Map<String, Object>>() {
+            @Override
+            public void onResponse(Call<Map<String, Object>> call, Response<Map<String, Object>> resp) {
+                setLoading(false);
+                if (!resp.isSuccessful() || resp.body() == null) {
+                    loadingBubble.setText("服务暂时不可用，请稍后再试");
+                    return;
+                }
+                Map<String, Object> data = resp.body();
+                Object answer = data.get("answer");
+                String text = answer == null ? "抱歉，我没有理解这个问题。" : String.valueOf(answer);
+                Object src = data.get("sources");
+                if (src instanceof List) {
+                    List<String> titles = new ArrayList<>();
+                    for (Object o : (List<?>) src) {
+                        if (o instanceof Map) {
+                            Object t = ((Map<?, ?>) o).get("title");
+                            if (t != null) titles.add(String.valueOf(t));
+                        }
+                    }
+                    if (!titles.isEmpty()) {
+                        text += "\n\n来源：" + TextUtils.join("、", titles);
+                    }
+                }
+                loadingBubble.setText(text);
+                scrollToBottom();
+            }
+
+            @Override
+            public void onFailure(Call<Map<String, Object>> call, Throwable t) {
+                setLoading(false);
+                loadingBubble.setText(UiMsg.network(t));
+                scrollToBottom();
+            }
+        });
+    }
+
+    private void hideWelcome() {
+        if (welcomeCard != null && welcomeCard.getVisibility() == View.VISIBLE) {
+            welcomeCard.setVisibility(View.GONE);
+        }
+    }
+
+    private void setLoading(boolean v) {
+        loading = v;
+        btnSend.setEnabled(!v);
+        btnSend.setAlpha(v ? 0.6f : 1f);
+    }
+
+    /** 气泡：me=true 右侧蓝色，否则左侧白色 */
+    private TextView addBubble(String text, boolean me) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(me ? Gravity.END : Gravity.START);
+        row.setPadding(0, dp(6), 0, dp(6));
+
+        TextView tv = new TextView(this);
+        tv.setText(text);
+        tv.setTextSize(14);
+        tv.setLineSpacing(dp(3), 1f);
+        tv.setPadding(dp(12), dp(10), dp(12), dp(10));
+        int maxW = (int) (getResources().getDisplayMetrics().widthPixels * 0.82);
+        tv.setMaxWidth(maxW);
+        if (me) {
+            tv.setTextColor(Color.WHITE);
+            tv.setBackground(roundBg(0xFF3B6EF6, 14, 0));
+        } else {
+            tv.setTextColor(0xFF1F2937);
+            tv.setBackground(roundBg(0xFFFFFFFF, 14, 0xFFECECF1));
+        }
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        row.addView(tv, lp);
+        boxMessages.addView(row);
+        scrollToBottom();
+        return tv;
+    }
+
+    private void scrollToBottom() {
+        scroll.post(() -> scroll.fullScroll(View.FOCUS_DOWN));
+    }
+
+    private GradientDrawable roundBg(int color, int radiusDp, int strokeColor) {
+        GradientDrawable d = new GradientDrawable();
+        d.setColor(color);
+        d.setCornerRadius(dp(radiusDp));
+        if (strokeColor != 0) d.setStroke(dp(1), strokeColor);
+        return d;
+    }
+
+    private int dp(int v) {
+        return Math.round(getResources().getDisplayMetrics().density * v);
+    }
+}

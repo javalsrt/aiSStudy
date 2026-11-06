@@ -6,6 +6,9 @@
     <item android:id="@+id/nav_focus"
         android:icon="@drawable/ic_focus"
         android:title="学习" />
+    <item android:id="@+id/nav_ai"
+        android:icon="@drawable/ic_ai"
+        android:title="AI 助手" />
     <item android:id="@+id/nav_news"
         android:icon="@drawable/ic_news"
         android:title="资讯" />

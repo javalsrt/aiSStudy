@@ -30,6 +30,10 @@
             android:name=".MainActivity"
             android:exported="false" />
         <activity
+            android:name=".AiAssistantActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
             android:name=".CourseDetailActivity"
             android:exported="false"
             android:parentActivityName=".MainActivity"

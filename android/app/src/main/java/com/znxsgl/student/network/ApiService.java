@@ -25,6 +25,17 @@ import retrofit2.http.Query;
 
 public interface ApiService {
 
+    /** 校园 AI 助手：提问 */
+    @POST("/api/ai/assistant")
+    Call<Map<String, Object>> askAssistant(
+            @Header("Authorization") String token,
+            @Body Map<String, String> body);
+
+    /** 校园 AI 助手：欢迎页能力与推荐问题 */
+    @GET("/api/ai/assistant/quick")
+    Call<Map<String, Object>> getAssistantQuick(
+            @Header("Authorization") String token);
+
     @POST("/api/auth/login")
     Call<LoginResponse> login(@Body LoginRequest request);
 
