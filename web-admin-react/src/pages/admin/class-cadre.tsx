@@ -31,14 +31,19 @@ export function ClassCadrePage() {
   useEffect(() => {
     (async () => {
       try {
-        const [cs, opt, lg] = await Promise.all([
+        const [csR, optR, lgR] = await Promise.allSettled([
           getClassHeadList(),
           getPositionOptions(),
           getPositionLogs(20),
         ])
+        if (csR.status === 'rejected' && optR.status === 'rejected') {
+          throw csR.reason
+        }
+        const cs = csR.status === 'fulfilled' ? csR.value : []
+        const opt = optR.status === 'fulfilled' ? optR.value : { cadres: [], adminOnly: [] }
         setClasses(cs)
         setOptions([...(opt.cadres || []), ...(opt.adminOnly || [])])
-        setLogs(lg || [])
+        setLogs(lgR.status === 'fulfilled' ? lgR.value || [] : [])
         if (cs.length > 0) {
           setClassId(cs[0].id)
           loadStudents(cs[0].id)

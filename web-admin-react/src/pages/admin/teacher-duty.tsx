@@ -39,14 +39,20 @@ export function TeacherDutyPage() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const [ts, cs, lg] = await Promise.all([
+      // 记录接口失败不应拖垮整页（例如数据库尚未执行迁移 24）
+      const [tsR, csR, lgR] = await Promise.allSettled([
         getTeacherDutyList(),
         getClassHeadList(),
         getHeadTeacherLogs(20),
       ])
+      if (tsR.status === 'rejected' && csR.status === 'rejected') {
+        throw tsR.reason
+      }
+      const ts = tsR.status === 'fulfilled' ? tsR.value : []
+      const cs = csR.status === 'fulfilled' ? csR.value : []
       setTeachers(ts)
       setClasses(cs)
-      setLogs(lg || [])
+      setLogs(lgR.status === 'fulfilled' ? lgR.value || [] : [])
       setPicked(Object.fromEntries(cs.map((c) => [c.id, c.headTeacherId ?? ''])))
     } catch (e: any) {
       setMessage({ type: 'err', text: e?.message || '加载失败' })

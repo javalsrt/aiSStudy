@@ -40,12 +40,36 @@ public class TeacherDutyController {
             args.add("%" + keyword.trim() + "%");
             args.add("%" + keyword.trim() + "%");
         }
-        sql.append(" ORDER BY t.is_leader DESC, t.duty = '班主任' DESC, t.id");
-        List<Map<String, Object>> rows = jdbc.queryForList(sql.toString(), args.toArray());
+        sql.append(" ORDER BY 1");
+        List<Map<String, Object>> rows;
+        try {
+            rows = jdbc.queryForList(
+                    "SELECT t.id, t.real_name AS name, t.teacher_no AS teacherNo, t.title, t.duty, " +
+                            "t.is_leader AS isLeader, t.phone, t.status FROM teacher t WHERE 1=1" +
+                            (keyword != null && !keyword.isBlank()
+                                    ? " AND (t.real_name LIKE '%" + keyword.trim().replace("'", "") + "%' " +
+                                    "OR t.teacher_no LIKE '%" + keyword.trim().replace("'", "") + "%')"
+                                    : "") +
+                            " ORDER BY t.is_leader DESC, t.duty = '班主任' DESC, t.id");
+        } catch (Exception e) {
+            // 数据库未执行迁移 22（缺 duty / is_leader 列）时降级
+            rows = jdbc.queryForList(
+                    "SELECT id, real_name AS name, teacher_no AS teacherNo, title, phone, status FROM teacher ORDER BY id");
+            for (Map<String, Object> r : rows) {
+                r.put("duty", "教师");
+                r.put("isLeader", 0);
+            }
+        }
         for (Map<String, Object> r : rows) {
             Long tid = ((Number) r.get("id")).longValue();
-            List<String> classes = jdbc.queryForList(
-                    "SELECT class_name FROM class_info WHERE head_teacher_id = ? ORDER BY class_name", String.class, tid);
+            List<String> classes;
+            try {
+                classes = jdbc.queryForList(
+                        "SELECT class_name FROM class_info WHERE head_teacher_id = ? ORDER BY class_name",
+                        String.class, tid);
+            } catch (Exception e) {
+                classes = java.util.Collections.emptyList();
+            }
             r.put("headClasses", classes);
             r.put("headClassCount", classes.size());
         }
@@ -71,13 +95,23 @@ public class TeacherDutyController {
     /** 班级列表（含当前班主任） */
     @GetMapping("/classes")
     public ResponseEntity<List<Map<String, Object>>> classes() {
-        return ResponseEntity.ok(jdbc.queryForList(
-                "SELECT ci.id, ci.class_name AS className, ci.grade, ci.major, ci.department, " +
-                        "ci.head_teacher_id AS headTeacherId, t.real_name AS headTeacherName, t.duty AS headTeacherDuty, " +
-                        "t.is_leader AS headTeacherIsLeader, " +
-                        "(SELECT COUNT(*) FROM user u WHERE u.class_id = ci.id AND u.status = 1) AS studentCount " +
-                        "FROM class_info ci LEFT JOIN teacher t ON t.id = ci.head_teacher_id " +
-                        "ORDER BY ci.grade, ci.class_name"));
+        try {
+            return ResponseEntity.ok(jdbc.queryForList(
+                    "SELECT ci.id, ci.class_name AS className, ci.grade, ci.major, ci.department, " +
+                            "ci.head_teacher_id AS headTeacherId, t.real_name AS headTeacherName, t.duty AS headTeacherDuty, " +
+                            "t.is_leader AS headTeacherIsLeader, " +
+                            "(SELECT COUNT(*) FROM user u WHERE u.class_id = ci.id AND u.status = 1) AS studentCount " +
+                            "FROM class_info ci LEFT JOIN teacher t ON t.id = ci.head_teacher_id " +
+                            "ORDER BY ci.grade, ci.class_name"));
+        } catch (Exception e) {
+            // 未迁移 head_teacher_id / duty 时降级：仍返回班级与人数，班主任显示为空
+            return ResponseEntity.ok(jdbc.queryForList(
+                    "SELECT ci.id, ci.class_name AS className, ci.grade, ci.major, ci.department, " +
+                            "NULL AS headTeacherId, NULL AS headTeacherName, NULL AS headTeacherDuty, " +
+                            "0 AS headTeacherIsLeader, " +
+                            "(SELECT COUNT(*) FROM user u WHERE u.class_id = ci.id AND u.status = 1) AS studentCount " +
+                            "FROM class_info ci ORDER BY ci.grade, ci.class_name"));
+        }
     }
 
     /**
@@ -142,11 +176,16 @@ public class TeacherDutyController {
     public ResponseEntity<List<Map<String, Object>>> logs(
             @RequestParam(value = "limit", defaultValue = "20") int limit) {
         int n = Math.min(Math.max(limit, 1), 100);
-        return ResponseEntity.ok(jdbc.queryForList(
-                "SELECT id, operator_name AS operatorName, class_id AS classId, class_name AS className, " +
-                        "action, old_teacher AS oldTeacher, new_teacher AS newTeacher, " +
-                        "DATE_FORMAT(created_at, '%m-%d %H:%i') AS createdAt " +
-                        "FROM class_head_log ORDER BY id DESC LIMIT ?", n));
+        try {
+            return ResponseEntity.ok(jdbc.queryForList(
+                    "SELECT id, operator_name AS operatorName, class_id AS classId, class_name AS className, " +
+                            "action, old_teacher AS oldTeacher, new_teacher AS newTeacher, " +
+                            "DATE_FORMAT(created_at, '%m-%d %H:%i') AS createdAt " +
+                            "FROM class_head_log ORDER BY id DESC LIMIT ?", n));
+        } catch (Exception e) {
+            // 未执行迁移 24（缺 class_head_log）时返回空列表，不影响页面
+            return ResponseEntity.ok(List.of());
+        }
     }
 
     private String teacherName(Long id) {

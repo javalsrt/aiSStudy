@@ -51,10 +51,17 @@ public class StudentPositionController {
         if (!canAccessClass(auth, classId)) {
             return ResponseEntity.status(403).body(Map.of("error", "只能查看自己班级的学生"));
         }
-        return ResponseEntity.ok(jdbc.queryForList(
-                "SELECT id, real_name AS name, student_no AS studentNo, position, status " +
-                        "FROM user WHERE class_id = ? AND role = 1 AND status = 1 ORDER BY position IS NULL, position, id",
-                classId));
+        try {
+            return ResponseEntity.ok(jdbc.queryForList(
+                    "SELECT id, real_name AS name, student_no AS studentNo, position, status " +
+                            "FROM user WHERE class_id = ? AND role = 1 AND status = 1 ORDER BY position IS NULL, position, id",
+                    classId));
+        } catch (Exception e) {
+            // 未迁移 position 列时降级：仍返回学生名单
+            return ResponseEntity.ok(jdbc.queryForList(
+                    "SELECT id, real_name AS name, student_no AS studentNo, NULL AS position, status " +
+                            "FROM user WHERE class_id = ? AND role = 1 AND status = 1 ORDER BY id", classId));
+        }
     }
 
     /** 设置职务（position 为空串=清除） */
@@ -91,7 +98,12 @@ public class StudentPositionController {
             oldPosition = String.valueOf(olds.get(0).get("position"));
         }
 
-        jdbc.update("UPDATE user SET position = ? WHERE id = ?", position.isEmpty() ? null : position, userId);
+        try {
+            jdbc.update("UPDATE user SET position = ? WHERE id = ?", position.isEmpty() ? null : position, userId);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "数据库缺少 user.position 字段，请执行迁移 init-db/23-user-position.sql"));
+        }
 
         // 记录调整
         try {
@@ -122,17 +134,22 @@ public class StudentPositionController {
                 "l.class_name AS className, l.old_position AS oldPosition, l.new_position AS newPosition, " +
                 "DATE_FORMAT(l.created_at, '%m-%d %H:%i') AS createdAt " +
                 "FROM student_position_log l WHERE 1=1 ";
-        if (hasRole(auth, "ROLE_ADMIN")) {
-            return ResponseEntity.ok(jdbc.queryForList(sql + "ORDER BY l.id DESC LIMIT ?", n));
+        try {
+            if (hasRole(auth, "ROLE_ADMIN")) {
+                return ResponseEntity.ok(jdbc.queryForList(sql + "ORDER BY l.id DESC LIMIT ?", n));
+            }
+            Long uid = uid(auth);
+            return ResponseEntity.ok(jdbc.queryForList(
+                    sql + "AND l.class_id IN (" +
+                            "SELECT ci.id FROM class_info ci JOIN teacher t ON t.id = ci.head_teacher_id " +
+                            "JOIN user u ON u.real_name = t.real_name WHERE u.id = ?" +
+                            " UNION SELECT cc.class_id FROM course_class cc JOIN course c ON c.id = cc.course_id " +
+                            "JOIN teacher t2 ON t2.id = c.teacher_id JOIN user u2 ON u2.real_name = t2.real_name WHERE u2.id = ?" +
+                            ") ORDER BY l.id DESC LIMIT ?", uid, uid, n));
+        } catch (Exception e) {
+            // 未执行迁移 24 时返回空列表
+            return ResponseEntity.ok(List.of());
         }
-        Long uid = uid(auth);
-        return ResponseEntity.ok(jdbc.queryForList(
-                sql + "AND l.class_id IN (" +
-                        "SELECT ci.id FROM class_info ci JOIN teacher t ON t.id = ci.head_teacher_id " +
-                        "JOIN user u ON u.real_name = t.real_name WHERE u.id = ?" +
-                        " UNION SELECT cc.class_id FROM course_class cc JOIN course c ON c.id = cc.course_id " +
-                        "JOIN teacher t2 ON t2.id = c.teacher_id JOIN user u2 ON u2.real_name = t2.real_name WHERE u2.id = ?" +
-                        ") ORDER BY l.id DESC LIMIT ?", uid, uid, n));
     }
 
     private Long uid(Authentication auth) {
