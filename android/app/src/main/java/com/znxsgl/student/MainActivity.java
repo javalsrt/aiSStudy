@@ -98,7 +98,11 @@ public class MainActivity extends AppCompatActivity {
             try {
                 ViewGroup menuView = (ViewGroup) bottomNav.getChildAt(0);
                 if (menuView == null || menuView.getChildCount() <= 2) return;
-                hideLabelAndEnlargeIcon(menuView.getChildAt(2));
+                View aiItem = menuView.getChildAt(2);
+                menuView.setClipChildren(false);
+                if (aiItem instanceof ViewGroup) ((ViewGroup) aiItem).setClipChildren(false);
+                hideLabelAndEnlargeIcon(aiItem);
+                centerIconVertically(aiItem);
             } catch (Exception ignored) {
             }
         });
@@ -112,18 +116,46 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         if (v instanceof android.widget.ImageView) {
-            ViewGroup.LayoutParams lp = v.getLayoutParams();
-            if (lp != null) {
-                lp.width = dp(32);
-                lp.height = dp(32);
-                v.setLayoutParams(lp);
-            }
+            // BottomNavigationMenuView 会在测量时重置图标尺寸，这里用缩放实现真正的放大
+            v.setScaleX(1.65f);
+            v.setScaleY(1.65f);
+            if (v.getParent() instanceof ViewGroup parent) parent.setClipChildren(false);
         }
         if (v instanceof ViewGroup g) {
             for (int i = 0; i < g.getChildCount(); i++) {
                 hideLabelAndEnlargeIcon(g.getChildAt(i));
             }
         }
+    }
+
+    /** 隐藏文字后图标会偏上，把它移到页签的垂直中心 */
+    private void centerIconVertically(View item) {
+        if (item == null) return;
+        item.postDelayed(() -> {
+            try {
+                android.widget.ImageView icon = findIcon(item);
+                if (icon == null || item.getHeight() == 0) return;
+                int[] itemPos = new int[2];
+                int[] iconPos = new int[2];
+                item.getLocationInWindow(itemPos);
+                icon.getLocationInWindow(iconPos);
+                float itemCenter = item.getHeight() / 2f;
+                float iconCenter = (iconPos[1] - itemPos[1]) + icon.getHeight() / 2f;
+                icon.setTranslationY(itemCenter - iconCenter);
+            } catch (Exception ignored) {
+            }
+        }, 60);
+    }
+
+    private android.widget.ImageView findIcon(View v) {
+        if (v instanceof android.widget.ImageView) return (android.widget.ImageView) v;
+        if (v instanceof ViewGroup g) {
+            for (int i = 0; i < g.getChildCount(); i++) {
+                android.widget.ImageView found = findIcon(g.getChildAt(i));
+                if (found != null) return found;
+            }
+        }
+        return null;
     }
 
     private int dp(int v) {
