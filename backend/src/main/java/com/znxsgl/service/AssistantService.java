@@ -122,7 +122,7 @@ public class AssistantService {
         }
 
         Map<String, Object> resp = new LinkedHashMap<>();
-        resp.put("answer", answer.trim());
+        resp.put("answer", formatAnswer(answer));
         resp.put("sources", sources);
         resp.put("hasSchoolInfo", !schoolHits.isEmpty());
         resp.put("hasPersonalData", !personal.isBlank());
@@ -137,13 +137,20 @@ public class AssistantService {
                 ? "（本次未检索到校园信息、课程资料或个人数据）"
                 : context;
         return """
-                你是「智学职达」校园 AI 助手，服务中职学生。回答必须遵守以下优先级：
-                1. 【校园信息】是学校官方规定，涉及校规、作息、宿舍、请假、奖助、收费等问题时，**只能**依据它回答；
-                   如果校园信息里没有相关内容，必须明确说「学校暂未收录该规定，建议咨询班主任或学生处」，禁止自行编造校规。
-                2. 【课程资料】用于回答课程知识、章节重点、习题解析。
-                3. 【个人数据】用于回答「我的课表/成绩/错题」等，数字必须与给定数据一致，不得四舍五入或编造。
-                4. 以上都不涉及的问题可以正常回答，但要说明「以下内容为通用建议，仅供参考」。
-                要求：中文作答；简洁分点；不要输出 Markdown 表格；不要提及"根据提供的资料"这类元话术，直接给结论。
+                你是「智学职达」校园 AI 助手，服务中职学生。回答优先级：
+                1. 校园信息是学校官方规定，涉及校规、作息、宿舍、请假、奖助、收费等问题时必须依据它；
+                   其中没有的内容，直接说「学校暂未收录该规定，建议咨询班主任或学生处」，禁止编造。
+                2. 课程资料用于回答课程知识、章节重点、习题解析。
+                3. 个人数据用于回答课表、成绩、错题、学习时长等，数字必须与给定数据一致，不得编造。
+                4. 都不涉及的问题可正常回答，但要说明「以下为通用建议，仅供参考」。
+
+                输出格式（必须严格遵守）：
+                · 纯文本，禁止任何 Markdown 符号：不要出现 **、##、`、~~、>、|、表格、分割线。
+                · 分 2 到 4 个小节，每个小节标题单独占一行，写成「一、学习情况」这种形式，标题后不加冒号。
+                · 每节内一条一句、独立成行，行首用「· 」；不要写成一整段。
+                · 小节与小节之间空一行；不要开场白（如「好的」「以下是」），不要复述问题。
+                · 单条不超过 40 字，整篇不超过 250 字；有数据就报数据。
+                · 建议最多 2 条，不要长篇罗列。
 
                 ===== 可用资料 =====
                 """ + layers;
@@ -227,6 +234,22 @@ public class AssistantService {
             log.debug("课程匹配失败: {}", e.getMessage());
         }
         return null;
+    }
+
+    /** 清理模型输出里的 Markdown 残留，统一成 App 易读的纯文本排版 */
+    private String formatAnswer(String raw) {
+        if (raw == null) return "";
+        String s = raw.replace("\r\n", "\n").replace("\r", "\n");
+        s = s.replaceAll("\\*\\*(.+?)\\*\\*", "$1");      // **加粗**
+        s = s.replaceAll("(?m)^\\s*#{1,6}\\s*", "");        // # 标题
+        s = s.replaceAll("(?m)^\\s*[-*+]\\s+", "· ");       // - 列表项
+        s = s.replaceAll("(?m)^\\s*>\\s?", "");             // > 引用
+        s = s.replaceAll("`{1,3}", "");                     // 行内代码
+        s = s.replace("**", "").replace("~~", "");          // 残留符号
+        s = s.replaceAll("(?m)^\\s*[-|: ]{3,}\\s*$", "");   // 表格/分割线
+        s = s.replaceAll("[ \\t]+\\n", "\n");               // 行尾空格
+        s = s.replaceAll("\n{3,}", "\n\n");                 // 多余空行
+        return s.trim();
     }
 
     /** 个人数据：按问题意图选择性查询，避免每次都全表扫 */

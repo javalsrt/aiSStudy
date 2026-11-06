@@ -195,7 +195,7 @@ public class AiAssistantFragment extends Fragment {
 
     private void addSuggestion(String text) {
         TextView t = new TextView(requireContext());
-        t.setText("# " + text);
+        t.setText(text);
         t.setTextSize(13);
         t.setTextColor(0xFF4A5468);
         t.setPadding(0, dp(8), 0, dp(8));
@@ -244,7 +244,12 @@ public class AiAssistantFragment extends Fragment {
                             if (t != null) titles.add(String.valueOf(t));
                         }
                     }
-                    if (!titles.isEmpty()) ans += "\n\n来源：" + TextUtils.join("、", titles);
+                    if (!titles.isEmpty()) {
+                        // 来源只保留前 3 项，避免长串来源把回答挤得更密
+                        String joined = TextUtils.join("、", titles.subList(0, Math.min(3, titles.size())));
+                        if (titles.size() > 3) joined += " 等 " + titles.size() + " 项";
+                        ans += "\n\n来源：" + joined;
+                    }
                 }
                 loadingBubble.setText(ans);
                 scrollToBottom();
@@ -282,7 +287,8 @@ public class AiAssistantFragment extends Fragment {
         TextView tv = new TextView(ctx);
         tv.setText(text);
         tv.setTextSize(14);
-        tv.setLineSpacing(dp(3), 1f);
+        // 回答通常多段，行距放宽一些，避免文字挤在一起
+        tv.setLineSpacing(dp(5), 1.15f);
         tv.setPadding(dp(12), dp(10), dp(12), dp(10));
         int maxW = (int) (getResources().getDisplayMetrics().widthPixels * 0.82);
         tv.setMaxWidth(maxW);
