@@ -127,16 +127,15 @@
         </LinearLayout>
     </ScrollView>
 
-    <!-- 输入区 -->
+    <!-- 输入区（透明底，浮在页面上） -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:background="#FFFFFF"
         android:paddingStart="12dp"
         android:paddingEnd="12dp"
-        android:paddingTop="8dp"
-        android:paddingBottom="10dp">
+        android:paddingTop="6dp"
+        android:paddingBottom="4dp">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -156,7 +155,7 @@
                 android:paddingEnd="14dp"
                 android:paddingTop="10dp"
                 android:paddingBottom="10dp"
-                android:hint="可以问我：宿舍几点熄灯？"
+                android:hint="可以问我：宿舍几点熄灯？（长按语音输入）"
                 android:textColorHint="#9CA3AF"
                 android:textSize="14sp"
                 android:inputType="textMultiLine|textCapSentences" />
@@ -174,13 +173,5 @@
                 android:stateListAnimator="@null" />
         </LinearLayout>
 
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
-            android:gravity="center"
-            android:text="内容由 AI 生成，仅供参考；校内规定以学校正式文件为准"
-            android:textColor="#B0B4BB"
-            android:textSize="10.5sp" />
     </LinearLayout>
 </LinearLayout>
