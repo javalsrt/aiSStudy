@@ -65,7 +65,9 @@ services:
       # 作息表图片识别（OpenAI 兼容多模态模型）：不配置则管理端「图片识别」按钮提示未启用
       VISION_API_KEY: ${VISION_API_KEY:-}
       VISION_URL: ${VISION_URL:-https://api.siliconflow.cn/v1/chat/completions}
-      VISION_MODEL: ${VISION_MODEL:-Qwen/Qwen2.5-VL-7B-Instruct}enerationMustBe256Bits
+      VISION_MODEL: ${VISION_MODEL:-Qwen/Qwen2.5-VL-7B-Instruct}
+      # 本地 OCR 服务（作息表图片识别，离线零成本）
+      OCR_SERVICE_URL: http://ocr:8100enerationMustBe256Bits
       JWT_EXPIRATION: "86400000"
       # LLM 对话模型（DeepSeek），Key 需在服务器上通过 .env 提供
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
@@ -91,6 +93,18 @@ services:
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
       # - ./ssl:/etc/nginx/ssl:ro   # HTTPS 证书目录：备案后创建 ssl/ 并放入证书
+
+  # ===== 作息表 OCR 服务（RapidOCR + 版式解析，离线零成本）=====
+  ocr:
+    build:
+      context: ./ocr-service
+      dockerfile: Dockerfile
+    container_name: znxsgl-ocr
+    restart: unless-stopped
+    ports:
+      - "8100:8100"
+    environment:
+      TZ: Asia/Shanghai
 
   # ===== 本地 Embedding 服务（RAG/AI 问答用，可选）=====
   # 启动：docker compose --profile ai up -d

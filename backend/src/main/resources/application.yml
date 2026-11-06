@@ -65,6 +65,10 @@ vision:
   url: ${VISION_URL:https://api.siliconflow.cn/v1/chat/completions}
   model: ${VISION_MODEL:Qwen/Qwen2.5-VL-7B-Instruct}
 
+# 本地作息表 OCR 服务（RapidOCR + 版式解析，离线零成本，优先于视觉模型）
+ocr:
+  url: ${OCR_SERVICE_URL:http://localhost:8100}
+
 # 本地 BGE-M3 Embedding 服务配置，宽带是数据流量大小，吞吐是发送接收的效率，物理层，传输层，数据链路层，网络层，会话层，应用层
 embedding:
   local:

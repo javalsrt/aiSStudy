@@ -405,7 +405,7 @@ export function BellSchedulePage() {
               size="sm"
               onClick={() => imageRef.current?.click()}
               disabled={recognizing || loading}
-              title="上传作息表照片/截图，由 AI 视觉自动识别节次时间"
+              title="上传作息表照片/截图，自动识别教学节次时间（本地 OCR，离线可用）"
             >
               <ScanLine className="mr-1 h-4 w-4" />
               {recognizing ? '识别中…' : '图片识别'}
@@ -469,7 +469,7 @@ export function BellSchedulePage() {
 
           <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
             <div className="text-xs text-neutral-400">
-              保存将覆盖所选范围内原有的通用作息；「图片识别」支持拍照/截图，仅提取教学节次（起床铃、早读、午休等自动忽略）。
+              保存将覆盖所选范围内原有的通用作息；「图片识别」支持拍照/截图，自动忽略起床铃、早读、午休等非教学时段（本地 OCR，无需联网）。
             </div>
             <Button onClick={submit} disabled={saving || loading}>
               <Save className="mr-1 h-4 w-4" />

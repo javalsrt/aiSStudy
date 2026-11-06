@@ -67,3 +67,5 @@ test/screenshots/
 # ===== IDE 会话数据与构建产物 =====
 .codebuddy/
 *.apk
+
+*.err

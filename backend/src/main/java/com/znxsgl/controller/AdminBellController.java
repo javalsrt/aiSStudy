@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.znxsgl.service.BellTimeService;
 import com.znxsgl.service.BellVisionService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -28,6 +30,8 @@ import java.util.Map;
 @RequestMapping("/api/admin/bell")
 public class AdminBellController {
 
+    private static final Logger log = LoggerFactory.getLogger(AdminBellController.class);
+
     private static final DateTimeFormatter HHMM = DateTimeFormatter.ofPattern("HH:mm");
 
     /** 标准作息建议（2026-2027 秋季学期，教学节次） */
@@ -45,13 +49,16 @@ public class AdminBellController {
     private final JdbcTemplate jdbc;
     private final BellTimeService bellTimeService;
     private final BellVisionService bellVisionService;
+    private final com.znxsgl.service.BellOcrClient bellOcrClient;
     private final ObjectMapper mapper = new ObjectMapper();
 
     public AdminBellController(JdbcTemplate jdbc, BellTimeService bellTimeService,
-                               BellVisionService bellVisionService) {
+                               BellVisionService bellVisionService,
+                               com.znxsgl.service.BellOcrClient bellOcrClient) {
         this.jdbc = jdbc;
         this.bellTimeService = bellTimeService;
         this.bellVisionService = bellVisionService;
+        this.bellOcrClient = bellOcrClient;
     }
 
     /**
@@ -75,21 +82,47 @@ public class AdminBellController {
         if (file.getSize() > 10L * 1024 * 1024) {
             return ResponseEntity.badRequest().body(Map.of("error", "图片不能超过 10MB"));
         }
+        byte[] bytes;
         try {
-            String text = bellVisionService.recognize(file.getBytes(), mime);
-            List<Map<String, Object>> periods = parsePeriods(text);
-            if (periods.isEmpty()) {
-                return ResponseEntity.ok(Map.of("error", "未识别到教学节次时间，请换一张更清晰的图片"));
-            }
-            Map<String, Object> resp = new LinkedHashMap<>();
-            resp.put("periods", periods);
-            resp.put("count", periods.size());
-            return ResponseEntity.ok(resp);
-        } catch (IllegalStateException e) {
-            return ResponseEntity.status(503).body(Map.of("error", e.getMessage()));
+            bytes = file.getBytes();
         } catch (Exception e) {
-            return ResponseEntity.ok(Map.of("error", "识别失败：" + e.getMessage()));
+            return ResponseEntity.badRequest().body(Map.of("error", "图片读取失败"));
         }
+
+        // 1) 本地 OCR 优先：OpenCV 版式切分 + RapidOCR，离线零成本
+        try {
+            List<Map<String, Object>> ocrPeriods = bellOcrClient.recognize(bytes, name, mime);
+            if (!ocrPeriods.isEmpty()) {
+                Map<String, Object> resp = new LinkedHashMap<>();
+                resp.put("periods", ocrPeriods);
+                resp.put("count", ocrPeriods.size());
+                resp.put("source", "ocr");
+                return ResponseEntity.ok(resp);
+            }
+            log.warn("[BellOCR] 未识别到教学节次，尝试视觉模型兜底");
+        } catch (Exception e) {
+            log.warn("[BellOCR] 本地 OCR 不可用（{}），尝试视觉模型兜底", e.getMessage());
+        }
+
+        // 2) 视觉大模型兜底（需配置 VISION_API_KEY）
+        if (bellVisionService.enabled()) {
+            try {
+                String text = bellVisionService.recognize(bytes, mime);
+                List<Map<String, Object>> periods = parsePeriods(text);
+                if (!periods.isEmpty()) {
+                    Map<String, Object> resp = new LinkedHashMap<>();
+                    resp.put("periods", periods);
+                    resp.put("count", periods.size());
+                    resp.put("source", "vision");
+                    return ResponseEntity.ok(resp);
+                }
+            } catch (Exception e) {
+                return ResponseEntity.ok(Map.of("error", "识别失败：" + e.getMessage()));
+            }
+        }
+
+        return ResponseEntity.ok(Map.of("error",
+                "未识别到教学节次时间：请确认图片是作息时间表；若本地 OCR 服务未启动且未配置视觉模型，也无法识别"));
     }
 
     /** 解析模型返回的 JSON（容忍 ```json 包裹、前后废话），并规范化时间 */
