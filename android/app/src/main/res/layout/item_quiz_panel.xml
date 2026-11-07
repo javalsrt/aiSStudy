@@ -1,91 +1,120 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 模仿 Pricing Card：白底大圆角卡片 + 灰色标题/副标题 + 大号细体字 + 黑色胶囊按钮 -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!-- 学习页课程卡片：柔和分层卡片
+     结构 = 纯色标题块（白字大标题）+ 同色系半透明倒影 + 浅色内容区（白字小标签 / 胶囊按钮） -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/frame_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
     android:background="@drawable/bg_quiz_panel"
-    android:elevation="2dp"
     android:clipToOutline="true"
-    android:padding="14dp">
+    android:elevation="3dp">
 
-    <TextView
-        android:id="@+id/tv_name"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:maxLines="2"
-        android:ellipsize="end"
-        android:lineSpacingExtra="2dp"
-        android:fontFamily="sans-serif-medium"
-        android:textColor="#4B5563"
-        android:textSize="14sp" />
-
-    <TextView
-        android:id="@+id/tv_sub"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:maxLines="1"
-        android:ellipsize="end"
-        android:textColor="#6B7280"
-        android:textSize="10sp" />
-
-    <!-- 大号细体字（对应 text-5xl font-light）+ 小字后缀（对应 /mo） -->
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:orientation="horizontal"
-        android:gravity="center_vertical">
+        android:layout_height="match_parent"
+        android:orientation="vertical">
 
-        <TextView
-            android:id="@+id/tv_big"
-            android:layout_width="wrap_content"
+        <!-- 主标题区：纯色块 + 白色大标题 -->
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:fontFamily="sans-serif-light"
-            android:textColor="#111827"
-            android:textSize="30sp" />
+            android:orientation="vertical"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingTop="16dp"
+            android:paddingBottom="14dp">
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="4dp"
-            android:text="· 练习"
-            android:textColor="#6B7280"
-            android:textSize="10sp" />
-    </LinearLayout>
+            <TextView
+                android:id="@+id/tv_name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:maxLines="2"
+                android:ellipsize="end"
+                android:lineSpacingExtra="3dp"
+                android:fontFamily="sans-serif-medium"
+                android:textColor="#FFFFFF"
+                android:textSize="17sp" />
 
-    <!-- 底部按钮行：章节（浅灰） + 开始（黑色胶囊） -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal">
+            <TextView
+                android:id="@+id/tv_sub"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="#D9FFFFFF"
+                android:textSize="11sp" />
+        </LinearLayout>
 
-        <TextView
-            android:id="@+id/btn_chapter"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
+        <!-- 倒影：标题块下方的柔和过渡，制造轻微悬浮感 -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="14dp"
+            android:background="@drawable/bg_panel_reflection" />
+
+        <!-- 属性区：浅色叠加层 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
             android:layout_weight="1"
-            android:layout_marginEnd="6dp"
-            android:gravity="center"
-            android:background="@drawable/bg_quiz_panel_btn_light"
-            android:paddingVertical="9dp"
-            android:text="章节"
-            android:textColor="#1D1D1F"
-            android:textSize="12sp" />
+            android:orientation="vertical"
+            android:background="#14FFFFFF"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingTop="10dp"
+            android:paddingBottom="16dp">
 
-        <!-- 黑色胶囊按钮（对应 rounded-full bg-black） -->
-        <TextView
-            android:id="@+id/btn_action"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:gravity="center"
-            android:background="@drawable/bg_quiz_panel_btn"
-            android:paddingVertical="9dp"
-            android:text="开始"
-            android:textColor="#FFFFFF"
-            android:textSize="12sp" />
+            <!-- 兼容旧逻辑保留（原大号首字），新版不展示 -->
+            <TextView
+                android:id="@+id/tv_big"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                android:textSize="30sp" />
+
+            <TextView
+                android:id="@+id/tv_meta"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="#CCFFFFFF"
+                android:textSize="11sp" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/btn_chapter"
+                    android:layout_width="0dp"
+                    android:layout_height="34dp"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="8dp"
+                    android:gravity="center"
+                    android:background="@drawable/bg_panel_btn_ghost"
+                    android:text="章节"
+                    android:textColor="#FFFFFF"
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:id="@+id/btn_action"
+                    android:layout_width="0dp"
+                    android:layout_height="34dp"
+                    android:layout_weight="1"
+                    android:gravity="center"
+                    android:background="@drawable/bg_panel_btn_solid"
+                    android:text="开始"
+                    android:textColor="#2B2B2B"
+                    android:textSize="12sp"
+                    android:fontFamily="sans-serif-medium" />
+            </LinearLayout>
+        </LinearLayout>
     </LinearLayout>
-</LinearLayout>
+</FrameLayout>

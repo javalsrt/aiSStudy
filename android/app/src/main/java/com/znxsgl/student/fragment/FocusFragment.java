@@ -63,6 +63,7 @@ public class FocusFragment extends Fragment {
     private RecyclerView rvQuizPanels;
     private View llQuizArea;
     private ViewPager2 viewPagerQuiz;
+    private android.widget.ProgressBar quizProgress;
     private Handler handler = new Handler(Looper.getMainLooper());
     private int seconds;
     private boolean running, quizActive;
@@ -96,6 +97,7 @@ public class FocusFragment extends Fragment {
             rvQuizPanels = view.findViewById(R.id.rv_quiz_panels);
             llQuizArea = view.findViewById(R.id.ll_quiz_area);
             viewPagerQuiz = view.findViewById(R.id.viewpager_quiz);
+            quizProgress = view.findViewById(R.id.quiz_progress);
 
             // 长按提交按钮：按满触发提交，中途松手会中断动画
             com.znxsgl.student.widget.HoldSubmitButton btnDone = view.findViewById(R.id.btn_quiz_done);
@@ -126,6 +128,7 @@ public class FocusFragment extends Fragment {
                                 recordTime(lastPageIndex);
                             }
                             lastPageIndex = pos; lastPageEntryTime = SystemClock.elapsedRealtime();
+                            updateQuizProgress(pos);
                         }
                     });
                 }
@@ -213,6 +216,9 @@ public class FocusFragment extends Fragment {
         int panelSize = (getResources().getDisplayMetrics().widthPixels - dp(44)) / 2;
 
         rvQuizPanels.setLayoutManager(new GridLayoutManager(getContext(), 2));
+        // 交错排列的卡片会上下错位，需要允许绘制到边界外
+        rvQuizPanels.setClipChildren(false);
+        rvQuizPanels.setClipToPadding(false);
         rvQuizPanels.setAdapter(new RecyclerView.Adapter<PanelVH>() {
             @NonNull @Override
             public PanelVH onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
@@ -220,7 +226,8 @@ public class FocusFragment extends Fragment {
                         .inflate(R.layout.item_quiz_panel, parent, false);
                 // 设置为正方形
                 GridLayoutManager.LayoutParams lp = new GridLayoutManager.LayoutParams(panelSize, panelSize);
-                lp.setMargins(0, 0, viewType == 0 ? dp(12) : 0, dp(12));
+                // 底部留 16dp：给错落排列留出上下浮动的余量
+                lp.setMargins(0, 0, viewType == 0 ? dp(12) : 0, dp(16));
                 v.setLayoutParams(lp);
                 return new PanelVH(v);
             }
@@ -249,6 +256,22 @@ public class FocusFragment extends Fragment {
                 }
                 h.tvSub.setText(sub);
                 h.tvBig.setText(name.isEmpty() ? "学" : String.valueOf(name.charAt(0)));
+
+                // ===== 柔和分层卡片：主色 + 属性标签 + 错落排列 =====
+                // 每个 2×2 区块用四种不同颜色（左上粉 / 右上绿 / 左下蓝 / 右下橙）
+                int rowIdx = pos / 2;
+                int colIdx = pos % 2;
+                int color = PANEL_COLORS[(rowIdx % 2) * 2 + colIdx];
+                stylePanel(h, color);
+                if (isCourse) {
+                    h.tvMeta.setText("章节学习 | AI 出题 | 随时练");
+                } else if ("复习加强".equals(name)) {
+                    h.tvMeta.setText("重点巩固 | 错题回顾");
+                } else {
+                    h.tvMeta.setText("错题解析 | 薄弱点定位");
+                }
+                // 左上/右下略低，右上/左下略高，形成 Zig-Zag 阶梯感
+                h.itemView.setTranslationY(dp((rowIdx + colIdx) % 2 == 0 ? 7 : -7));
                 if (isCourse) {
                     final long cid = courseId;
                     boolean hasChapters = ((StudentCourse) item).isHasChapters();
@@ -287,14 +310,40 @@ public class FocusFragment extends Fragment {
     }
 
     static class PanelVH extends RecyclerView.ViewHolder {
-        TextView tvName, tvSub, tvBig, btnChapter, btnAction;
+        TextView tvName, tvSub, tvBig, tvMeta, btnChapter, btnAction;
         PanelVH(View v) { super(v);
             tvName = v.findViewById(R.id.tv_name);
             tvSub = v.findViewById(R.id.tv_sub);
             tvBig = v.findViewById(R.id.tv_big);
+            tvMeta = v.findViewById(R.id.tv_meta);
             btnChapter = v.findViewById(R.id.btn_chapter);
             btnAction = v.findViewById(R.id.btn_action);
         }
+    }
+
+    /** 卡片主色：低饱和莫兰迪色，按顺序循环使用 */
+    private static final int[] PANEL_COLORS = {
+            0xFFE8919F, // 粉
+            0xFF7FC5A8, // 薄荷绿
+            0xFF7E9ACF, // 灰蓝
+            0xFFEFA776  // 橙
+    };
+
+    /** 套用卡片主色：圆角底色 + 主按钮文字取深一档的同色 */
+    private void stylePanel(PanelVH h, int color) {
+        android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+        bg.setColor(color);
+        bg.setCornerRadius(dp(22));
+        h.itemView.setBackground(bg);
+        h.btnAction.setTextColor(darken(color, 0.72f));
+    }
+
+    /** 与黑色混合，得到同色系更深的一档 */
+    private int darken(int color, float ratio) {
+        int r = (int) (((color >> 16) & 0xFF) * ratio);
+        int g = (int) (((color >> 8) & 0xFF) * ratio);
+        int b = (int) ((color & 0xFF) * ratio);
+        return 0xFF000000 | (r << 16) | (g << 8) | b;
     }
 
     private int dp(int val) {
@@ -432,11 +481,13 @@ public class FocusFragment extends Fragment {
                 q.setQuestion((String)qm.get("question"));
                 q.setOptions((List<String>)qm.get("options"));
                 q.setCorrectAnswer((String)qm.get("correctAnswer"));
+                q.setGraph((String)qm.get("graph"));
                 quizQuestions.add(q);
             }
             quizAdapter.notifyDataSetChanged();
             // 重置到第1题：ViewPager2会保留上次测评停留的位置，不重置会导致新测试直接显示旧页（如第15题）
             if (viewPagerQuiz != null) viewPagerQuiz.setCurrentItem(0, false);
+            updateQuizProgress(0);
             if (rvQuizPanels != null) rvQuizPanels.setVisibility(View.GONE);
             llQuizArea.setVisibility(View.VISIBLE);
             setNavVisible(false);   // 全屏答题：隐藏悬浮导航
@@ -446,6 +497,13 @@ public class FocusFragment extends Fragment {
     }
 
     // ===== 采集 + 提交 =====
+
+    /** 更新顶部答题进度条（按当前题号百分比） */
+    private void updateQuizProgress(int pos) {
+        if (quizProgress == null) return;
+        int total = quizQuestions.size();
+        quizProgress.setProgress(total <= 0 ? 0 : (int) (((pos + 1) * 100f) / total));
+    }
 
     private void collectAndSubmit() {
         recordTime(lastPageIndex);
