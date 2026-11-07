@@ -18,16 +18,7 @@
   <meta property="og:site_name" content="智学职达" />
   <link rel="icon" type="image/png" href="assets/logo.png" />
   <link rel="apple-touch-icon" href="assets/logo.png" />
-  <link rel="stylesheet" href="css/style.css?v=20260921c" />
-  <!-- MathJax 3：手机屏「黄金分割率」公式排版（SVG 输出，currentColor 自适应深色屏） -->
-  <script>
-    window.MathJax = {
-      tex: { inlineMath: [['\\(', '\\)']], displayMath: [['$$', '$$']] },
-      svg: { fontCache: 'global' },
-      options: { enableMenu: false }
-    };
-  </script>
-  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+  <link rel="stylesheet" href="css/style.css?v=20261107e" />
 </head>
 <body>
 
@@ -53,7 +44,7 @@
 
   <!-- ===== Hero ===== -->
   <section class="hero" id="top">
-    <div class="hero-bg" aria-hidden="true">
+    <div class="hero-bg" aria-hidden="true" data-dark-veil data-color="#1216ff">
       <div class="hero-pattern"></div>
       <div class="glow glow-1"></div>
       <div class="glow glow-2"></div>
@@ -97,12 +88,12 @@
               <span class="af-tag">黄金分割率 · GOLDEN RATIO</span>
               <div class="af-card">
                 <p class="af-name">定义 · 线段的最优雅分割</p>
-                <div class="af-math gold">$$\varphi = \frac{1+\sqrt{5}}{2} \approx 1.618$$</div>
+                <div class="af-math gold">φ = <span class="frac"><span class="up">1 + √5</span><span class="dn">2</span></span> ≈ 1.618</div>
               </div>
               <div class="af-card">
                 <p class="af-name">自守方程与连分数</p>
-                <div class="af-math small">$$\varphi^2 = \varphi + 1,\quad \frac{1}{\varphi} = \varphi - 1$$</div>
-                <div class="af-math small">$$\varphi = 1 + \cfrac{1}{1 + \cfrac{1}{1 + \cfrac{1}{1 + \cdots}}}$$</div>
+                <div class="af-math small">φ<sup>2</sup> = φ + 1，<span class="frac"><span class="up">1</span><span class="dn">φ</span></span> = φ − 1</div>
+                <div class="af-math small">φ = 1 + <span class="frac"><span class="up">1</span><span class="dn">1 + <span class="frac"><span class="up">1</span><span class="dn">1 + ⋯</span></span></span></span></div>
               </div>
               <p class="af-note">斐波那契数列相邻两项之比无限逼近 φ——鹦鹉螺螺线、向日葵籽阵与帕特农神庙立面的共通密码。</p>
             </div>
@@ -159,8 +150,8 @@
         </div>
       </div>
 
-      <!-- App 实机界面预览（CSS 模拟，参考真机截图） -->
-      <div class="app-shots reveal">
+      <!-- App 实机界面预览（CSS 模拟，参考真机截图；进入视口后逐台逐项动画呈现） -->
+      <div class="app-shots">
         <!-- App 登录 -->
         <figure class="shot-phone">
           <div class="am am-login">
@@ -230,9 +221,9 @@
             <p class="am-question">写出函数 f(x) 在 x = a 处的泰勒展开式（带拉格朗日余项），并说明 a = 0 时该公式的名称。</p>
             <div class="am-ans">
               <b>参考答案 · 解析</b>
-              <p>f(x) = f(a) + f′(a)(x−a) + f″(a)/2!·(x−a)² + … + f⁽ⁿ⁾(a)/n!·(x−a)ⁿ + Rₙ(x)；</p>
-              <p>其中拉格朗日余项 Rₙ(x) = f⁽ⁿ⁺¹⁾(ξ)/(n+1)! · (x−a)ⁿ⁺¹，ξ 介于 a 与 x 之间。</p>
-              <p>当 a = 0 时称为麦克劳林公式，是泰勒展开最常用的特殊形式，如 eˣ = Σ xⁿ/n!。</p>
+              <p class="am-formula">f(x) = f(a) + f′(a)(x − a) + <span class="frac"><span class="up">f″(a)</span><span class="dn">2!</span></span>(x − a)<sup>2</sup> + ⋯ + <span class="frac"><span class="up">f<sup>(n)</sup>(a)</span><span class="dn">n!</span></span>(x − a)<sup>n</sup> + R<sub>n</sub>(x)</p>
+              <p class="am-formula">R<sub>n</sub>(x) = <span class="frac"><span class="up">f<sup>(n+1)</sup>(ξ)</span><span class="dn">(n+1)!</span></span>(x − a)<sup>n+1</sup>，ξ 介于 a 与 x 之间。</p>
+              <p class="am-formula">a = 0 时称麦克劳林公式：e<sup>x</sup> = Σ<sub>n=0</sub><sup>∞</sup> <span class="frac"><span class="up">x<sup>n</sup></span><span class="dn">n!</span></span>。</p>
             </div>
             <div class="am-submit">长按提交</div>
             <div class="am-tabbar"><span>课表</span><span class="on">专注</span><span>我的</span></div>
@@ -489,11 +480,11 @@
                   <circle cx="50.9" cy="66.7" r="3" fill="#5b58ff"/>
                   <!-- 维度标签 -->
                   <text x="100" y="16" text-anchor="middle" class="sp-radar-t">逻辑思维力</text>
-                  <text x="166" y="56" text-anchor="start" class="sp-radar-t">判断决策力</text>
-                  <text x="166" y="138" text-anchor="start" class="sp-radar-t">专注耐力</text>
+                  <text x="192" y="56" text-anchor="end" class="sp-radar-t">判断决策力</text>
+                  <text x="192" y="138" text-anchor="end" class="sp-radar-t">专注耐力</text>
                   <text x="100" y="184" text-anchor="middle" class="sp-radar-t">专业学习力</text>
-                  <text x="34" y="138" text-anchor="end" class="sp-radar-t">信息检索力</text>
-                  <text x="34" y="56" text-anchor="end" class="sp-radar-t">自律执行力</text>
+                  <text x="8" y="138" text-anchor="start" class="sp-radar-t">信息检索力</text>
+                  <text x="8" y="56" text-anchor="start" class="sp-radar-t">自律执行力</text>
                 </svg>
               </div>
               <div class="sp-student">
@@ -548,60 +539,147 @@
     </div>
   </section>
 
-  <!-- ===== FAQ ===== -->
-  <section class="section section-alt" id="faq">
-    <div class="wrap wrap-narrow">
-      <div class="sec-head reveal">
-        <span class="sec-label">FAQ</span>
-        <h2>常见问题</h2>
-      </div>
-
-      <!-- 用户常见问题循环墙（摘自 docs/系统常见问题FAQ.md，悬停暂停 · 悬停查看解答） -->
-      <div class="faq-marquee reveal">
-        <div class="fm-row">
-          <div class="fm-track">
-            <span class="fm-pill" title="出题范围只覆盖已完成阅读的章节，请先在课程中完成章节阅读，再开始刷题。"><i></i>点「开始刷题」没反应？</span>
-            <span class="fm-pill" title="出题是异步任务，结果仅保留 10 分钟，超时后重新开始即可。"><i></i>提示「出题任务已过期」？</span>
-            <span class="fm-pill" title="六维评估由 AI 生成，AI 失败时降级跳过（显示 0 分），稍后重新测评即可。"><i></i>提交测评后没有六维评估结果？</span>
-            <span class="fm-pill" title="AI 繁忙导致，稍后重试；也可先「标记明白」减少错题数再分析。"><i></i>错题解析一直「生成中」？</span>
-            <span class="fm-pill" title="需先上传课程文档且向量化成功；提问时带上课程语境效果更佳。"><i></i>AI 回答像「瞎编」，没用课程资料？</span>
-            <span class="fm-pill" title="触发限流保护（每人 10 次/分钟）或服务临时波动，稍后再试。"><i></i>AI 不回复 / 提示「AI 服务繁忙」？</span>
-            <span class="fm-pill" title="支持 PDF / DOCX / DOC / TXT / MD，扫描件请先转成文字版再上传。"><i></i>上传文档提示「暂不支持的文件类型」？</span>
-            <span class="fm-pill" title="这是出题范围的约束：必须先完成章节阅读，系统才会为其生成题目。"><i></i>提示「请先学习章节内容再答题」？</span>
+  <!-- ===== FAQ（Apple 风格：左侧分类导航 + 右侧分组手风琴） ===== -->
+  <section class="section faq-section" id="faq">
+    <div class="wrap">
+      <div class="faq-layout">
+        <aside class="faq-aside reveal">
+          <span class="sec-label">FAQ</span>
+          <h2>常见问题</h2>
+          <p class="faq-aside-sub">从 AI 出题、学习功能到部署运维，这里汇总了使用智学职达时最常见的功能与技术问题。</p>
+          <nav class="faq-nav" aria-label="常见问题分类">
+            <a href="#faq-product">产品与功能</a>
+            <a href="#faq-ai">AI 能力与技术</a>
+            <a href="#faq-deploy">部署与运维</a>
+            <a href="#faq-account">账号与数据</a>
+          </nav>
+          <div class="faq-contact">
+            <b>还有其他疑问？</b>
+            <p>可在 App「我的 → 帮助与反馈」中提交，或发送邮件至 <a href="mailto:j2647046805@163.com">j2647046805@163.com</a>。</p>
           </div>
-        </div>
-        <div class="fm-row fm-rev">
-          <div class="fm-track">
-            <span class="fm-pill" title="对方不在线时不做实时推送，消息已落库，刷新或重新进入聊天页即可拉取。"><i></i>聊天消息收不到？</span>
-            <span class="fm-pill" title="确认接收方网络正常且后端可达；上传文件上限 20MB。"><i></i>图片 / 文件发出去看不到？</span>
-            <span class="fm-pill" title="消息包含 @AI 才触发 AI 回答，普通消息正常发送——这是节省 AI 额度的设计。"><i></i>为什么 AI 不回群聊消息？</span>
-            <span class="fm-pill" title="入口展示所有已发布且未结束的考试作业；已结束或已提交的可查看详情与成绩。"><i></i>学生端看不到考试 / 作业？</span>
-            <span class="fm-pill" title="调课需点「确认」提交；学生端下拉刷新或重新进入课表页即可同步。"><i></i>调课后课表没变化？</span>
-            <span class="fm-pill" title="自动排课只排周一至周五；周日课程需手动排课，导入后需重启后端生效。"><i></i>周日课程不显示？</span>
-            <span class="fm-pill" title="真机需将 BaseUrl 改为电脑局域网 IP 并重新构建 APK，且与电脑处于同一 Wi-Fi。"><i></i>App 连不上后端？</span>
-            <span class="fm-pill" title="异步出题 + 排队式 AI 调用 + 15 分钟指纹缓存，可支撑 100 人同时刷题。"><i></i>几十人同时刷题会卡死吗？</span>
-            <span class="fm-pill" title="单用户每分钟 10 次的 AI 限流保护，属于防滥用机制而非故障。"><i></i>报「请求过于频繁」？</span>
-          </div>
-        </div>
-      </div>
+        </aside>
 
-      <div class="faq-list">
-        <details class="faq reveal">
-          <summary>AI 出题的质量和范围如何保证？<i></i></summary>
-          <p>系统基于 RAG 按学生已学章节做向量检索，将教材原文注入出题 Prompt 并明确要求不超纲；同时按课程+难度+章节指纹缓存题目，保证同批次学生题目一致、便于公平对比。</p>
-        </details>
-        <details class="faq reveal">
-          <summary>解析题答案不唯一，如何判分？<i></i></summary>
-          <p>主观题由大模型按「要点覆盖 + 语义一致性」判分：核心概念表达正确即判对，部分覆盖且无概念错误也给分，出现概念性错误才判错；AI 不可用时自动降级为文本相似度兜底。</p>
-        </details>
-        <details class="faq reveal">
-          <summary>难度自适应会不会忽高忽低？<i></i></summary>
-          <p>不会。采用保守策略：正确率 ≥ 80%、跳过率 ≤ 10% 且平均用时 ≤ 60 秒需连续两轮同向满足才升档，反之才降档，避免单次偶然波动影响难度档位。</p>
-        </details>
-        <details class="faq reveal">
-          <summary>支持哪些终端？<i></i></summary>
-          <p>学生使用 Android App 与微信小程序，教师与管理者使用 React Web 管理端；所有端通过统一的 REST API 与 WebSocket 与服务端通信，Docker Compose 一键部署。</p>
-        </details>
+        <div class="faq-main">
+          <!-- 产品与功能 -->
+          <section class="faq-group reveal" id="faq-product">
+            <header class="faq-group-head">
+              <h3>产品与功能</h3>
+              <span>学生端 · 管理端 · 小程序</span>
+            </header>
+            <details class="faq">
+              <summary>智学职达包含哪些终端？<i></i></summary>
+              <p>学生端为 Android App 与微信小程序（uni-app 跨端编译），教师与管理者使用 React Web 管理端；三端共用统一的 REST API 与 WebSocket 通道，数据实时互通。</p>
+            </details>
+            <details class="faq">
+              <summary>学生端主要有哪些功能？<i></i></summary>
+              <p>课表、章节学习、AI 智能刷题、错题本、六维能力测评、考试作业、课程聊天与专注度统计，覆盖「学 · 练 · 测 · 评」完整学习闭环。</p>
+            </details>
+            <details class="faq">
+              <summary>管理端能管理哪些内容？<i></i></summary>
+              <p>数据总览、学生与班级、课程与章节、一键排课与调课、考试作业发布、成绩与六维学情统计，以及学生名单的批量导入。</p>
+            </details>
+            <details class="faq">
+              <summary>一键排课和课表导入有什么区别？<i></i></summary>
+              <p>一键排课是从零生成：录入班级、课程、教师与每周课时后，由算法自动分配时间、节次和教室；课表导入则是识别已有的 Excel 课表文件并抄录进系统。</p>
+            </details>
+            <details class="faq">
+              <summary>自动排课会排到周末吗？<i></i></summary>
+              <p>算法默认只排周一至周五。如需周日上课（例如节日补课），可在管理端调课窗口中手动选择周日单元格排入，课表支持周一至周日共 7 天显示。</p>
+            </details>
+            <details class="faq">
+              <summary>App 里发消息，AI 为什么不回复？<i></i></summary>
+              <p>普通消息会正常发送并落库，只有内容包含 @AI 或 @ai 时才会触发 AI 问答。这样设计是为了避免无意义的模型调用、节省 AI 额度并保持聊天流畅。</p>
+            </details>
+          </section>
+
+          <!-- AI 能力与技术 -->
+          <section class="faq-group reveal" id="faq-ai">
+            <header class="faq-group-head">
+              <h3>AI 能力与技术</h3>
+              <span>RAG · 智能判分 · 高并发</span>
+            </header>
+            <details class="faq">
+              <summary>AI 出题的质量和范围如何保证？<i></i></summary>
+              <p>系统基于 RAG 对已学章节做向量检索，把教材原文注入出题 Prompt 并明确要求不超纲；同一课程、难度与章节的题目指纹缓存 15 分钟，保证同批学生题目一致、便于公平对比。</p>
+            </details>
+            <details class="faq">
+              <summary>解析题答案不唯一，如何判分？<i></i></summary>
+              <p>主观题由大模型按「要点覆盖度 + 语义一致性」双维度评分：核心概念表达正确即判对，部分覆盖且无概念错误也得分，出现概念性错误才判错；AI 不可用时自动降级为文本相似度兜底。</p>
+            </details>
+            <details class="faq">
+              <summary>难度自适应会不会忽高忽低？<i></i></summary>
+              <p>不会。采用保守策略：正确率 ≥ 80%、跳过率 ≤ 10% 且平均用时 ≤ 60 秒，需连续两轮同向满足才升档；反方向同样连续满足才降档，避免单次偶然波动影响难度档位。</p>
+            </details>
+            <details class="faq">
+              <summary>支持哪些题型，一次能生成多少？<i></i></summary>
+              <p>支持单选、多选、判断、填空与解析题。不同题型并行调用大模型生成，每种最多 5 题，结果按参数指纹缓存 15 分钟，重复参数不再消耗模型调用。</p>
+            </details>
+            <details class="faq">
+              <summary>专注度是怎么统计的？<i></i></summary>
+              <p>App 通过 WebSocket 上报前后台切换、切屏与答题节奏，折算为专注时长与专注曲线，并作为六维能力评估的输入之一，教师可在管理端查看班级专注趋势。</p>
+            </details>
+            <details class="faq">
+              <summary>几十人同时刷题会卡吗？<i></i></summary>
+              <p>出题以异步任务执行，配合题目指纹缓存与每人 10 次/分钟的 AI 限流保护，可支撑百人级并发同时刷题；高峰期可能出现短暂排队，属正常保护机制。</p>
+            </details>
+          </section>
+
+          <!-- 部署与运维 -->
+          <section class="faq-group reveal" id="faq-deploy">
+            <header class="faq-group-head">
+              <h3>部署与运维</h3>
+              <span>本地运行 · Docker · 服务依赖</span>
+            </header>
+            <details class="faq">
+              <summary>本地如何启动整套系统？<i></i></summary>
+              <p>先启动 MySQL 并导入 init-db 初始化脚本，再启动后端（8080）。官网（5500）、管理端（5174）与 Embedding、OCR 服务默认随后端一起启动和关闭，无需逐个手动运行。</p>
+            </details>
+            <details class="faq">
+              <summary>Docker 如何部署？<i></i></summary>
+              <p>在服务器配置好 .env 后执行 docker compose up -d --build。Nginx 负责托管官网与管理端，并把 /api、/ws、/uploads 反向代理到后端容器，支持一键重建与数据卷持久化。</p>
+            </details>
+            <details class="faq">
+              <summary>AI 或向量服务不可用时会怎样？<i></i></summary>
+              <p>出题优先使用 15 分钟缓存，主观题判分自动降级为相似度算法，六维评估暂时跳过，学习记录不会丢失。请检查 DEEPSEEK_API_KEY 是否配置、8000 端口的向量服务是否正常。</p>
+            </details>
+            <details class="faq">
+              <summary>课程文档支持哪些格式？<i></i></summary>
+              <p>支持 PDF、DOCX、DOC、TXT 与 Markdown；扫描件需先 OCR 或转换为文字版再上传。文档由 BGE-M3 模型完成向量化，作为 AI 出题与问答的检索依据。</p>
+            </details>
+            <details class="faq">
+              <summary>真机 App 连不上后端怎么办？<i></i></summary>
+              <p>把 App 配置中的 BaseUrl 改成电脑的局域网 IP，确保手机与电脑处于同一 Wi-Fi，并放行后端 8080 端口；修改后需要重新构建并安装 APK。</p>
+            </details>
+            <details class="faq">
+              <summary>数据存在哪里，如何备份？<i></i></summary>
+              <p>业务数据存储在 MySQL 8.0，Docker 部署时由 mysql_data 数据卷持久化。定期执行 mysqldump 导出即可备份，迁移时导入 SQL 并挂载同一数据卷。</p>
+            </details>
+          </section>
+
+          <!-- 账号与数据 -->
+          <section class="faq-group reveal" id="faq-account">
+            <header class="faq-group-head">
+              <h3>账号与数据</h3>
+              <span>登录 · 权限 · 隐私</span>
+            </header>
+            <details class="faq">
+              <summary>忘记密码怎么办？<i></i></summary>
+              <p>学生请联系班主任或管理员在管理端重置密码；教师与管理员账号由系统管理员统一维护，密码以 BCrypt 加密存储，不会以明文暴露。</p>
+            </details>
+            <details class="faq">
+              <summary>提示「无权限访问该资源」怎么办？<i></i></summary>
+              <p>系统按学生、教师、管理员三类角色控制接口权限。请联系管理员检查角色与权限分配是否完整，权限变更后重新登录即可生效。</p>
+            </details>
+            <details class="faq">
+              <summary>如何导出班级成绩单？<i></i></summary>
+              <p>在管理端「考试作业」中完成发布与批阅后，可按班级导出成绩单，包含学生得分、正确率、用时与答题明细，便于归档与教学分析。</p>
+            </details>
+            <details class="faq">
+              <summary>学习数据会保存多久？<i></i></summary>
+              <p>答题记录、错题、专注度与测评结果均持久化保存在 MySQL 中，不会因换设备而丢失；成绩单支持按班级导出，数据仅用于教学分析与学情统计。</p>
+            </details>
+          </section>
+        </div>
       </div>
     </div>
   </section>
@@ -633,6 +711,7 @@
     </div>
   </footer>
 
-  <script src="js/main.js?v=20260921b"></script>
+  <script src="js/dark-veil.js?v=20261107a"></script>
+  <script src="js/main.js?v=20261107e"></script>
 </body>
 </html>

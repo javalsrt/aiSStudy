@@ -47,6 +47,68 @@ const io = new IntersectionObserver(entries => {
 }, { threshold: 0.15 });
 document.querySelectorAll('.reveal').forEach(el => io.observe(el));
 
+// ===== 手机展示：逐台逐项入场动画（参考 ReactBits AnimatedContent） =====
+(function initAppShots() {
+  const wrap = document.querySelector('.app-shots');
+  if (!wrap) return;
+
+  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduceMotion || !('IntersectionObserver' in window)) return;
+
+  wrap.classList.add('ac-ready');
+
+  const phones = Array.from(wrap.querySelectorAll('.shot-phone'));
+  const itemSelector = [
+    '.am-body > *',
+    '.am-nav',
+    '.am-progress',
+    '.am-scroll > .am-ch',
+    '.am-q-title',
+    '.am-q-sub',
+    '.am-q-meta',
+    '.am-question',
+    '.am-ans',
+    '.am-submit',
+    '.am-tabbar'
+  ].join(', ');
+  const itemsByPhone = phones.map(phone => Array.from(phone.querySelectorAll(itemSelector)));
+
+  let played = false;
+  const play = () => {
+    if (played) return;
+    played = true;
+    phones.forEach((phone, i) => {
+      const phoneDelay = i * 130;
+      phone.style.transitionDelay = phoneDelay + 'ms';
+      phone.classList.add('ac-in');
+      itemsByPhone[i].forEach((el, j) => {
+        el.style.transitionDelay = (phoneDelay + 240 + j * 55) + 'ms';
+        el.classList.add('ac-in');
+      });
+    });
+    // 动画结束后清理内联延迟与入场状态，恢复手机 hover 的原生过渡
+    window.setTimeout(() => {
+      wrap.classList.remove('ac-ready');
+      phones.forEach(phone => {
+        phone.classList.remove('ac-in');
+        phone.style.transitionDelay = '';
+      });
+      itemsByPhone.forEach(items => items.forEach(el => {
+        el.classList.remove('ac-in');
+        el.style.transitionDelay = '';
+      }));
+    }, 2400);
+  };
+
+  const shotsObserver = new IntersectionObserver(entries => {
+    if (entries.some(entry => entry.isIntersecting)) {
+      play();
+      shotsObserver.disconnect();
+    }
+  }, { threshold: 0.2 });
+  shotsObserver.observe(wrap);
+})();
+
 // ===== DeepSeek 出题打字动画 =====
 const typeDemo = document.getElementById('typeDemo');
 const genQuestion = document.getElementById('genQuestion');
@@ -315,7 +377,7 @@ if (techMosaic) {
     canvas.height = PT.h * PT.dpr;
     ctx.setTransform(PT.dpr, 0, 0, PT.dpr, 0, 0);
 
-    const family = '"PingFang SC", "Microsoft YaHei", sans-serif';
+    const family = '"Songti SC", "SimSun", "宋体", "STSong", serif';
     const off = document.createElement('canvas');
     const offCtx = off.getContext('2d', { willReadFrequently: true });
 
@@ -457,34 +519,130 @@ if (techMosaic) {
   }
 }
 
-// ===== 管理端页面预览 · Tab 切换（CSS 模拟真实页面） =====
-const adminShotUrl = document.getElementById('adminShotUrl');
-if (adminShotUrl) {
-  document.querySelectorAll('.shot-tab').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.shot-tab').forEach(b => b.classList.remove('on'));
-      btn.classList.add('on');
-      document.querySelectorAll('.shot-page').forEach(p => p.classList.remove('on'));
-      const page = document.getElementById(btn.dataset.page);
-      if (page) page.classList.add('on');
-      adminShotUrl.textContent = btn.dataset.url;
+// ===== 管理端页面预览 · 左右自动轮播 + 内容逐项入场（参考 AnimatedContent） =====
+(function initAdminPreview() {
+  const browserEl = document.querySelector('.browser');
+  const urlEl = document.getElementById('adminShotUrl');
+  const tabs = Array.from(document.querySelectorAll('.shot-tab'));
+  if (!browserEl || !tabs.length) return;
+
+  const pages = tabs.map(tab => document.getElementById(tab.dataset.page));
+  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const AUTOPLAY_MS = 5200;   // 每页停留时长
+  const STAGGER_MS = 50;      // 内容逐项入场间隔
+  const MAX_STEPS = 12;       // 交错步数上限，避免长表格尾部等待过久
+
+  // 每个页面参与逐项入场的元素（按视觉从上到下排列）
+  const STAGGER_SELECTORS = {
+    'page-dashboard': ['.spd-side b', '.spd-side span', '.spd-head', '.spd-card', '.spd-panel', '.spd-foot'],
+    'page-students': ['.sp-table thead tr', '.sp-table tbody tr'],
+    'page-courses': ['.sp-table thead tr', '.sp-table tbody tr'],
+    'page-stats': ['.sp-radar-panel', '.sp-student-head', '.sp-dim']
+  };
+
+  let current = 0;
+  let started = false;
+  let visible = false;
+  let hovering = false;
+  let timer = null;
+  const cleanupTimers = new WeakMap();
+
+  const itemsOf = page => Array.from(page.querySelectorAll((STAGGER_SELECTORS[page.id] || []).join(',')));
+
+  // 预先标记参与动画的元素，供 CSS 隐藏初态使用
+  pages.forEach(page => itemsOf(page).forEach(el => el.classList.add('ac-item')));
+
+  const clearTimer = () => {
+    if (timer) { clearTimeout(timer); timer = null; }
+  };
+
+  const canAutoplay = () => started && visible && !hovering && !document.hidden && !reduceMotion;
+
+  const scheduleNext = () => {
+    clearTimer();
+    if (!canAutoplay()) return;
+    timer = setTimeout(() => showPage((current + 1) % pages.length, 1), AUTOPLAY_MS);
+  };
+
+  // 让当前页内容从隐藏态逐项浮现
+  const playStagger = page => {
+    if (reduceMotion) return;
+    const items = itemsOf(page);
+    page.classList.add('ac-ready');
+    void page.offsetWidth;   // 确保隐藏初态先生效，再触发过渡
+    items.forEach((el, i) => {
+      el.style.transitionDelay = Math.min(i, MAX_STEPS) * STAGGER_MS + 'ms';
+      el.classList.add('ac-in');
+    });
+    const old = cleanupTimers.get(page);
+    if (old) clearTimeout(old);
+    cleanupTimers.set(page, setTimeout(() => {
+      page.classList.remove('ac-ready');
+      items.forEach(el => {
+        el.classList.remove('ac-in');
+        el.style.transitionDelay = '';
+      });
+    }, Math.min(items.length - 1, MAX_STEPS) * STAGGER_MS + 700));
+  };
+
+  // 切走时重置入场状态，避免动画残留
+  const resetStagger = page => {
+    const old = cleanupTimers.get(page);
+    if (old) { clearTimeout(old); cleanupTimers.delete(page); }
+    page.classList.remove('ac-ready', 'slide-left', 'slide-right');
+    page.querySelectorAll('.ac-in').forEach(el => {
+      el.classList.remove('ac-in');
+      el.style.transitionDelay = '';
+    });
+  };
+
+  const showPage = (index, dir) => {
+    if (index === current || !pages[index]) return;
+    const prev = pages[current];
+    const next = pages[index];
+    resetStagger(prev);
+    prev.classList.remove('on');
+
+    tabs.forEach((tab, i) => tab.classList.toggle('on', i === index));
+    if (urlEl) urlEl.textContent = tabs[index].dataset.url;
+
+    next.classList.add('ac-ready');
+    next.classList.add('on', dir > 0 ? 'slide-right' : 'slide-left');
+    current = index;
+    playStagger(next);
+    window.setTimeout(() => next.classList.remove('slide-left', 'slide-right'), 620);
+    scheduleNext();
+  };
+
+  // 点击 Tab：手动切换（向左回退则从左侧滑入），并重新计时
+  tabs.forEach((tab, index) => {
+    tab.addEventListener('click', () => {
+      showPage(index, index > current ? 1 : -1);
+      scheduleNext();
     });
   });
-}
 
-// ===== FAQ 用户常见问题循环墙（克隆一份实现 -50% 无缝循环，速度按内容宽度自适应） =====
-document.querySelectorAll('.fm-track').forEach(track => {
-  Array.from(track.children).forEach(el => {
-    const clone = el.cloneNode(true);
-    clone.setAttribute('aria-hidden', 'true');
-    track.appendChild(clone);
+  // 悬停暂停轮播便于阅读，移出后继续
+  browserEl.addEventListener('mouseenter', () => { hovering = true; clearTimer(); });
+  browserEl.addEventListener('mouseleave', () => { hovering = false; scheduleNext(); });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) clearTimer(); else scheduleNext();
   });
-  // ~55px/s 匀速滚动，内容越长周期越久，保证观感一致
-  requestAnimationFrame(() => {
-    const half = track.scrollWidth / 2;
-    if (half > 0) track.style.setProperty('--fm-dur', (half / 55).toFixed(1) + 's');
-  });
-});
+
+  // 首屏内容先隐藏，进入视口后再逐项入场并启动自动轮播
+  pages[current].classList.add('ac-ready');
+
+  const observer = new IntersectionObserver(entries => {
+    visible = entries.some(entry => entry.isIntersecting);
+    if (visible && !started) {
+      started = true;
+      playStagger(pages[current]);
+    }
+    if (!visible) clearTimer(); else scheduleNext();
+  }, { threshold: 0.35 });
+  observer.observe(browserEl);
+})();
 
 // ===== 「学练测评管」True Focus 逐词聚焦（移植自 reactbits TrueFocus） =====
 const focusChain = document.getElementById('focusChain');
