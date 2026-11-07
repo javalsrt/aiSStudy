@@ -54,6 +54,8 @@ public class AiAssistantFragment extends Fragment {
     private ScrollView scroll;
     private boolean loading = false;
     private boolean quickLoaded = false;
+    /** 会话序号：点「新建会话」后自增，用来丢弃上一轮还没回来的回答 */
+    private int sessionSeq = 0;
 
     private static final String[][] FALLBACK_CAPS = {
             {"校园规定", "作息/宿舍/请假"},
@@ -92,6 +94,9 @@ public class AiAssistantFragment extends Fragment {
         welcomeCard = view.findViewById(R.id.welcomeCard);
         etInput = view.findViewById(R.id.etInput);
         btnSend = view.findViewById(R.id.btnSend);
+
+        // 右上角「+」：开启新会话
+        view.findViewById(R.id.btnNewChat).setOnClickListener(v -> startNewSession());
         scroll = view.findViewById(R.id.scroll);
 
         btnSend.setOnClickListener(v -> submit());
@@ -218,6 +223,7 @@ public class AiAssistantFragment extends Fragment {
         addBubble(text, true);
 
         final TextView loadingBubble = addBubble("正在思考…", false);
+        final int seq = sessionSeq;
         setLoading(true);
 
         ApiService api = RetrofitClient.getInstance().create(ApiService.class);
@@ -226,7 +232,7 @@ public class AiAssistantFragment extends Fragment {
         api.askAssistant(token, body).enqueue(new Callback<Map<String, Object>>() {
             @Override
             public void onResponse(Call<Map<String, Object>> call, Response<Map<String, Object>> resp) {
-                if (!isAdded()) return;
+                if (!isAdded() || seq != sessionSeq) return; // 已开启新会话，丢弃旧回答
                 setLoading(false);
                 if (!resp.isSuccessful() || resp.body() == null) {
                     loadingBubble.setText("服务暂时不可用，请稍后再试");
@@ -257,12 +263,23 @@ public class AiAssistantFragment extends Fragment {
 
             @Override
             public void onFailure(Call<Map<String, Object>> call, Throwable t) {
-                if (!isAdded()) return;
+                if (!isAdded() || seq != sessionSeq) return;
                 setLoading(false);
                 loadingBubble.setText(UiMsg.network(t));
                 scrollToBottom();
             }
         });
+    }
+
+    /** 新建会话：清空消息区、回到欢迎页，并作废上一轮还没返回的回答 */
+    private void startNewSession() {
+        sessionSeq++;
+        if (boxMessages != null) boxMessages.removeAllViews();
+        if (etInput != null) etInput.setText("");
+        if (welcomeCard != null) welcomeCard.setVisibility(View.VISIBLE);
+        setLoading(false);
+        if (scroll != null) scroll.fullScroll(View.FOCUS_UP);
+        Toast.makeText(requireContext(), "已开启新会话", Toast.LENGTH_SHORT).show();
     }
 
     private void hideWelcome() {
