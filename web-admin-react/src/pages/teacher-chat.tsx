@@ -93,6 +93,8 @@ export function TeacherChatPage() {
   const fileRef = useRef<HTMLInputElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const lastMsgCountRef = useRef(0)
+  /** 已经标记过已读的最大消息 id：轮询到新消息时用来判断要不要补一次已读 */
+  const lastMarkedIdRef = useRef(0)
 
   // 加载教师课程，优先选中 URL 参数指定的课程
   useEffect(() => {
@@ -122,10 +124,13 @@ export function TeacherChatPage() {
     const courseKey = activeCourse.courseId ?? activeCourse.courseName
     setMsgs([])
     setError('')
+    lastMarkedIdRef.current = 0
     getPublicMessages(courseKey)
       .then((list) => {
         setMsgs(list || [])
         lastMsgCountRef.current = (list || []).length
+        const newest = (list || [])[(list || []).length - 1]
+        if (newest) lastMarkedIdRef.current = Number(newest.id) || 0
         // 切换课程后立即滚动到底部，不使用平滑动画
         requestAnimationFrame(() => scrollToBottom(true))
       })
@@ -136,6 +141,15 @@ export function TeacherChatPage() {
     markTeacherRead(courseKey).catch(() => {})
   }, [activeCourse])
 
+  // 把当前正在看的房间暴露给顶部铃铛：正在看的课程不再弹未读提醒
+  useEffect(() => {
+    ;(window as unknown as { __activeChatCourseId?: number | null }).__activeChatCourseId =
+      activeCourse?.courseId ?? null
+    return () => {
+      ;(window as unknown as { __activeChatCourseId?: number | null }).__activeChatCourseId = null
+    }
+  }, [activeCourse])
+
   // 轮询刷新聊天记录（3 秒）：AI 异步回复、学生消息无需刷新页面即可显示
   useEffect(() => {
     if (!activeCourse) return
@@ -144,9 +158,9 @@ export function TeacherChatPage() {
       if (document.visibilityState !== 'visible') return
       getPublicMessages(courseKey)
         .then((list) => {
+          const next = list || []
           setMsgs((prev) => {
             const cur = prev || []
-            const next = list || []
             // 长度和首尾 id 都相同则视为无新消息，跳过更新
             if (
               cur.length === next.length &&
@@ -157,10 +171,28 @@ export function TeacherChatPage() {
             }
             return next
           })
+
+          // 关键：老师正开在这个聊天页里，新到的学生/AI 消息要立即标记已读，
+          // 否则离开页面后右上角铃铛会把「已经看过的消息」再次提醒一遍。
+          const newest = next[next.length - 1]
+          if (newest && String(newest.senderRole) !== 'teacher') {
+            const newestId = Number(newest.id) || 0
+            if (newestId > lastMarkedIdRef.current) {
+              markTeacherRead(courseKey)
+                .then(() => {
+                  lastMarkedIdRef.current = newestId
+                })
+                .catch(() => {})
+            }
+          }
         })
         .catch(() => {})
     }, 3000)
-    return () => window.clearInterval(timer)
+    return () => {
+      window.clearInterval(timer)
+      // 离开页面时再补一次已读，避免「看完立刻切走」留下未读
+      markTeacherRead(courseKey).catch(() => {})
+    }
   }, [activeCourse])
 
   // 判断用户是否在消息区底部附近

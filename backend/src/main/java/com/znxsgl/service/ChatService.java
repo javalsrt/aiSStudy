@@ -205,6 +205,9 @@ public class ChatService {
         msg.setSenderRole(senderRole);
         msg.setContent(content);
         msg.setMentionUserId(mentionUserId);
+        // 新消息一律按「未读」落库：教师的铃铛通知依赖 is_read=0 判定，
+        // 学生端的未读另有 chat_read_state 水位线，不依赖这个字段。
+        msg.setIsRead(0);
         chatMapper.insert(msg);
 
         return chatMessageConverter.toDto(msg);

@@ -20,11 +20,26 @@ export function Header() {
   const isTeacher = user?.role === 'teacher'
   const notiCount = notifications.length
 
-  // 教师当前正在查看的课程（在课程聊天页时），该课程消息不提示
+  // 教师当前正在查看的课程（在课程聊天页时），该课程消息不提示。
+  // URL 参数只在从铃铛跳转时存在；在页面里点左侧课程切换时 URL 不变，
+  // 所以优先读聊天页写入的 window.__activeChatCourseId。
   const currentChatCourse =
     location.pathname === '/teacher-chat'
       ? new URLSearchParams(location.search).get('course')
       : null
+  const currentChatCourseId =
+    location.pathname === '/teacher-chat'
+      ? new URLSearchParams(location.search).get('courseId')
+      : null
+
+  /** 判断某条通知是否属于「正在浏览的房间」 */
+  const isInActiveRoom = (n: TeacherChatNotification) => {
+    const activeId =
+      currentChatCourseId ||
+      (window as unknown as { __activeChatCourseId?: number | null }).__activeChatCourseId
+    if (activeId) return String(n.courseId ?? '') === String(activeId)
+    return !!currentChatCourse && n.courseName === currentChatCourse
+  }
 
   useEffect(() => {
     if (!isTeacher) return
@@ -33,9 +48,7 @@ export function Header() {
       try {
         const data = await getTeacherUnreadNotifications()
         // 过滤掉教师自己发的消息（后端已排除）以及当前正在查看的课程
-        const filtered = (data || []).filter(
-          (n) => n.senderRole !== 'teacher' && n.courseName !== currentChatCourse
-        )
+        const filtered = (data || []).filter((n) => n.senderRole !== 'teacher' && !isInActiveRoom(n))
         setNotifications(filtered)
       } catch (e) {
         console.error('加载教师通知失败', e)
@@ -81,9 +94,7 @@ export function Header() {
         getTeacherUnreadNotifications()
           .then((data) => {
             setNotifications(
-              (data || []).filter(
-                (n) => n.senderRole !== 'teacher' && n.courseName !== currentChatCourse
-              )
+              (data || []).filter((n) => n.senderRole !== 'teacher' && !isInActiveRoom(n))
             )
           })
           .catch(() => {})
