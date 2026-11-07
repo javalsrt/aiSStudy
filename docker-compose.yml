@@ -78,6 +78,8 @@ services:
       # 容器内无 Python，禁止后端自启 Embedding 进程，改用独立容器
       EMBEDDING_LOCAL_AUTO_START: "false"
       EMBEDDING_LOCAL_URL: http://embedding:8000/embeddings
+      # 容器内由 Nginx 托管官网与管理端，禁止后端自启本地前端进程
+      FRONTEND_LOCAL_AUTO_START: "false"
     ports:
       - "8080:8080"
     volumes:

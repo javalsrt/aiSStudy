@@ -317,7 +317,76 @@ public class ScheduleService {
                 }
             }
         }
+        // 合并同一天内相邻/重叠的同课程记录：历史排课把「两课时连堂」拆成两条 step=1 记录、
+        // 或同一课程被重复导入过，课表里会显示成多个同名条目。这里统一并为一块，并做精确去重。
+        schedules = mergeSameCourseBlocks(schedules);
         return schedules.stream().map(this::toStudentScheduleDTO).collect(Collectors.toList());
+    }
+
+    /**
+     * 把同课程、同星期、首尾相接或时间重叠的记录合并为一个块：
+     * startNode 取最小、step 覆盖到最大结束节次，结束时间取较晚者。
+     * 完全相同的记录（同节次同开始时间）只保留一条，彻底消除“重复课程”观感。
+     */
+    private List<Schedule> mergeSameCourseBlocks(List<Schedule> rows) {
+        if (rows == null || rows.isEmpty()) return rows;
+        Map<String, List<Schedule>> groups = new LinkedHashMap<>();
+        for (Schedule s : rows) {
+            String key = (s.getCourseId() != null ? s.getCourseId() : 0L) + "|"
+                    + s.getCourseName() + "|" + s.getDayOfWeek() + "|" + s.getSemester();
+            groups.computeIfAbsent(key, k -> new ArrayList<>()).add(s);
+        }
+        List<Schedule> out = new ArrayList<>();
+        for (List<Schedule> g : groups.values()) {
+            g.sort(Comparator.comparingInt(s -> s.getStartNode() == null ? 0 : s.getStartNode()));
+            Schedule cur = null;
+            for (Schedule s : g) {
+                int sNode = s.getStartNode() == null ? 0 : s.getStartNode();
+                int sStep = (s.getStep() == null || s.getStep() <= 0) ? 1 : s.getStep();
+                if (cur == null) {
+                    cur = copyScheduleBlock(s);
+                    continue;
+                }
+                int curNode = cur.getStartNode() == null ? 0 : cur.getStartNode();
+                int curStep = (cur.getStep() == null || cur.getStep() <= 0) ? 1 : cur.getStep();
+                if (sNode <= curNode + curStep) {
+                    // 相邻或重叠：并入当前块
+                    int newEnd = Math.max(curNode + curStep, sNode + sStep);
+                    cur.setStep(Math.max(1, newEnd - curNode));
+                    if (s.getEndTime() != null
+                            && (cur.getEndTime() == null || s.getEndTime().isAfter(cur.getEndTime()))) {
+                        cur.setEndTime(s.getEndTime());
+                    }
+                    if (cur.getClassroom() == null || cur.getClassroom().isEmpty()) {
+                        cur.setClassroom(s.getClassroom());
+                    }
+                } else {
+                    out.add(cur);
+                    cur = copyScheduleBlock(s);
+                }
+            }
+            if (cur != null) out.add(cur);
+        }
+        return out;
+    }
+
+    /** 深拷贝排课块（合并时不能改到 Mapper 返回的原对象） */
+    private Schedule copyScheduleBlock(Schedule s) {
+        Schedule c = new Schedule();
+        c.setId(s.getId());
+        c.setUserId(s.getUserId());
+        c.setCourseId(s.getCourseId());
+        c.setCourseName(s.getCourseName());
+        c.setDayOfWeek(s.getDayOfWeek());
+        c.setStartTime(s.getStartTime());
+        c.setEndTime(s.getEndTime());
+        c.setStartNode(s.getStartNode());
+        c.setStep(s.getStep());
+        c.setClassroom(s.getClassroom());
+        c.setSemester(s.getSemester());
+        c.setWeeks(s.getWeeks());
+        c.setStatus(s.getStatus());
+        return c;
     }
 
     private List<Schedule> queryStudentSchedule(Long userId, List<String> activeSemesters, int week) {
@@ -563,6 +632,37 @@ public class ScheduleService {
             "WHERE cc.class_id = ? OR s.id IS NOT NULL " +
             "ORDER BY c.course_name",
             classId, classId, classId);
+
+        // 同名课程去重兜底：历史数据可能因分次导入、教师匹配差异等原因，为同一班级生成多门同名课程
+        //（如「数学·陆荣钊」与「数学·另一位教师」），学生端只保留一条：
+        // 优先保留本班已上架排课的课程，其次保留 id 最小的课程。
+        try {
+            Set<Long> activeCourseIds = new HashSet<>(jdbc.queryForList(
+                "SELECT DISTINCT s.course_id FROM schedule s JOIN user u ON u.id = s.user_id " +
+                "WHERE u.class_id = ? AND s.status = 1 AND s.day_of_week > 0 AND s.course_id IS NOT NULL",
+                Long.class, classId));
+            Map<String, Map<String, Object>> byName = new LinkedHashMap<>();
+            for (Map<String, Object> row : rows) {
+                Object nameObj = row.get("course_name");
+                if (nameObj == null) continue;
+                String name = nameObj.toString().trim();
+                Map<String, Object> kept = byName.get(name);
+                if (kept == null) {
+                    byName.put(name, row);
+                    continue;
+                }
+                long curId = ((Number) row.get("id")).longValue();
+                long keptId = ((Number) kept.get("id")).longValue();
+                boolean curActive = activeCourseIds.contains(curId);
+                boolean keptActive = activeCourseIds.contains(keptId);
+                if ((curActive && !keptActive) || (curActive == keptActive && curId < keptId)) {
+                    byName.put(name, row);
+                }
+            }
+            rows = new ArrayList<>(byName.values());
+        } catch (Exception e) {
+            log.warn("学生课程列表同名去重失败，按原始数据返回 classId={}", classId, e);
+        }
 
         List<StudentCourseDTO> result = new ArrayList<>();
 

@@ -88,6 +88,24 @@ embedding:
     # 服务目录，留空则自动探测（项目根目录/embedding-service 或 backend/../embedding-service）
     work-dir:
 
+# 本地前端：官网静态站点 + React 管理端随 Spring Boot 一起启停
+# 容器部署时由 FRONTEND_LOCAL_AUTO_START=false 关闭（前端由 Nginx 托管）
+frontend:
+  local:
+    auto-start: ${FRONTEND_LOCAL_AUTO_START:true}
+    # 项目官网（website/ 静态站点，Python http.server）
+    website:
+      enabled: true
+      port: ${WEBSITE_PORT:5500}
+      python-cmd: ${WEBSITE_PYTHON:python}
+      work-dir:
+    # React 管理端（web-admin-react，Vite 开发服务器）
+    admin:
+      enabled: true
+      port: ${ADMIN_DEV_PORT:5174}
+      npm-cmd: ${ADMIN_NPM:npm}
+      work-dir:
+
 app:
   redis:
     # 是否启用 Redis 分布式幂等/限流；本地无 Redis 时保持 false

@@ -414,7 +414,11 @@ public class QuizController {
                 "- 选择题4选项，正确答案末尾加*\n" +
                 "- 判断题正确项加*\n" +
                 "- 解析题和填空题答案附在题后\n" +
-                "- 只输出JSON数组格式：[{\"type\":\"单选\",\"subject\":\"%s\",\"question\":\"...\",\"options\":[\"A.x\",\"B.y*\"]}," +
+                "- 数学表达式用 $...$ 包裹（如 $x^2$、$\\frac{1}{2}$）\n" +
+                "- 若题目涉及函数图像（一次函数、二次函数、三角函数等），可附加 graph 字段给前端画图：" +
+                "纯文本函数表达式，自变量为 x，必须显式写乘号 *，如 \"y=2*x+3\"、\"y=x^2-4\"，" +
+                "支持 + - * / ^ sqrt() sin() cos() tan() log() ln() abs() exp() 及 pi、e；不需要画图的题不要输出该字段\n" +
+                "- 只输出JSON数组格式：[{\"type\":\"单选\",\"subject\":\"%s\",\"question\":\"...\",\"options\":[\"A.x\",\"B.y*\"],\"graph\":\"y=2*x+3\"}," +
                 "{\"type\":\"判断\",\"subject\":\"%s\",\"question\":\"...\",\"options\":[\"正确*\",\"错误\"]}," +
                 "{\"type\":\"解析\",\"subject\":\"%s\",\"question\":\"...\"}," +
                 "{\"type\":\"填空\",\"subject\":\"%s\",\"question\":\"...\",\"answer\":\"答案\"}]",
@@ -478,6 +482,11 @@ public class QuizController {
                     q.put("options", ol);
                 }
                 if (n.has("answer")) q.put("correctAnswer", n.path("answer").asText());
+                // 函数图像表达式（可选）：前端据此绘制坐标曲线
+                if (n.hasNonNull("graph")) {
+                    String g = n.path("graph").asText("").trim();
+                    if (!g.isEmpty()) q.put("graph", g);
+                }
                 list.add(q);
             }
         } catch (Exception e) {

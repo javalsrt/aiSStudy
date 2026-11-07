@@ -24,6 +24,7 @@ tmp_*
 _tmp_*
 *.log
 *.pid
+logs/
 cookies.txt
 backend-error.log
 backend.log

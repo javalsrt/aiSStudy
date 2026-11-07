@@ -411,20 +411,19 @@ public class ScheduleImportController {
                 }
             }
 
-            // 确保 course 表中存在此课程（含课时）
-            Long courseId = ensureCourse(courseName, itemTeacherId, semester, credit, estimatedCredit);
-
-            // 查找班级ID
+            // 查找班级ID（先匹配班级：供课程复用判断，避免同班同名课程被重复创建）
             Long classId = null;
             if (className != null && !className.isEmpty()) {
                 classId = matchClass(className);
             }
-
             if (classId == null) {
                 skipped++;
                 messages.add(courseName + " 未匹配到班级「" + (className != null ? className : "未知") + "」，已跳过");
                 continue;
             }
+
+            // 确保 course 表中存在此课程（含课时）：优先复用本班已有同名课程
+            Long courseId = ensureCourse(courseName, itemTeacherId, semester, credit, estimatedCredit, classId);
 
             // 确保 course_class 关联
             ensureCourseClass(courseId, classId, semester);
@@ -799,8 +798,29 @@ public class ScheduleImportController {
      * 确保 course 表中存在该课程，不存在则创建（含本学期总课时 credit）。
      * 已有记录的 credit 为 null/0 时，或明显小于本次导入的总课时时，进行纠正。
      */
-    private Long ensureCourse(String courseName, Long teacherId, String semester, int credit, int estimatedCredit) {
-        // 先查是否存在同教师同课程名
+    private Long ensureCourse(String courseName, Long teacherId, String semester, int credit, int estimatedCredit, Long classId) {
+        // 1. 优先复用该班级已绑定的同名课程。
+        //    历史缺陷：原来只按「课程名+教师」匹配，AI 两次识别出不同教师名（或同一教师有两条记录）时，
+        //    会给同一个班级创建第二门同名课程 → 学生端出现「数学·陆荣钊 / 数学·某某」这类重复课程。
+        if (classId != null) {
+            List<Long> bound = jdbc.queryForList(
+                "SELECT c.id FROM course c JOIN course_class cc ON cc.course_id = c.id " +
+                "WHERE cc.class_id = ? AND c.course_name = ? ORDER BY c.id LIMIT 1",
+                Long.class, classId, courseName);
+            if (!bound.isEmpty()) {
+                Long id = bound.get(0);
+                jdbc.update("UPDATE course SET credit = ? WHERE id = ? AND (credit IS NULL OR credit = 0)",
+                    new java.math.BigDecimal(credit), id);
+                if (estimatedCredit > 0) {
+                    int safeCredit = Math.min(estimatedCredit, 999);
+                    jdbc.update("UPDATE course SET credit = ? WHERE id = ? AND credit < ?",
+                        new java.math.BigDecimal(safeCredit), id, new java.math.BigDecimal(safeCredit));
+                }
+                return id;
+            }
+        }
+
+        // 2. 再按同教师同课程名查找（兼容一位教师跨多个班授课的场景）
         List<Long> ids = jdbc.queryForList(
             "SELECT id FROM course WHERE course_name = ? AND teacher_id = ? LIMIT 1",
             Long.class, courseName, teacherId);
