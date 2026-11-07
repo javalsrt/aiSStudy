@@ -34,8 +34,8 @@ public final class RichTextRenderer {
             synchronized (RichTextRenderer.class) {
                 if (instance == null) {
                     final Context app = context.getApplicationContext();
-                    // 公式基准字号（14sp），随系统字体缩放
-                    final float texTextSize = app.getResources().getDisplayMetrics().scaledDensity * 14f;
+                    // 公式基准字号（16sp），随系统字体缩放；调大避免题干/选项里的公式过小
+                    final float texTextSize = app.getResources().getDisplayMetrics().scaledDensity * 16f;
                     instance = Markwon.builder(app)
                             .usePlugin(HtmlPlugin.create())
                             // 关键：JLatexMathPlugin 依赖行内解析器，缺失会导致构建 Markwon 时抛异常
@@ -68,7 +68,11 @@ public final class RichTextRenderer {
                                             .codeBlockTypeface(Typeface.MONOSPACE)
                                             .codeBlockMargin(0)
                                             .blockMargin(0)
-                                            .headingBreakColor(0xFFE0E6F0);
+                                            .headingBreakColor(0xFFE0E6F0)
+                                            // 行内反引号内容（音标/短词）：去掉默认底色，以主蓝加粗显示
+                                            .codeBackgroundColor(android.graphics.Color.TRANSPARENT)
+                                            .codeTextColor(0xFF0A84FF)
+                                            .codeTypeface(Typeface.DEFAULT_BOLD);
                                 }
                             })
                             .build();

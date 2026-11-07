@@ -9,6 +9,7 @@ public class QuizQuestion {
     private String question;
     private List<String> options;  // 选择题和判断题的选项
     private String correctAnswer;
+    private String graph;          // 函数图像表达式（如 "y=2*x+3"），无则 null
 
     // 客户端行为记录
     private String userAnswer;
@@ -27,6 +28,8 @@ public class QuizQuestion {
     public void setOptions(List<String> v) { options = v; }
     public String getCorrectAnswer() { return correctAnswer; }
     public void setCorrectAnswer(String v) { correctAnswer = v; }
+    public String getGraph() { return graph; }
+    public void setGraph(String v) { graph = v; }
     public String getUserAnswer() { return userAnswer; }
     public void setUserAnswer(String v) { userAnswer = v; }
     public int getDurationSec() { return durationSec; }

@@ -28,47 +28,39 @@
         android:textColor="@color/ink"
         android:lineSpacingExtra="4dp" />
 
-    <LinearLayout
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:text="你的答案："
+        android:textSize="12sp"
+        android:textColor="@color/ink_subtle" />
+
+    <TextView
+        android:id="@+id/tv_user_answer"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:layout_marginTop="12dp">
+        android:layout_marginTop="2dp"
+        android:text="未作答"
+        android:textSize="13sp"
+        android:textColor="@color/danger"
+        android:lineSpacingExtra="3dp" />
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="你的答案："
-            android:textSize="13sp"
-            android:textColor="@color/ink_subtle" />
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:text="正确答案："
+        android:textSize="12sp"
+        android:textColor="@color/ink_subtle" />
 
-        <TextView
-            android:id="@+id/tv_user_answer"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="未作答"
-            android:textSize="13sp"
-            android:textColor="@color/danger" />
-    </LinearLayout>
-
-    <LinearLayout
+    <TextView
+        android:id="@+id/tv_correct_answer"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:layout_marginTop="6dp">
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="正确答案："
-            android:textSize="13sp"
-            android:textColor="@color/ink_subtle" />
-
-        <TextView
-            android:id="@+id/tv_correct_answer"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="正确答案"
-            android:textSize="13sp"
-            android:textColor="@color/success" />
-    </LinearLayout>
+        android:layout_marginTop="2dp"
+        android:text="正确答案"
+        android:textSize="13sp"
+        android:textColor="@color/success"
+        android:lineSpacingExtra="3dp" />
 </LinearLayout>

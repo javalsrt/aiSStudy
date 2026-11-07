@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 列表行首图标容器：浅色底 + 圆角方块，容纳 20dp 线性图标 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="@color/primary_soft" />
+    <corners android:radius="10dp" />
+</shape>

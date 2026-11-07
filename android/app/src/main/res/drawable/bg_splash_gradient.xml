@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 启动页背景：顶部浅蓝 → 底部纯白的柔和纵向渐变 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:angle="270"
+        android:centerColor="#F7FAFF"
+        android:endColor="#FFFFFF"
+        android:startColor="#EAF2FF" />
+</shape>

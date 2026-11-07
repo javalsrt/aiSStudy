@@ -191,10 +191,10 @@ public class ChapterLearnActivity extends AppCompatActivity {
                     @Override
                     public void configureTheme(@NonNull MarkwonTheme.Builder builder) {
                         builder
-                                // 行内知识块（inline code）：浅蓝底 + 主蓝文字
-                                .codeBackgroundColor(0xFFE5F1FF)
+                                // 行内强调（音标/术语）：去掉蓝色底块，改为无底色的主蓝加粗文字，更清爽
+                                .codeBackgroundColor(android.graphics.Color.TRANSPARENT)
                                 .codeTextColor(0xFF0A84FF)
-                                .codeTypeface(Typeface.MONOSPACE)
+                                .codeTypeface(Typeface.DEFAULT_BOLD)
                                 // 围栏代码块：浅灰底 + 墨色文字
                                 .codeBlockBackgroundColor(0xFFF0F0F4)
                                 .codeBlockTextColor(0xFF1D1D1F)

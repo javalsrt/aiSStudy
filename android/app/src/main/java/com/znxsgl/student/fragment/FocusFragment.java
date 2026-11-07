@@ -226,8 +226,8 @@ public class FocusFragment extends Fragment {
                         .inflate(R.layout.item_quiz_panel, parent, false);
                 // 设置为正方形
                 GridLayoutManager.LayoutParams lp = new GridLayoutManager.LayoutParams(panelSize, panelSize);
-                // 底部留 16dp：给错落排列留出上下浮动的余量
-                lp.setMargins(0, 0, viewType == 0 ? dp(12) : 0, dp(16));
+                // 右下角间距统一 12dp（与列间距一致），卡片网格整齐紧凑
+                lp.setMargins(0, 0, viewType == 0 ? dp(12) : 0, dp(12));
                 v.setLayoutParams(lp);
                 return new PanelVH(v);
             }
@@ -264,19 +264,22 @@ public class FocusFragment extends Fragment {
                 int color = PANEL_COLORS[(rowIdx % 2) * 2 + colIdx];
                 stylePanel(h, color);
                 if (isCourse) {
-                    h.tvMeta.setText("章节学习 | AI 出题 | 随时练");
+                    StudentCourse c = (StudentCourse) item;
+                    String t = (c.getTeacherName() != null && !c.getTeacherName().isEmpty())
+                            ? c.getTeacherName() : "在线课程";
+                    h.tvMeta.setText(t + " | 章节学习 | 随时练");
                 } else if ("复习加强".equals(name)) {
                     h.tvMeta.setText("重点巩固 | 错题回顾");
                 } else {
                     h.tvMeta.setText("错题解析 | 薄弱点定位");
                 }
-                // 左上/右下略低，右上/左下略高，形成 Zig-Zag 阶梯感
-                h.itemView.setTranslationY(dp((rowIdx + colIdx) % 2 == 0 ? 7 : -7));
+                // 取消错落浮动：上下浮动会撑大行间距，改为整齐排列
+                h.itemView.setTranslationY(0);
                 if (isCourse) {
                     final long cid = courseId;
                     boolean hasChapters = ((StudentCourse) item).isHasChapters();
-                    // 课程还没有章节内容时，「章节」「开始」入口一并隐藏（不可刷题也不可学习）
-                    h.btnChapter.setVisibility(hasChapters ? View.VISIBLE : View.GONE);
+                    // 新版卡片：章节入口 = 点击卡片本体；白胶囊按钮只承担「开始」
+                    h.btnChapter.setVisibility(View.GONE);
                     h.btnAction.setVisibility(hasChapters ? View.VISIBLE : View.GONE);
                     h.btnAction.setText("开始");
                     if (hasChapters) {
@@ -311,6 +314,7 @@ public class FocusFragment extends Fragment {
 
     static class PanelVH extends RecyclerView.ViewHolder {
         TextView tvName, tvSub, tvBig, tvMeta, btnChapter, btnAction;
+        View sheetBack, cardMain, metaStrip;
         PanelVH(View v) { super(v);
             tvName = v.findViewById(R.id.tv_name);
             tvSub = v.findViewById(R.id.tv_sub);
@@ -318,24 +322,43 @@ public class FocusFragment extends Fragment {
             tvMeta = v.findViewById(R.id.tv_meta);
             btnChapter = v.findViewById(R.id.btn_chapter);
             btnAction = v.findViewById(R.id.btn_action);
+            sheetBack = v.findViewById(R.id.sheet_back);
+            cardMain = v.findViewById(R.id.card_main);
+            metaStrip = v.findViewById(R.id.ll_meta_strip);
         }
     }
 
-    /** 卡片主色：低饱和莫兰迪色，按顺序循环使用 */
+    /** 卡片主色：饱和考试卡配色（红/绿/蓝/橙），按 2×2 区块循环 */
     private static final int[] PANEL_COLORS = {
-            0xFFE8919F, // 粉
-            0xFF7FC5A8, // 薄荷绿
-            0xFF7E9ACF, // 灰蓝
-            0xFFEFA776  // 橙
+            0xFFF0696B, // 珊瑚红
+            0xFF41B189, // 石绿
+            0xFF5B7BD5, // 靛蓝
+            0xFFE8834F  // 暖橙
     };
 
-    /** 套用卡片主色：圆角底色 + 主按钮文字取深一档的同色 */
+    /** 套用卡片主色：主色卡 + 右侧浅色错层纸片 + 底部深色信息条 + 白色胶囊按钮 */
     private void stylePanel(PanelVH h, int color) {
-        android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
-        bg.setColor(color);
-        bg.setCornerRadius(dp(22));
-        h.itemView.setBackground(bg);
-        h.btnAction.setTextColor(darken(color, 0.72f));
+        // 主卡片：饱和纯色 + 14dp 圆角
+        android.graphics.drawable.GradientDrawable card = new android.graphics.drawable.GradientDrawable();
+        card.setColor(color);
+        card.setCornerRadius(dp(14));
+        h.cardMain.setBackground(card);
+
+        // 背后纸片：主色混白 55%，右侧露出一条浅色边
+        android.graphics.drawable.GradientDrawable back = new android.graphics.drawable.GradientDrawable();
+        back.setColor(androidx.core.graphics.ColorUtils.blendARGB(color, android.graphics.Color.WHITE, 0.55f));
+        back.setCornerRadius(dp(14));
+        h.sheetBack.setBackground(back);
+
+        // 底部信息条：主色压深 14%，底部圆角与卡片一致、顶部平角
+        android.graphics.drawable.GradientDrawable strip = new android.graphics.drawable.GradientDrawable();
+        strip.setColor(androidx.core.graphics.ColorUtils.blendARGB(color, android.graphics.Color.BLACK, 0.14f));
+        float r = dp(14);
+        strip.setCornerRadii(new float[]{0, 0, 0, 0, r, r, r, r});
+        h.metaStrip.setBackground(strip);
+
+        // 开始按钮：白色胶囊 + 深一档主色文字
+        h.btnAction.setTextColor(darken(color, 0.62f));
     }
 
     /** 与黑色混合，得到同色系更深的一档 */

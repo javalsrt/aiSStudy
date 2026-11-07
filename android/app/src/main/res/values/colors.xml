@@ -34,6 +34,9 @@
     <color name="exam_card_border">#B3D7FF</color>
     <color name="exam_icon_bg">@color/primary</color>
 
+    <!-- 顶部弥散渐变（AuroraHeaderView）顶边实测色：用于状态栏无缝衔接，不参与其他 UI -->
+    <color name="aurora_top">#C8E2ED</color>
+
     <!-- Others -->
     <color name="inverse_canvas">#1D1D1F</color>
     <color name="inverse_ink">#FFFFFF</color>

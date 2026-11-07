@@ -61,6 +61,6 @@
         android:layout_weight="1"
         android:scrollbars="none"
         android:clipToPadding="false"
-        android:paddingHorizontal="12dp"
-        android:paddingVertical="8dp" />
+        android:paddingHorizontal="2dp"
+        android:paddingVertical="4dp" />
 </LinearLayout>

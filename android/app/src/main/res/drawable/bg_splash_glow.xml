@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 启动页图标光晕：中心淡蓝向边缘透明扩散 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <gradient
+        android:centerColor="#4D7FB6FF"
+        android:endColor="#007FB6FF"
+        android:gradientRadius="75dp"
+        android:startColor="#4D7FB6FF"
+        android:type="radial" />
+</shape>

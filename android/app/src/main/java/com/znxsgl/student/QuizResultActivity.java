@@ -15,6 +15,7 @@ import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.view.WindowCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -37,6 +38,12 @@ public class QuizResultActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_quiz_result);
+
+        // 状态栏与页面底色统一（canvas），避免顶部出现割裂白条
+        getWindow().setStatusBarColor(0xFFF2F2F7);
+        getWindow().setNavigationBarColor(0xFFF2F2F7);
+        WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView())
+                .setAppearanceLightStatusBars(true);
 
         SharedPreferences prefs = getSharedPreferences("znxsgl", 0);
         token = "Bearer " + prefs.getString("token", "");
@@ -329,9 +336,11 @@ public class QuizResultActivity extends AppCompatActivity {
             if (ua == null || ua.isEmpty() || "不会".equals(ua)) {
                 h.tvUserAnswer.setText("未作答 / 不会");
             } else {
-                h.tvUserAnswer.setText(ua);
+                // 学生作答可能含 LaTeX / Markdown，统一走富文本渲染
+                RichTextRenderer.set(h.tvUserAnswer, ua);
             }
-            h.tvCorrectAnswer.setText(item.getOrDefault("correctAnswer", ""));
+            // 正确答案常带 $...$ 公式，必须富文本渲染，否则会直接显示原始 LaTeX 源码
+            RichTextRenderer.set(h.tvCorrectAnswer, item.getOrDefault("correctAnswer", ""));
         }
 
         @Override public int getItemCount() { return data.size(); }

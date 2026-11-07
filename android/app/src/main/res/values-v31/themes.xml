@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android 12+ 系统启动画面：浅蓝底，不显示应用大图标，与自建启动页无缝衔接 -->
+    <style name="Theme.ZnxsglStudent.Splash" parent="Theme.ZnxsglStudent">
+        <item name="android:windowBackground">@drawable/bg_splash_gradient</item>
+        <item name="android:windowSplashScreenBackground">#EAF2FF</item>
+        <!-- 透明占位图标：隐藏系统默认的应用大图标 -->
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_splash_transparent</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@android:color/transparent</item>
+        <item name="android:statusBarColor">#EAF2FF</item>
+        <item name="android:navigationBarColor">#FFFFFF</item>
+    </style>
+</resources>

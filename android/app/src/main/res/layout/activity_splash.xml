@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 启动页：浅蓝渐变背景 + 中央品牌图标（弹性进场）+ 标语 -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/bg_splash_gradient">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:layout_marginBottom="72dp"
+        android:gravity="center_horizontal"
+        android:orientation="vertical">
+
+        <FrameLayout
+            android:id="@+id/fl_logo"
+            android:layout_width="160dp"
+            android:layout_height="160dp">
+
+            <!-- 光晕：由代码控制缩放与透明度，形成扩散脉冲 -->
+            <View
+                android:id="@+id/v_glow"
+                android:layout_width="150dp"
+                android:layout_height="150dp"
+                android:layout_gravity="center"
+                android:background="@drawable/bg_splash_glow" />
+
+            <ImageView
+                android:layout_width="116dp"
+                android:layout_height="116dp"
+                android:layout_gravity="center"
+                android:contentDescription="@string/app_name"
+                android:src="@mipmap/ic_launcher" />
+        </FrameLayout>
+
+        <TextView
+            android:id="@+id/tv_app_name"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="22dp"
+            android:fontFamily="@font/harmonyos_sans_sc_medium"
+            android:letterSpacing="0.06"
+            android:text="@string/app_name"
+            android:textColor="@color/ink"
+            android:textSize="24sp" />
+
+        <TextView
+            android:id="@+id/tv_slogan"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:letterSpacing="0.12"
+            android:text="专注学习 · 智能成长"
+            android:textColor="@color/ink_subtle"
+            android:textSize="13sp" />
+    </LinearLayout>
+</FrameLayout>

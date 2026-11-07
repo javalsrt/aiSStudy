@@ -4,46 +4,67 @@
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:background="@color/canvas"
-    android:paddingTop="48dp"
-    android:paddingHorizontal="24dp">
+    android:paddingTop="44dp"
+    android:paddingHorizontal="12dp"
+    android:paddingBottom="12dp">
 
-    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:orientation="horizontal" android:gravity="center_vertical"
-        android:layout_marginBottom="24dp">
-        <TextView android:id="@+id/tv_quiz_tag" android:layout_width="wrap_content"
-            android:layout_height="wrap_content" android:text="判断题"
-            android:textSize="12sp" android:textColor="@color/primary"
-            android:paddingHorizontal="10dp" android:paddingVertical="4dp"
-            android:background="@drawable/bg_tag" />
-        <TextView android:id="@+id/tv_quiz_num" android:layout_width="wrap_content"
-            android:layout_height="wrap_content" android:text="1/15"
-            android:textSize="13sp" android:textColor="@color/ink_subtle"
-            android:layout_marginStart="12dp" />
+    <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:background="@drawable/bg_quiz_card"
+        android:padding="20dp">
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:layout_marginBottom="12dp">
+            <TextView android:id="@+id/tv_quiz_tag" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:text="判断题"
+                android:textSize="12sp" android:textColor="@color/primary"
+                android:paddingHorizontal="10dp" android:paddingVertical="4dp"
+                android:background="@drawable/bg_tag" />
+            <View android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" />
+            <TextView android:id="@+id/tv_quiz_num" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:text="1/15"
+                android:textSize="13sp" android:textColor="@color/ink_subtle"
+                android:fontFamily="@font/harmonyos_sans_sc_medium" />
+        </LinearLayout>
+
+        <!-- 题干 + 作答按钮整体垂直居中，消除大片空白 -->
+        <LinearLayout android:layout_width="match_parent" android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center_vertical">
+
+            <TextView android:id="@+id/tv_quiz_question" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:text="题目内容"
+                android:textSize="19sp" android:textColor="@color/ink"
+                android:lineSpacingExtra="6dp"
+                android:layout_marginBottom="28dp" />
+
+            <com.znxsgl.student.widget.FunctionPlotView
+                android:id="@+id/graph_view"
+                android:layout_width="match_parent" android:layout_height="190dp"
+                android:layout_marginBottom="20dp"
+                android:visibility="gone"
+                android:background="@drawable/bg_graph_panel"
+                android:padding="10dp" />
+
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="horizontal" android:weightSum="2">
+
+                <com.znxsgl.student.widget.AnimatedChoiceButton android:id="@+id/btn_true" android:layout_width="0dp"
+                    android:layout_height="72dp" android:layout_weight="1"
+                    android:text="正确" android:textSize="18sp"
+                    android:gravity="center"
+                    android:layout_marginEnd="12dp"
+                    android:clickable="true" android:focusable="true" />
+
+                <com.znxsgl.student.widget.AnimatedChoiceButton android:id="@+id/btn_false" android:layout_width="0dp"
+                    android:layout_height="72dp" android:layout_weight="1"
+                    android:text="错误" android:textSize="18sp"
+                    android:gravity="center"
+                    android:layout_marginStart="12dp"
+                    android:clickable="true" android:focusable="true" />
+            </LinearLayout>
+        </LinearLayout>
     </LinearLayout>
-
-    <TextView android:id="@+id/tv_quiz_question" android:layout_width="match_parent"
-        android:layout_height="wrap_content" android:text="题目内容"
-        android:textSize="17sp" android:textColor="@color/ink"
-        android:lineSpacingExtra="6dp" android:layout_marginBottom="36dp" />
-
-    <LinearLayout android:layout_width="match_parent" android:layout_height="0dp"
-        android:layout_weight="1" android:orientation="horizontal"
-        android:gravity="center" android:weightSum="2">
-
-        <com.znxsgl.student.widget.AnimatedChoiceButton android:id="@+id/btn_true" android:layout_width="0dp"
-            android:layout_height="72dp" android:layout_weight="1"
-            android:text="正确" android:textSize="18sp"
-            android:gravity="center"
-            android:layout_marginEnd="12dp"
-            android:clickable="true" android:focusable="true" />
-
-        <com.znxsgl.student.widget.AnimatedChoiceButton android:id="@+id/btn_false" android:layout_width="0dp"
-            android:layout_height="72dp" android:layout_weight="1"
-            android:text="错误" android:textSize="18sp"
-            android:gravity="center"
-            android:layout_marginStart="12dp"
-            android:clickable="true" android:focusable="true" />
-    </LinearLayout>
-
-    <View android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" />
 </LinearLayout>

@@ -59,6 +59,13 @@
             android:layout_width="match_parent" android:layout_height="match_parent"
             android:orientation="vertical" android:visibility="gone"
             android:background="@color/canvas">
+            <!-- 答题进度条 -->
+            <ProgressBar android:id="@+id/quiz_progress"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="match_parent" android:layout_height="3dp"
+                android:max="100" android:progress="0"
+                android:progressTint="@color/primary"
+                android:progressBackgroundTint="@color/hairline" />
             <androidx.viewpager2.widget.ViewPager2
                 android:id="@+id/viewpager_quiz"
                 android:layout_width="match_parent" android:layout_height="0dp"

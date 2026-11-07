@@ -1,6 +1,6 @@
 package com.znxsgl.student;
 
-import android.graphics.Color;
+import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -13,11 +13,13 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.znxsgl.student.model.QuizQuestion;
 import com.znxsgl.student.widget.AnimatedChoiceButton;
 import com.znxsgl.student.widget.AnimatedOptionButton;
+import com.znxsgl.student.widget.FunctionPlotView;
 
 import java.util.List;
 
@@ -72,23 +74,22 @@ public class QuizPagerAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
         vh.tvTag.setText("单选题");
         vh.tvNum.setText((pos + 1) + "/" + questions.size());
         RichTextRenderer.set(vh.tvQuestion, question);
+        bindGraph(vh.graphView, q);
         vh.llOptions.removeAllViews();
 
         List<String> options = q.getOptions();
         if (options != null) {
-            for (String optText : options) {
-                boolean selected = optText.equals(q.getUserAnswer());
-                TextView tv = createOptionText(vh.itemView.getContext(), optText, selected);
-
-                final String answer = optText;
-                tv.setOnClickListener(v -> {
+            for (int i = 0; i < options.size(); i++) {
+                final String answer = options.get(i);
+                boolean selected = answer.equals(q.getUserAnswer());
+                View row = createOptionRow(vh.itemView.getContext(), i, answer, selected, () -> {
                     if (answer.equals(q.getUserAnswer())) return;
                     q.setUserAnswer(answer);
                     q.setModifiedCount(q.getModifiedCount() + 1);
                     notifyItemChanged(pos);
                     if (listener != null) listener.onAnswered(pos, answer);
                 });
-                vh.llOptions.addView(tv);
+                vh.llOptions.addView(row);
             }
         }
     }
@@ -98,6 +99,7 @@ public class QuizPagerAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
         vh.tvTag.setText("判断题");
         vh.tvNum.setText((pos + 1) + "/" + questions.size());
         RichTextRenderer.set(vh.tvQuestion, question);
+        bindGraph(vh.graphView, q);
 
         boolean selectedTrue = "正确".equals(q.getUserAnswer());
         boolean selectedFalse = "错误".equals(q.getUserAnswer());
@@ -132,6 +134,7 @@ public class QuizPagerAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
         vh.tvTag.setText("解析题");
         vh.tvNum.setText((pos + 1) + "/" + questions.size());
         RichTextRenderer.set(vh.tvQuestion, question);
+        bindGraph(vh.graphView, q);
         bindTextAnswer(vh.etAnswer, q);
     }
 
@@ -140,7 +143,22 @@ public class QuizPagerAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
         vh.tvTag.setText("填空题");
         vh.tvNum.setText((pos + 1) + "/" + questions.size());
         RichTextRenderer.set(vh.tvQuestion, question);
+        bindGraph(vh.graphView, q);
         bindTextAnswer(vh.etAnswer, q);
+    }
+
+    /**
+     * 函数图像绑定：题目带 graph 表达式且解析成功时显示坐标曲线，否则隐藏。
+     */
+    private void bindGraph(FunctionPlotView view, QuizQuestion q) {
+        if (view == null) return;
+        String g = q.getGraph();
+        if (g == null || g.trim().isEmpty()) {
+            view.setVisibility(View.GONE);
+            return;
+        }
+        boolean ok = view.setExpression(g);
+        view.setVisibility(ok ? View.VISIBLE : View.GONE);
     }
 
     /**
@@ -167,22 +185,57 @@ public class QuizPagerAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
         et.setTag(watcher);
     }
 
-    /** 选择题选项样式：浅蓝底 + 浅灰斜切块滑动 */
-    private TextView createOptionText(android.content.Context ctx, String text, boolean selected) {
+    /** 选项行：圆形字母徽标 + 选项胶囊按钮（点徽标或胶囊均可选中） */
+    private View createOptionRow(android.content.Context ctx, int index, String rawText,
+                                 boolean selected, Runnable onSelect) {
+        char letter = (char) ('A' + index);
+
+        LinearLayout row = new LinearLayout(ctx);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams rowLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        rowLp.setMargins(0, 0, 0, dp(ctx, 12));
+        row.setLayoutParams(rowLp);
+
+        TextView chip = new TextView(ctx);
+        chip.setLayoutParams(new LinearLayout.LayoutParams(dp(ctx, 32), dp(ctx, 32)));
+        chip.setGravity(Gravity.CENTER);
+        chip.setText(String.valueOf(letter));
+        chip.setTextSize(15);
+        chip.setTypeface(Typeface.DEFAULT_BOLD);
+        chip.setTextColor(ContextCompat.getColor(ctx, selected ? R.color.primary : R.color.ink_muted));
+        GradientDrawable chipBg = new GradientDrawable();
+        chipBg.setShape(GradientDrawable.OVAL);
+        chipBg.setColor(ContextCompat.getColor(ctx, selected ? R.color.primary_soft : R.color.surface_3));
+        chip.setBackground(chipBg);
+
         AnimatedOptionButton tv = new AnimatedOptionButton(ctx);
-        // 选项可能含 LaTeX 公式（AI 出题用 $/$$ 包裹），走富文本渲染
-        RichTextRenderer.set(tv, text);
+        // AI 选项文本常自带 "A. " 前缀，剥掉后由圆徽标呈现，避免重复
+        RichTextRenderer.set(tv, stripOptionLetter(rawText));
         tv.setTextSize(17);
-        tv.setPadding(dp(ctx, 20), dp(ctx, 18), dp(ctx, 20), dp(ctx, 18));
+        tv.setPadding(dp(ctx, 16), dp(ctx, 18), dp(ctx, 16), dp(ctx, 18));
         tv.setOptionSelected(selected);
         tv.setClickable(true);
         tv.setFocusable(true);
+        LinearLayout.LayoutParams tvLp = new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        tvLp.setMarginStart(dp(ctx, 12));
+        tv.setLayoutParams(tvLp);
 
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        lp.setMargins(0, 0, 0, dp(ctx, 12));
-        tv.setLayoutParams(lp);
-        return tv;
+        View.OnClickListener click = v -> onSelect.run();
+        tv.setOnClickListener(click);
+        chip.setOnClickListener(click);
+
+        row.addView(chip);
+        row.addView(tv);
+        return row;
+    }
+
+    /** 去掉 AI 选项自带的 "A." / "B、" 等字母前缀 */
+    private static String stripOptionLetter(String text) {
+        if (text == null) return "";
+        return text.replaceFirst("^\\s*[A-Da-dＡ-Ｄ][\\.、,\\)）:：]\\s*", "").trim();
     }
 
     private void applyPillFeedback(View v) {
@@ -212,29 +265,34 @@ public class QuizPagerAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
 
     // ===== ViewHolders =====
     static class ChoiceVH extends RecyclerView.ViewHolder {
-        TextView tvTag, tvNum, tvQuestion; LinearLayout llOptions;
+        TextView tvTag, tvNum, tvQuestion; LinearLayout llOptions; FunctionPlotView graphView;
         ChoiceVH(View v) { super(v);
             tvTag = v.findViewById(R.id.tv_quiz_tag); tvNum = v.findViewById(R.id.tv_quiz_num);
-            tvQuestion = v.findViewById(R.id.tv_quiz_question); llOptions = v.findViewById(R.id.ll_options); }
+            tvQuestion = v.findViewById(R.id.tv_quiz_question); llOptions = v.findViewById(R.id.ll_options);
+            graphView = v.findViewById(R.id.graph_view); }
     }
     static class JudgeVH extends RecyclerView.ViewHolder {
         TextView tvTag, tvNum, tvQuestion;
         AnimatedChoiceButton btnTrue, btnFalse;
+        FunctionPlotView graphView;
         JudgeVH(View v) { super(v);
             tvTag = v.findViewById(R.id.tv_quiz_tag); tvNum = v.findViewById(R.id.tv_quiz_num);
             tvQuestion = v.findViewById(R.id.tv_quiz_question);
-            btnTrue = v.findViewById(R.id.btn_true); btnFalse = v.findViewById(R.id.btn_false); }
+            btnTrue = v.findViewById(R.id.btn_true); btnFalse = v.findViewById(R.id.btn_false);
+            graphView = v.findViewById(R.id.graph_view); }
     }
     public static class AnalysisVH extends RecyclerView.ViewHolder {
-        public TextView tvTag, tvNum, tvQuestion; public EditText etAnswer;
+        public TextView tvTag, tvNum, tvQuestion; public EditText etAnswer; FunctionPlotView graphView;
         AnalysisVH(View v) { super(v);
             tvTag = v.findViewById(R.id.tv_quiz_tag); tvNum = v.findViewById(R.id.tv_quiz_num);
-            tvQuestion = v.findViewById(R.id.tv_quiz_question); etAnswer = v.findViewById(R.id.et_answer); }
+            tvQuestion = v.findViewById(R.id.tv_quiz_question); etAnswer = v.findViewById(R.id.et_answer);
+            graphView = v.findViewById(R.id.graph_view); }
     }
     public static class FillVH extends RecyclerView.ViewHolder {
-        public TextView tvTag, tvNum, tvQuestion; public EditText etAnswer;
+        public TextView tvTag, tvNum, tvQuestion; public EditText etAnswer; FunctionPlotView graphView;
         FillVH(View v) { super(v);
             tvTag = v.findViewById(R.id.tv_quiz_tag); tvNum = v.findViewById(R.id.tv_quiz_num);
-            tvQuestion = v.findViewById(R.id.tv_quiz_question); etAnswer = v.findViewById(R.id.et_answer); }
+            tvQuestion = v.findViewById(R.id.tv_quiz_question); etAnswer = v.findViewById(R.id.et_answer);
+            graphView = v.findViewById(R.id.graph_view); }
     }
 }

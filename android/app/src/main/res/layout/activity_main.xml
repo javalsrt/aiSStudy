@@ -41,4 +41,17 @@
         app:labelVisibilityMode="labeled"
         app:menu="@menu/bottom_nav_menu" />
 
+    <!--
+      中间 AI 星星的点击爆发动效层（声波涟漪 + 星芒 + 粒子）。
+      铺满整屏但 clickable/focusable 均为 false，触摸事件会穿透到下层导航，
+      只在 AI 图标位置绘制，不影响其他页签的点击与无障碍。
+    -->
+    <com.znxsgl.student.widget.AiTabBurstView
+        android:id="@+id/ai_tab_burst"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:elevation="12dp"
+        android:importantForAccessibility="no"
+        android:outlineProvider="none" />
+
 </FrameLayout>
