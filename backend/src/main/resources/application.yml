@@ -56,11 +56,11 @@ jwt:
   secret: ${JWT_SECRET:ZnxsglRAGLearningApp2026SecretKeyForJWTTokenGenerationMustBe256Bits}
   expiration: 604800000
 
-# LLM 对话模型配置（当前使用 DeepSeek R1）
+# LLM 对话模型配置（当前使用 DeepSeek V4.1 Flash）
 # API Key 必须通过环境变量 DEEPSEEK_API_KEY 注入，不再内置兜底值
 llm:
   api-key: ${DEEPSEEK_API_KEY}
-  model: deepseek-v4-flash
+  model: deepseek-flash
   url: https://api.deepseek.com/chat/completions
 
 # 作息表图片识别（OpenAI 兼容的多模态视觉模型）

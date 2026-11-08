@@ -15,7 +15,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 大语言模型服务（当前使用 DeepSeek R1）
+ * 大语言模型服务（当前使用 DeepSeek V4.1 Flash）
  */
 @Service
 public class LlmService {
