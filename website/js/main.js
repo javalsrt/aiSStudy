@@ -30,84 +30,7 @@ if (navToggle) {
     a.addEventListener('click', () => nav.classList.remove('open')));
 }
 
-// ===== 滚动渐入（IntersectionObserver） =====
-const io = new IntersectionObserver(entries => {
-  entries.forEach(e => {
-    if (e.isIntersecting) {
-      e.target.classList.add('in');
-      // 浏览器样机中的柱状图进入视口后再播放生长动画
-      e.target.querySelectorAll('.bar-v i').forEach(bar => {
-        bar.style.animation = 'none';
-        void bar.offsetWidth;
-        bar.style.animation = '';
-      });
-      io.unobserve(e.target);
-    }
-  });
-}, { threshold: 0.15 });
-document.querySelectorAll('.reveal').forEach(el => io.observe(el));
-
-// ===== 手机展示：逐台逐项入场动画（参考 ReactBits AnimatedContent） =====
-(function initAppShots() {
-  const wrap = document.querySelector('.app-shots');
-  if (!wrap) return;
-
-  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (reduceMotion || !('IntersectionObserver' in window)) return;
-
-  wrap.classList.add('ac-ready');
-
-  const phones = Array.from(wrap.querySelectorAll('.shot-phone'));
-  const itemSelector = [
-    '.am-body > *',
-    '.am-nav',
-    '.am-progress',
-    '.am-scroll > .am-ch',
-    '.am-q-title',
-    '.am-q-sub',
-    '.am-q-meta',
-    '.am-question',
-    '.am-ans',
-    '.am-submit',
-    '.am-tabbar'
-  ].join(', ');
-  const itemsByPhone = phones.map(phone => Array.from(phone.querySelectorAll(itemSelector)));
-
-  let played = false;
-  const play = () => {
-    if (played) return;
-    played = true;
-    phones.forEach((phone, i) => {
-      const phoneDelay = i * 130;
-      phone.style.transitionDelay = phoneDelay + 'ms';
-      phone.classList.add('ac-in');
-      itemsByPhone[i].forEach((el, j) => {
-        el.style.transitionDelay = (phoneDelay + 240 + j * 55) + 'ms';
-        el.classList.add('ac-in');
-      });
-    });
-    // 动画结束后清理内联延迟与入场状态，恢复手机 hover 的原生过渡
-    window.setTimeout(() => {
-      wrap.classList.remove('ac-ready');
-      phones.forEach(phone => {
-        phone.classList.remove('ac-in');
-        phone.style.transitionDelay = '';
-      });
-      itemsByPhone.forEach(items => items.forEach(el => {
-        el.classList.remove('ac-in');
-        el.style.transitionDelay = '';
-      }));
-    }, 2400);
-  };
-
-  const shotsObserver = new IntersectionObserver(entries => {
-    if (entries.some(entry => entry.isIntersecting)) {
-      play();
-      shotsObserver.disconnect();
-    }
-  }, { threshold: 0.2 });
-  shotsObserver.observe(wrap);
-})();
+// ===== 滚动渐入：改由全站多光标搭建引擎负责，见文件末尾 initSiteBuild =====
 
 // ===== DeepSeek 出题打字动画 =====
 const typeDemo = document.getElementById('typeDemo');
@@ -176,17 +99,7 @@ function playDemo() {
   }, 1200);
 }
 
-// 深色 AI 区块进入视口时触发演示
-const demoObserver = new IntersectionObserver(entries => {
-  entries.forEach(e => {
-    if (e.isIntersecting) {
-      playDemo();
-      demoObserver.unobserve(e.target);
-    }
-  });
-}, { threshold: 0.3 });
-const demoEl = document.querySelector('.demo');
-if (demoEl) demoObserver.observe(demoEl);
+// 深色 AI 区块的解答演示由全站搭建引擎在「画出演示窗口」后触发（见 initSiteBuild）
 
 // ===== 技术架构 3×3×3 立方体（严格按 uiverse csemzepp 结构生成）=====
 // 结构：container > .cube×3（深度副本）> .cl×3（--x 列偏移）> span×3（行堆叠，--i 层级）
@@ -235,11 +148,12 @@ if (techMosaic) {
   const panel = document.getElementById('particlePanel');
   const ctx = canvas ? canvas.getContext('2d') : null;
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const PCFG = { size: 1.5, density: 2, color: '#ffffff', highlight: '#8b5cf6', scatter: 150, gather: 1400, stagger: 380, repel: 38, radius: 110, drift: .7, font: 120, weight: 800 };
+  // density 为整数采样步长（非整数会让像素索引取到 undefined，导致文字采样为空）
+  const PCFG = { size: 1.65, density: 2, color: '#ffffff', highlight: '#8b5cf6', scatter: 150, gather: 1400, stagger: 380, repel: 38, radius: 110, drift: .7, font: 120, weight: 800 };
   // 性能·设备自适应：低端核/移动端加大采样步长并压低粒子上限（粒子数 ≈ 文字面积/步长²）
   const LOW_END = (navigator.hardwareConcurrency || 4) <= 4 || /Mobi|Android|iPhone/i.test(navigator.userAgent);
   if (LOW_END) PCFG.density = 3;
-  const MAX_PARTICLES = LOW_END ? 10000 : 24000;
+  const MAX_PARTICLES = LOW_END ? 10000 : 32000;
 
   const PT = {
     particles: [], raf: null, build: 0,
@@ -308,17 +222,19 @@ if (techMosaic) {
     // 漂移的三角函数隔帧计算并缓存：follow=0.22 的插值下视觉完全无差
     const driftOn = !reducedMotion && ((PT.frame++ & 1) === 0);
     const drift = PCFG.drift;
+    // 聚合期边缘羽化距离：靠近画布四边的粒子渐隐，消除散开时被画布裁出的矩形硬边
+    const edgeFadeDist = Math.min(PT.w, PT.h) * 0.18;
     let complete = true;
     let curColor = -1;
 
     ctx.globalAlpha = 1;
     for (let k = 0; k < n; k++) {
       const p = ps[k];
-      let bx = p.tx, by = p.ty, progress = 1;
+      let bx = p.tx, by = p.ty, progress = 1, eased = 1;
       if (gathering) {
         const local = (now - PT.gatherStart - p.delay) / PCFG.gather;
         if (local < 1) { complete = false; progress = local > 0 ? local : 0; }
-        const eased = 1 - (1 - progress) * (1 - progress) * (1 - progress); // easeOutCubic 内联
+        eased = 1 - (1 - progress) * (1 - progress) * (1 - progress); // easeOutCubic 内联
         bx = p.sx + (p.tx - p.sx) * eased;
         by = p.sy + (p.ty - p.sy) * eased;
       } else if (!reducedMotion) {
@@ -343,9 +259,15 @@ if (techMosaic) {
       p.x += (bx - p.x) * follow;
       p.y += (by - p.y) * follow;
 
-      // alpha 仅在聚合期逐粒子变化；静止期为 1，不再设置
+      // alpha 仅在聚合期逐粒子变化；静止期为 1，不再设置。
+      // 越靠近画布边缘越透明，且粒子越接近目标点越恢复不透明，文字成形后完全不受影响。
       if (gathering) {
-        ctx.globalAlpha = progress >= 1 ? 1 : 0.35 + progress * 0.65;
+        const edge = Math.min(p.x, PT.w - p.x, p.y, PT.h - p.y);
+        const ef = clamp(edge / edgeFadeDist, 0, 1);
+        const edgeFade = ef * ef * (3 - 2 * ef);       // smoothstep：越靠边越透明
+        const reveal = eased * eased;                  // 越接近目标点越恢复不透明
+        const baseAlpha = progress >= 1 ? 1 : 0.35 + progress * 0.65;
+        ctx.globalAlpha = baseAlpha * (edgeFade + (1 - edgeFade) * reveal);
       }
       const ci = p.ci;
       if (ci !== curColor) { ctx.fillStyle = PALETTE[ci]; curColor = ci; }
@@ -393,22 +315,83 @@ if (techMosaic) {
     }
 
     // 描述：宽画布 32px / 窄画布(手机) 26px 起排，行数超高清晰度优先逐级缩小字号
+    // 按「词」换行：英文单词与中文词组整体保留，避免行尾把单词劈成两半
     let descSize = PT.w < 480 ? 26 : 32;
-    const wrapDesc = s => {
-      const charsPerLine = Math.max(8, Math.floor((PT.w * 0.94) / s));
-      const ls = [];
-      for (let i = 0; i < descText.length; i += charsPerLine) {
-        ls.push(descText.slice(i, i + charsPerLine));
-      }
-      return ls;
-    };
     const descText = desc || '';
+    const maxTextW = PT.w * 0.94;
+    const wordSegmenter = (typeof Intl !== 'undefined' && Intl.Segmenter)
+      ? new Intl.Segmenter('zh-Hans', { granularity: 'word' })
+      : null;
+    const tokenize = s => {
+      if (!wordSegmenter) return s.match(/[A-Za-z0-9]+(?:[-_.'’][A-Za-z0-9]+)*|\s+|[\s\S]/g) || [];
+      const segs = Array.from(wordSegmenter.segment(s), seg => seg.segment);
+      // 合并被分词器拆开的连字符单词：MyBatis + - + Plus → MyBatis-Plus
+      const tokens = [];
+      for (let i = 0; i < segs.length; i++) {
+        const cur = segs[i];
+        const next = segs[i + 1] || '';
+        if (cur === '-' && tokens.length && /[A-Za-z0-9]$/.test(tokens[tokens.length - 1])
+            && /^[A-Za-z0-9]/.test(next)) {
+          tokens[tokens.length - 1] += '-' + next;
+          i++;
+        } else {
+          tokens.push(cur);
+        }
+      }
+      return tokens;
+    };
+    const NO_LINE_START = /^[，。、；：！？）》」』】,.;:!?)]/;
+    const NO_LINE_END = /[（《「『【(]$/;
+    const wrapDesc = size => {
+      offCtx.font = `600 ${size}px ${family}`;
+      const lines = [];
+      let line = '';
+      let space = '';
+      for (const tok of tokenize(descText)) {
+        if (!tok) continue;
+        if (/^\s+$/.test(tok)) { space = ' '; continue; }
+        // 行首禁则：闭合标点不留行首，直接并入上一行
+        if (!line && NO_LINE_START.test(tok) && lines.length) {
+          lines[lines.length - 1] += tok;
+          space = '';
+          continue;
+        }
+        const candidate = line + space + tok;
+        const width = offCtx.measureText(candidate).width;
+        if (line && width > maxTextW) {
+          if (NO_LINE_START.test(tok)) {
+            lines.push(line + tok);   // 标点不留行首，跟随上一行
+            line = '';
+          } else {
+            lines.push(line);
+            line = tok;
+          }
+        } else {
+          line = candidate;
+        }
+        space = '';
+      }
+      if (line) lines.push(line);
+      // 行尾禁则：开括号不留在上一行行尾，移到下一行开头
+      for (let i = 0; i < lines.length - 1; i++) {
+        if (NO_LINE_END.test(lines[i])) {
+          lines[i + 1] = lines[i].slice(-1) + lines[i + 1];
+          lines[i] = lines[i].slice(0, -1);
+        }
+      }
+      return lines;
+    };
+    // 合并标点后可能略超 94% 排版宽度，超限则继续缩小字号，避免贴边裁切
+    const lineFits = ls => {
+      const limit = PT.w * 0.985;
+      return ls.every(l => offCtx.measureText(l).width <= limit);
+    };
     const nameY = Math.round(nameSize * 0.72);
     const descTop = nameY + Math.round(nameSize * 0.62);
     const availH = PT.h - descTop - 24;
     let lines = wrapDesc(descSize);
     let lineHeight = Math.round(descSize * 1.5);
-    while (lines.length * lineHeight > availH && descSize > 18) {
+    while ((lines.length * lineHeight > availH || !lineFits(lines)) && descSize > 18) {
       descSize -= 2;
       lines = wrapDesc(descSize);
       lineHeight = Math.round(descSize * 1.5);
@@ -422,7 +405,7 @@ if (techMosaic) {
     offCtx.textBaseline = 'middle';
     offCtx.font = nameFont(nameSize);
     offCtx.fillText(name, PT.w / 2, nameY);
-    offCtx.font = `500 ${descSize}px ${family}`;
+    offCtx.font = `600 ${descSize}px ${family}`;
     lines.forEach((line, li) => {
       offCtx.fillText(line, PT.w / 2, descTop + lineHeight * li + lineHeight / 2);
     });
@@ -519,7 +502,8 @@ if (techMosaic) {
   }
 }
 
-// ===== 管理端页面预览 · 左右自动轮播 + 内容逐项入场（参考 AnimatedContent） =====
+// ===== 管理端页面预览 · Tab 切换 + 自动轮播 =====
+// 每 8 秒自动切到下一页，手动点击 Tab 后重新计时；离屏或减少动效时停止自动轮播。
 (function initAdminPreview() {
   const browserEl = document.querySelector('.browser');
   const urlEl = document.getElementById('adminShotUrl');
@@ -527,249 +511,133 @@ if (techMosaic) {
   if (!browserEl || !tabs.length) return;
 
   const pages = tabs.map(tab => document.getElementById(tab.dataset.page));
-  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const INTERVAL = 8000;
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let current = Math.max(0, tabs.findIndex(t => t.classList.contains('on')));
+  let timer = 0;
 
-  const AUTOPLAY_MS = 5200;   // 每页停留时长
-  const STAGGER_MS = 50;      // 内容逐项入场间隔
-  const MAX_STEPS = 12;       // 交错步数上限，避免长表格尾部等待过久
-
-  // 每个页面参与逐项入场的元素（按视觉从上到下排列）
-  const STAGGER_SELECTORS = {
-    'page-dashboard': ['.spd-side b', '.spd-side span', '.spd-head', '.spd-card', '.spd-panel', '.spd-foot'],
-    'page-students': ['.sp-table thead tr', '.sp-table tbody tr'],
-    'page-courses': ['.sp-table thead tr', '.sp-table tbody tr'],
-    'page-stats': ['.sp-radar-panel', '.sp-student-head', '.sp-dim']
-  };
-
-  let current = 0;
-  let started = false;
-  let visible = false;
-  let hovering = false;
-  let timer = null;
-  const cleanupTimers = new WeakMap();
-
-  const itemsOf = page => Array.from(page.querySelectorAll((STAGGER_SELECTORS[page.id] || []).join(',')));
-
-  // 预先标记参与动画的元素，供 CSS 隐藏初态使用
-  pages.forEach(page => itemsOf(page).forEach(el => el.classList.add('ac-item')));
-
-  const clearTimer = () => {
-    if (timer) { clearTimeout(timer); timer = null; }
-  };
-
-  const canAutoplay = () => started && visible && !hovering && !document.hidden && !reduceMotion;
-
-  const scheduleNext = () => {
-    clearTimer();
-    if (!canAutoplay()) return;
-    timer = setTimeout(() => showPage((current + 1) % pages.length, 1), AUTOPLAY_MS);
-  };
-
-  // 让当前页内容从隐藏态逐项浮现
-  const playStagger = page => {
-    if (reduceMotion) return;
-    const items = itemsOf(page);
-    page.classList.add('ac-ready');
-    void page.offsetWidth;   // 确保隐藏初态先生效，再触发过渡
-    items.forEach((el, i) => {
-      el.style.transitionDelay = Math.min(i, MAX_STEPS) * STAGGER_MS + 'ms';
-      el.classList.add('ac-in');
-    });
-    const old = cleanupTimers.get(page);
-    if (old) clearTimeout(old);
-    cleanupTimers.set(page, setTimeout(() => {
-      page.classList.remove('ac-ready');
-      items.forEach(el => {
-        el.classList.remove('ac-in');
-        el.style.transitionDelay = '';
-      });
-    }, Math.min(items.length - 1, MAX_STEPS) * STAGGER_MS + 700));
-  };
-
-  // 切走时重置入场状态，避免动画残留
-  const resetStagger = page => {
-    const old = cleanupTimers.get(page);
-    if (old) { clearTimeout(old); cleanupTimers.delete(page); }
-    page.classList.remove('ac-ready', 'slide-left', 'slide-right');
-    page.querySelectorAll('.ac-in').forEach(el => {
-      el.classList.remove('ac-in');
-      el.style.transitionDelay = '';
-    });
-  };
-
-  const showPage = (index, dir) => {
-    if (index === current || !pages[index]) return;
-    const prev = pages[current];
-    const next = pages[index];
-    resetStagger(prev);
-    prev.classList.remove('on');
-
-    tabs.forEach((tab, i) => tab.classList.toggle('on', i === index));
-    if (urlEl) urlEl.textContent = tabs[index].dataset.url;
-
-    next.classList.add('ac-ready');
-    next.classList.add('on', dir > 0 ? 'slide-right' : 'slide-left');
+  const show = (index) => {
     current = index;
-    playStagger(next);
-    window.setTimeout(() => next.classList.remove('slide-left', 'slide-right'), 620);
-    scheduleNext();
+    tabs.forEach((t, i) => t.classList.toggle('on', i === index));
+    pages.forEach((page, i) => page.classList.toggle('on', i === index));
+    if (urlEl) urlEl.textContent = tabs[index].dataset.url;
   };
 
-  // 点击 Tab：手动切换（向左回退则从左侧滑入），并重新计时
+  const stop = () => {
+    if (timer) clearInterval(timer);
+    timer = 0;
+  };
+
+  const start = () => {
+    stop();
+    if (reduceMotion) return;
+    timer = setInterval(() => show((current + 1) % tabs.length), INTERVAL);
+  };
+
   tabs.forEach((tab, index) => {
     tab.addEventListener('click', () => {
-      showPage(index, index > current ? 1 : -1);
-      scheduleNext();
+      show(index);
+      start(); // 手动点击后重新计时
     });
   });
 
-  // 悬停暂停轮播便于阅读，移出后继续
-  browserEl.addEventListener('mouseenter', () => { hovering = true; clearTimer(); });
-  browserEl.addEventListener('mouseleave', () => { hovering = false; scheduleNext(); });
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden) clearTimer(); else scheduleNext();
-  });
-
-  // 首屏内容先隐藏，进入视口后再逐项入场并启动自动轮播
-  pages[current].classList.add('ac-ready');
-
-  const observer = new IntersectionObserver(entries => {
-    visible = entries.some(entry => entry.isIntersecting);
-    if (visible && !started) {
-      started = true;
-      playStagger(pages[current]);
+  if (!reduceMotion) {
+    if ('IntersectionObserver' in window) {
+      // 仅当浏览器样机在视口内时轮播，离屏自动暂停
+      new IntersectionObserver((entries) => {
+        entries.forEach((entry) => (entry.isIntersecting ? start() : stop()));
+      }, { threshold: 0.2 }).observe(browserEl);
+    } else {
+      start();
     }
-    if (!visible) clearTimer(); else scheduleNext();
-  }, { threshold: 0.35 });
-  observer.observe(browserEl);
+  }
 })();
 
-// ===== 「学练测评管」True Focus 逐词聚焦（移植自 reactbits TrueFocus） =====
-const focusChain = document.getElementById('focusChain');
-if (focusChain) {
-  const fWords = focusChain.querySelectorAll('.focus-word');
-  const fFrame = focusChain.querySelector('.focus-frame');
-  let fIndex = 0;
-
-  // 将取景框对齐到当前词（相对容器定位）
-  const placeFrame = () => {
-    const word = fWords[fIndex];
-    if (!word || !fFrame) return;
-    const pRect = focusChain.getBoundingClientRect();
-    const wRect = word.getBoundingClientRect();
-    fFrame.style.left = (wRect.left - pRect.left) + 'px';
-    fFrame.style.top = (wRect.top - pRect.top) + 'px';
-    fFrame.style.width = wRect.width + 'px';
-    fFrame.style.height = wRect.height + 'px';
-    fFrame.classList.add('on');
-  };
-
-  const focusStep = () => {
-    fWords[fIndex].classList.remove('active');
-    fIndex = (fIndex + 1) % fWords.length;
-    fWords[fIndex].classList.add('active');
-    placeFrame();
-  };
-
-  fWords[0].classList.add('active');
-  // 等字体加载、布局稳定后先定位一次
-  placeFrame();
-  window.addEventListener('resize', placeFrame);
-  setInterval(focusStep, 1500); // 0.5s 过渡 + 1s 停留
-}
-
-// ===== 学生端功能卡片椭圆轨道（移植自 OrbitImages：卡片替代图片） =====
+// ===== 学生端功能卡片椭圆公转 =====
+// 卡片沿倾斜椭圆轨道缓慢公转；离开视口时暂停，系统偏好减少动效时保持静止。
 const orbitStage = document.getElementById('orbitStage');
 if (orbitStage) {
+  const orbitWrap = document.getElementById('orbitWrap') || orbitStage;
   const orbitCards = orbitStage.querySelectorAll('.orbit-card');
   const CARD_HALF_W = 105;
-  const DURATION = 30;                 // 30s 一圈，与原组件一致
   const TILT = -6 * Math.PI / 180;     // 椭圆倾斜角（JS 坐标旋转，卡片保持直立）
-  let paused = false;
-  let angle0 = -Math.PI / 2;           // 第一张卡从最前方开始
-  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const isNarrow = () => window.innerWidth <= 900;
-
-  // 椭圆摆位：以舞台中心为锚点，calc(-50% + x) 定位，杜绝宽度测量误差
-  // 手机端(≤900px)：等效于把桌面横向椭圆旋转 90°——横向半径压缩、纵向拉长，卡片缩小保持直立
-  // 性能：舞台尺寸只在 resize 时测量缓存，不再每帧 getBoundingClientRect 强制同步布局
+  const angle0 = -Math.PI / 2;         // 第一张卡从最前方开始
+  const SPEED = Math.PI * 2 / 30000;   // 约 30 秒公转一圈
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   let stageW = 0, stageH = 0;
+  let angle = 0, lastTick = 0, rafId = 0, running = false;
+
   const measureStage = () => {
     const rect = orbitStage.getBoundingClientRect();
     stageW = rect.width; stageH = rect.height;
   };
-  measureStage();
 
-  const layout = (theta) => {
+  const layout = () => {
     const W = stageW, H = stageH;
     if (!W) return;
     const narrow = W <= 900;
-    const s = narrow ? 0.65 : 1;                 // 手机卡片整体缩小（内部字号已放大补偿）
+    const s = narrow ? 0.65 : 1;
     const halfW = CARD_HALF_W * s;
     const rx = narrow
-      ? Math.max(40, W / 2 - halfW - 10)         // 竖向椭圆：横向半径变小
+      ? Math.max(40, W / 2 - halfW - 10)
       : W / 2 - CARD_HALF_W - 16;
     const ry = narrow
-      ? Math.max(150, H / 2 - halfW - 24)        // 纵向半径拉长
+      ? Math.max(150, H / 2 - halfW - 24)
       : 165;
     orbitCards.forEach((card, i) => {
-      const t = theta + (i * Math.PI * 2) / orbitCards.length;
+      const t = angle0 + angle + (i * Math.PI * 2) / orbitCards.length;
       const x = Math.cos(t) * rx;
       const y = Math.sin(t) * ry;
-      // 倾斜：坐标整体旋转 -6°，卡片本身保持直立
       const xr = x * Math.cos(TILT) - y * Math.sin(TILT);
       const yr = x * Math.sin(TILT) + y * Math.cos(TILT);
-      // y>0 为近处（放大/不透明），y<0 为远处（缩小/半透明）
       const depth = (Math.sin(t) + 1) / 2;
       const scale = (0.82 + depth * 0.24) * s;
       card.style.transform =
         `translate(calc(-50% + ${xr.toFixed(1)}px), calc(-50% + ${yr.toFixed(1)}px)) scale(${scale.toFixed(3)})`;
-      card.style.opacity = (0.5 + depth * 0.5).toFixed(2);
+      card.style.opacity = (0.68 + depth * 0.32).toFixed(2);
       card.style.zIndex = Math.round(depth * 20);
     });
   };
 
-  const clearOrbit = () => {
-    orbitCards.forEach(c => { c.style.transform = ''; c.style.opacity = ''; c.style.zIndex = ''; });
+  const tick = (now) => {
+    if (lastTick) angle += (now - lastTick) * SPEED;
+    lastTick = now;
+    layout();
+    rafId = requestAnimationFrame(tick);
   };
 
-  if (reducedMotion) {
-    layout(angle0);
-  } else {
-    // 仅当鼠标停留在卡片内容（图标/文字）上时才暂停公转，靠近轨道不停
-    orbitCards.forEach(c => {
-      c.addEventListener('mouseenter', () => { paused = true; });
-      c.addEventListener('mouseleave', () => { paused = false; });
-    });
-    window.addEventListener('resize', () => {
-      measureStage();
-      layout(angle0 + (elapsed / 1000 / DURATION) * Math.PI * 2);
-    });
-    let last = null;
-    let elapsed = 0;
-    // 性能：滚出视口即停止公转循环（事件驱动恢复），不再页面全程空转 rAF
-    let orbitVisible = true;
-    let orbitRaf = null;
-    const tick = (ts) => {
-      if (last === null) last = ts;
-      const dt = Math.min(ts - last, 100);
-      last = ts;
-      // 手机端同样公转（竖向椭圆），仅暂停逻辑一致
-      if (!paused) elapsed += dt;
-      layout(angle0 + (elapsed / 1000 / DURATION) * Math.PI * 2);
-      if (!orbitVisible) { orbitRaf = null; return; }
-      orbitRaf = requestAnimationFrame(tick);
-    };
+  const start = () => {
+    if (running || reduceMotion) return;
+    running = true;
+    lastTick = 0;
+    rafId = requestAnimationFrame(tick);
+  };
+
+  const stop = () => {
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = 0;
+    running = false;
+    lastTick = 0;
+  };
+
+  measureStage();
+  layout();
+  window.addEventListener('resize', () => {
+    measureStage();
+    layout();
+  });
+
+  if (!reduceMotion) {
     if ('IntersectionObserver' in window) {
-      new IntersectionObserver(entries => {
-        entries.forEach(e => {
-          orbitVisible = e.isIntersecting;
-          if (orbitVisible && orbitRaf === null) orbitRaf = requestAnimationFrame(tick);
-        });
-      }, { threshold: 0 }).observe(orbitStage);
+      // 仅当轨道进入视口时启动，离屏自动暂停，避免无意义重绘
+      new IntersectionObserver((entries) => {
+        entries.forEach((entry) => (entry.isIntersecting ? start() : stop()));
+      }, { threshold: 0.15 }).observe(orbitWrap);
+    } else {
+      start();
     }
-    orbitRaf = requestAnimationFrame(tick);
   }
+}
 
 // ===== 全局帧率监测 · 低性能自动降级（自适应质量算法） =====
 // 每 2s 统计平均帧率：连续 2 次 <40fps → <html> 加 .low-perf（停重绘型动画保帧率）；
@@ -800,4 +668,475 @@ if (orbitStage) {
   };
   requestAnimationFrame(check);
 })();
-}
+
+// ===== 全站多光标页面搭建 =====
+// 每个区块进入视口后，由彩色光标把标题、卡片与界面样机逐个「画」出来。
+// 光标只在执行任务时出现与移动：打字严格吸附在 caret，画框严格贴住选框角，不再随机漂移。
+(function initSiteBuild() {
+  const layer = document.getElementById('sbLayer');
+  const host = document.getElementById('sbCursors');
+  if (!layer || !host) return;
+
+  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const revealAll = () => {
+    document.querySelectorAll('.reveal').forEach(el => el.classList.add('in'));
+    document.querySelectorAll('.sb-hold').forEach(el => el.classList.remove('sb-hold'));
+    layer.style.display = 'none';
+  };
+  if (reduceMotion || !('IntersectionObserver' in window)) { revealAll(); return; }
+
+  const AGENTS = [
+    { name: 'DeepSeek', color: '#5b58ff' },
+    { name: 'RAG', color: '#00b5ce' },
+    { name: '题库', color: '#ffa629' },
+    { name: '学情', color: '#ff24bd' },
+    { name: '排课', color: '#14ae5c' }
+  ];
+
+  const agents = AGENTS.map((cfg, i) => {
+    const el = document.createElement('div');
+    el.className = 'sb-cursor';
+    el.style.setProperty('--c', cfg.color);
+    el.innerHTML =
+      '<svg viewBox="0 0 20 22" aria-hidden="true"><path d="M2 1 L2 17.4 L6.3 13.2 L9 19.4 L11.9 18 L9.3 12.1 L15.4 11.7 Z"/></svg>' +
+      '<span class="sb-name">' + cfg.name + '</span>';
+    host.appendChild(el);
+
+    const box = document.createElement('div');
+    box.className = 'sb-sel';
+    box.innerHTML =
+      '<i class="sb-h tl"></i><i class="sb-h tr"></i><i class="sb-h bl"></i><i class="sb-h br"></i>' +
+      '<b class="sb-sel-label"></b><span class="sb-sel-size"></span>';
+    host.appendChild(box);
+
+    return {
+      i, name: cfg.name, color: cfg.color, el, box,
+      nameEl: el.querySelector('.sb-name'),
+      labelEl: box.querySelector('.sb-sel-label'),
+      sizeEl: box.querySelector('.sb-sel-size'),
+      x: -60, y: -60, opacity: 0,
+      job: null, section: null
+    };
+  });
+
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const ease = v => v < .5 ? 4 * v * v * v : 1 - Math.pow(-2 * v + 2, 3) / 2;
+
+  const setCursor = a => {
+    a.el.style.transform = 'translate3d(' + a.x.toFixed(1) + 'px,' + a.y.toFixed(1) + 'px,0)';
+    a.el.style.opacity = a.opacity.toFixed(3);
+    const flip = a.x > window.innerWidth - 130;
+    a.nameEl.style.left = flip ? 'auto' : '13px';
+    a.nameEl.style.right = flip ? '13px' : 'auto';
+  };
+
+  const setBox = (a, x, y, w, h, label, size) => {
+    const on = w > 1 && h > 1;
+    a.box.style.display = on ? 'block' : 'none';
+    if (!on) return;
+    a.box.style.opacity = 1;
+    a.box.style.left = x + 'px';
+    a.box.style.top = y + 'px';
+    a.box.style.width = w + 'px';
+    a.box.style.height = h + 'px';
+    a.labelEl.textContent = label || '';
+    a.labelEl.style.top = y < 26 ? '4px' : '-19px';
+    a.sizeEl.textContent = size || '';
+    a.sizeEl.style.display = size ? '' : 'none';
+    const nearRight = x + w > window.innerWidth - 60;
+    a.sizeEl.style.right = nearRight ? 'auto' : '-1px';
+    a.sizeEl.style.left = nearRight ? '-1px' : 'auto';
+    const nearBottom = y + h > window.innerHeight - 30;
+    a.sizeEl.style.bottom = nearBottom ? 'auto' : '-24px';
+    a.sizeEl.style.top = nearBottom ? '-22px' : 'auto';
+  };
+
+  const hideBox = a => { a.box.style.display = 'none'; };
+
+  // ---------- 打字 ----------
+  function prepareType(el) {
+    if (el.dataset.sbTyped === '1') return;
+    const raw = el.textContent.replace(/\s+/g, ' ').trim();
+    const fullH = el.getBoundingClientRect().height;
+    if (fullH) el.style.minHeight = fullH + 'px'; // 锁定最终高度，打字过程中不推动下方内容
+    el.dataset.sbTyped = '1';
+    el.dataset.sbRaw = raw;
+    el.textContent = '';
+    const typedEl = document.createElement('span');
+    typedEl.className = 'sb-typed';
+    const caret = document.createElement('span');
+    caret.className = 'sb-caret';
+    const rest = document.createElement('span');
+    rest.className = 'sb-rest';
+    rest.style.visibility = 'hidden';
+    rest.textContent = raw;
+    el.append(typedEl, caret, rest);
+    // 标题本身带 .reveal 时，需要先解除它的隐藏态（否则移除 .sb-hold 后仍是 opacity:0）
+    if (el.classList.contains('reveal')) el.classList.add('in');
+    el._sb = { typed: typedEl, caret, rest, raw };
+  }
+
+  function typeText(el, p) {
+    const d = el._sb;
+    if (!d) return;
+    const n = Math.round(d.raw.length * clamp(p, 0, 1));
+    d.typed.textContent = d.raw.slice(0, n);
+    d.rest.textContent = d.raw.slice(n);
+  }
+
+  function caretPoint(el) {
+    const d = el._sb;
+    if (d && d.caret && d.caret.style.display !== 'none') {
+      const c = d.caret.getBoundingClientRect();
+      return { x: c.left + 1, y: c.top + c.height * .5 };
+    }
+    const r = el.getBoundingClientRect();
+    return { x: r.right, y: r.top + r.height * .5 };
+  }
+
+  function restoreType(el) {
+    if (el.dataset.sbTyped !== '1') { el.classList.remove('sb-hold'); return; }
+    el.textContent = el.dataset.sbRaw || '';
+    el.style.minHeight = '';
+    delete el.dataset.sbTyped;
+    delete el.dataset.sbRaw;
+    delete el._sb;
+    el.classList.remove('sb-hold');
+  }
+
+  // ---------- 揭晓 ----------
+  const revealed = new WeakSet();
+  function revealEl(el) {
+    if (!el) return;
+    el.classList.remove('sb-hold');
+    if (revealed.has(el)) return;
+    revealed.add(el);
+    if (el.classList.contains('orbit-card')) {
+      const target = parseFloat(el.style.opacity || '1') || 1;
+      el.style.opacity = '0';
+      void el.offsetWidth; // 先落回 0，再过渡到目标透明度
+      el.style.opacity = String(target);
+      return;
+    }
+    if (el.classList.contains('reveal')) el.classList.add('in');
+    else el.classList.add('sb-in');
+    if (el.classList.contains('demo')) {
+      window.setTimeout(() => { try { playDemo(); } catch (e) { /* noop */ } }, 420);
+    }
+  }
+
+  // ---------- 区块构建计划 ----------
+  const PLANS = [
+    {
+      root: '#top',
+      pre: ['.hero-copy'],
+      types: [],
+      blocks: [
+        { sel: '.hero-badge', label: 'Badge' },
+        { sel: '.hero-copy h1', label: 'Heading' },
+        { sel: '.hero-sub', label: 'Text' },
+        { sel: '.hero-copy .hero-actions', label: 'Buttons' },
+        { sel: '.hero-copy .hero-stats', label: 'Stats' },
+        { sel: '.hero-phone', label: 'Device' }
+      ]
+    },
+    {
+      root: '#student',
+      pre: ['.sec-head', '.orbit-wrap'],
+      types: [
+        { sel: '.sec-head h2', label: 'Heading' },
+        { sel: '.sec-head p', label: 'Text' }
+      ],
+      blocks: [
+        { sel: '.orbit-card', label: 'Card' },
+        { sel: '.shot-phone', label: 'Device' }
+      ]
+    },
+    {
+      root: '#ai',
+      pre: ['.sec-head'],
+      types: [
+        { sel: '.sec-head h2', label: 'Heading' },
+        { sel: '.sec-head p', label: 'Text' }
+      ],
+      blocks: [
+        { sel: '.demo', label: 'Frame' },
+        { sel: '.demo-item', label: 'Card' }
+      ]
+    },
+    {
+      root: '#admin',
+      pre: ['.sec-head'],
+      types: [
+        { sel: '.sec-head h2', label: 'Heading' },
+        { sel: '.sec-head p', label: 'Text' }
+      ],
+      blocks: [
+        { sel: '.browser', label: 'Frame' },
+        { sel: '.mini-card', label: 'Card' }
+      ]
+    },
+    {
+      root: '#tech',
+      pre: ['.sec-head'],
+      types: [{ sel: '.sec-head h2', label: 'Heading' }],
+      blocks: [{ sel: '.iso-stage', label: 'Frame' }]
+    },
+    {
+      root: '#faq',
+      pre: ['.faq-aside'],
+      types: [
+        { sel: '.faq-aside h2', label: 'Heading' },
+        { sel: '.faq-aside-sub', label: 'Text' }
+      ],
+      blocks: [
+        { sel: '.faq-nav', label: 'Nav' },
+        { sel: '.faq-contact', label: 'Card' },
+        { sel: '.faq-group', label: 'Group' }
+      ]
+    },
+    {
+      root: '#hero-cta',
+      pre: [],
+      types: [{ sel: 'h2', label: 'Heading' }],
+      blocks: []
+    }
+  ];
+
+  const sections = [];
+  PLANS.forEach(plan => {
+    const root = document.querySelector(plan.root);
+    if (!root) return;
+    const preEls = plan.pre.map(sel => root.querySelector(sel)).filter(Boolean);
+    const seen = new Set();
+    const jobs = [];
+    plan.types.forEach(t => {
+      Array.from(root.querySelectorAll(t.sel)).forEach(el => {
+        if (seen.has(el)) return;
+        seen.add(el);
+        jobs.push({ kind: 'type', el, label: t.label, done: false });
+      });
+    });
+    plan.blocks.forEach(b => {
+      Array.from(root.querySelectorAll(b.sel)).forEach(el => {
+        if (seen.has(el)) return;
+        seen.add(el);
+        jobs.push({ kind: 'draw', el, label: b.label, done: false });
+      });
+    });
+    jobs.forEach(job => job.el.classList.add('sb-hold'));
+    sections.push({
+      sid: plan.root, root, preEls, jobs,
+      started: false, done: false, queue: [], pending: 0
+    });
+  });
+
+  // 未被任何区块计划管理的 .reveal 直接显示，避免遗漏内容
+  const planned = new Set();
+  const preplanned = new Set();
+  sections.forEach(st => {
+    st.jobs.forEach(job => planned.add(job.el));
+    st.preEls.forEach(el => preplanned.add(el));
+  });
+  document.querySelectorAll('.reveal').forEach(el => {
+    if (!planned.has(el) && !preplanned.has(el)) el.classList.add('in');
+  });
+
+  // ---------- 任务调度 ----------
+  let active = null;
+  let rafId = 0;
+  let lastTs = 0;
+
+  function startLoop() {
+    if (rafId) return;
+    lastTs = performance.now();
+    rafId = requestAnimationFrame(loop);
+  }
+
+  function loop(now) {
+    rafId = 0;
+    const dt = Math.min(.05, (now - lastTs) / 1000 || .016);
+    lastTs = now;
+    agents.forEach(a => updateAgent(a, dt));
+    const busy = agents.some(a => a.job) || agents.some(a => a.opacity > .02);
+    if (busy) rafId = requestAnimationFrame(loop);
+  }
+
+  function beginJob(a, job, st) {
+    a.job = job;
+    job.phase = 'move';
+    job.t = 0;
+    job.from = { x: a.x, y: a.y };
+    if (job.kind === 'type') prepareType(job.el);
+    const rect = job.el.getBoundingClientRect();
+    const to = job.kind === 'type'
+      ? caretPoint(job.el)
+      : { x: rect.left + 6, y: rect.top + 6 };
+    if (a.section !== st.sid) {
+      a.section = st.sid;
+      a.x = clamp(to.x - 96 - a.i * 18, 6, window.innerWidth - 24);
+      a.y = clamp(to.y + 72 + a.i * 12, 56, window.innerHeight - 18);
+      a.opacity = 0;
+      setCursor(a);
+      job.from = { x: a.x, y: a.y };
+    }
+    job.to = to;
+    job.dur = clamp(Math.hypot(to.x - job.from.x, to.y - job.from.y) / 850, .24, .62);
+
+    if (job.kind === 'type') {
+      const r = job.el.getBoundingClientRect();
+      setBox(a, r.left, r.top, r.width, r.height, job.label,
+        Math.round(r.width) + ' × ' + Math.round(r.height));
+    } else {
+      setBox(a, rect.left, rect.top, 0, 0, job.label, '');
+    }
+  }
+
+  function finishJob(a, job) {
+    if (job.kind === 'type') restoreType(job.el);
+    else revealEl(job.el);
+    hideBox(a);
+    a.job = null;
+    job.done = true;
+    const st = job.state;
+    if (st) {
+      st.pending--;
+      if (st === active) pump();
+    }
+  }
+
+  function updateAgent(a, dt) {
+    if (!a.job) {
+      if (a.opacity > 0) {
+        a.opacity = Math.max(0, a.opacity - dt * 4);
+        setCursor(a);
+      }
+      return;
+    }
+    const job = a.job;
+    job.t += dt;
+
+    if (job.phase === 'move') {
+      const k = ease(clamp(job.t / job.dur, 0, 1));
+      a.x = job.from.x + (job.to.x - job.from.x) * k;
+      a.y = job.from.y + (job.to.y - job.from.y) * k;
+      a.opacity = Math.min(1, a.opacity + dt * 6);
+      setCursor(a);
+      if (k >= 1) {
+        job.phase = 'work';
+        job.t = 0;
+        job.dur = job.kind === 'type'
+          ? clamp(.8 + (job.el._sb ? job.el._sb.raw.length * .042 : .6), .9, 2.1)
+          : .72;
+        if (job.kind === 'type') job.el.classList.remove('sb-hold');
+      }
+      return;
+    }
+
+    const p = clamp(job.t / job.dur, 0, 1);
+    if (job.kind === 'type') {
+      typeText(job.el, p);
+      const c = caretPoint(job.el);
+      a.x = c.x;
+      a.y = c.y;
+      setCursor(a);
+      const r = job.el.getBoundingClientRect();
+      setBox(a, r.left, r.top, r.width, r.height, job.label,
+        Math.round(r.width) + ' × ' + Math.round(r.height));
+      if (p >= 1) finishJob(a, job);
+      return;
+    }
+
+    const r = job.el.getBoundingClientRect();
+    const w = r.width * p;
+    const h = r.height * p;
+    setBox(a, r.left, r.top, w, h, job.label, Math.round(w) + ' × ' + Math.round(h));
+    a.x = r.left + w;
+    a.y = r.top + h;
+    setCursor(a);
+    if (p >= 1) finishJob(a, job);
+  }
+
+  function jobReady(job) {
+    if (job.kind === 'type') return true;
+    const r = job.el.getBoundingClientRect();
+    return r.top < window.innerHeight * 1.05 && r.bottom > -60;
+  }
+
+  function pump() {
+    if (!active) return;
+    let assigned = true;
+    while (assigned) {
+      assigned = false;
+      const free = agents.find(a => !a.job);
+      if (!free) break;
+      const idx = active.queue.findIndex(jobReady);
+      if (idx < 0) break;
+      const job = active.queue.splice(idx, 1)[0];
+      job.state = active;
+      beginJob(free, job, active);
+      assigned = true;
+    }
+    if (active.pending <= 0) {
+      active.done = true;
+      active = null;
+    }
+  }
+
+  function finalizeState(st) {
+    if (!st || st.done) return;
+    st.jobs.forEach(job => {
+      if (job.done) return;
+      if (job.kind === 'type') restoreType(job.el);
+      else revealEl(job.el);
+      job.done = true;
+    });
+    st.queue = [];
+    st.pending = 0;
+    st.done = true;
+    st.root.querySelectorAll('.reveal').forEach(el => el.classList.add('in'));
+    if (active === st) active = null;
+    agents.forEach(a => {
+      if (a.job && a.job.state === st) { a.job = null; hideBox(a); }
+      a.section = null;
+      a.opacity = 0;
+      setCursor(a);
+    });
+    startLoop();
+  }
+
+  function startState(st) {
+    if (!st || st.started || st.done) return;
+    if (active) finalizeState(active);
+    active = st;
+    st.started = true;
+    st.queue = st.jobs.slice();
+    st.pending = st.jobs.length;
+    st.preEls.forEach(el => el.classList.add('sb-pre'));
+    agents.forEach(a => { a.job = null; a.section = null; a.opacity = 0; hideBox(a); setCursor(a); });
+    startLoop();
+    pump();
+  }
+
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      const st = sections.find(s => s.root === entry.target);
+      if (!st) return;
+      const r = entry.boundingClientRect;
+      if (entry.isIntersecting) {
+        if (!st.started && r.top < window.innerHeight * .84) startState(st);
+      } else if (r.bottom < 0) {
+        finalizeState(st); // 已滚出上方：直接完成，避免内容停留在隐藏态
+      } else if (st === active && r.top > window.innerHeight) {
+        finalizeState(st);
+      }
+    });
+  }, { threshold: [0, .08], rootMargin: '-4% 0px -12% 0px' });
+
+  sections.forEach(st => observer.observe(st.root));
+
+  // 长区块分屏建造：滚动时继续领取已进入视口的元素任务
+  window.addEventListener('scroll', () => {
+    if (active) pump();
+  }, { passive: true });
+})();

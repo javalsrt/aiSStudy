@@ -5,6 +5,9 @@ server:
 spring:
   application:
     name: znxsgl-backend
+  # 关闭 Spring Boot 启动横幅，控制台只保留关键信息
+  main:
+    banner-mode: off
   lifecycle:
     timeout-per-shutdown-phase: 30s
   data:
@@ -39,6 +42,8 @@ mybatis-plus:
     map-underscore-to-camel-case: true
     log-impl: ${MYBATIS_LOG_IMPL:org.apache.ibatis.logging.nologging.NoLoggingImpl}
   global-config:
+    # 关闭 MyBatis-Plus 启动 ASCII 横幅
+    banner: false
     db-config:
       id-type: auto
       logic-delete-field: deleted
@@ -134,3 +139,12 @@ management:
   health:
     redis:
       enabled: ${APP_REDIS_ENABLED:false}
+
+# 日志简化：仅在 WARN/ERROR 时输出框架日志，正常启动由应用自己打印一行摘要
+logging:
+  pattern:
+    console: "%d{HH:mm:ss} %-5level %logger{0} - %msg%n"
+  level:
+    root: WARN
+    # Spring Security 未配置 UserDetailsService 时会打印随机密码警告，本项目使用 JWT，无需该提示
+    org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration: ERROR

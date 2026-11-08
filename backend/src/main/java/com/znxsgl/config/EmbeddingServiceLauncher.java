@@ -40,13 +40,11 @@ public class EmbeddingServiceLauncher {
     @PostConstruct
     public void start() {
         if (!autoStart) {
-            System.out.println("=== 本地 Embedding 自动启动已关闭，跳过启动");
             return;
         }
 
         // 如果服务已经在运行，直接复用
         if (isServiceHealthy()) {
-            System.out.println("=== 本地 Embedding 服务已在运行（端口 " + port + "），无需重复启动");
             return;
         }
 
@@ -56,7 +54,7 @@ public class EmbeddingServiceLauncher {
             return;
         }
 
-        System.out.println("=== 正在启动本地 BGE-M3 Embedding 服务，工作目录: " + serviceDir);
+        System.out.println("[本地] 启动 Embedding :" + port);
         try {
             List<String> commands = new ArrayList<>();
             commands.add(pythonCmd);
@@ -129,7 +127,7 @@ public class EmbeddingServiceLauncher {
         long deadline = System.currentTimeMillis() + 120_000; // 最多等待 120 秒（含首次模型下载）
         while (System.currentTimeMillis() < deadline) {
             if (isServiceHealthy()) {
-                System.out.println("=== 本地 Embedding 服务启动成功（端口 " + port + "）");
+                System.out.println("[本地] Embedding 就绪 :" + port);
                 return;
             }
             if (process != null && !process.isAlive()) {

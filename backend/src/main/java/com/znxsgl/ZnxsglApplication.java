@@ -9,6 +9,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableScheduling
 @MapperScan("com.znxsgl.mapper")
 public class ZnxsglApplication {
+
     public static void main(String[] args) {
         SpringApplication.run(ZnxsglApplication.class, args);
     }

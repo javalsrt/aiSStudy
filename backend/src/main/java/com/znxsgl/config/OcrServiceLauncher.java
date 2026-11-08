@@ -42,11 +42,9 @@ public class OcrServiceLauncher {
     @PostConstruct
     public void start() {
         if (!autoStart) {
-            System.out.println("=== 本地 OCR 自动启动已关闭，跳过启动");
             return;
         }
         if (isServiceHealthy()) {
-            System.out.println("=== 本地 OCR 服务已在运行（端口 " + port + "），无需重复启动");
             return;
         }
 
@@ -56,7 +54,7 @@ public class OcrServiceLauncher {
             return;
         }
 
-        System.out.println("=== 正在启动本地 OCR 服务，工作目录: " + serviceDir);
+        System.out.println("[本地] 启动 OCR :" + port);
         try {
             List<String> commands = new ArrayList<>();
             commands.add(pythonCmd);
@@ -117,7 +115,7 @@ public class OcrServiceLauncher {
         long deadline = System.currentTimeMillis() + 90_000;
         while (System.currentTimeMillis() < deadline) {
             if (isServiceHealthy()) {
-                System.out.println("=== 本地 OCR 服务启动成功（端口 " + port + "）");
+                System.out.println("[本地] OCR 就绪 :" + port);
                 return;
             }
             if (process != null && !process.isAlive()) {

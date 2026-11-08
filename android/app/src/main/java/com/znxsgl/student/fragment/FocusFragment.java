@@ -99,6 +99,20 @@ public class FocusFragment extends Fragment {
             viewPagerQuiz = view.findViewById(R.id.viewpager_quiz);
             quizProgress = view.findViewById(R.id.quiz_progress);
 
+            // ViewPager2 内部的 RecyclerView 默认可获得焦点：软键盘弹起或窗口尺寸变化时，
+            // 它会把焦点从解析题/填空题的输入框抢走。焦点不在 EditText 上时，退格键事件
+            // 会发给 RecyclerView 并被丢弃，表现为「能输入文字但删不掉」。
+            // 这里禁止翻页容器自己获焦，焦点只交给页面里的 EditText。
+            if (viewPagerQuiz != null) {
+                viewPagerQuiz.setFocusable(false);
+                viewPagerQuiz.setFocusableInTouchMode(false);
+                View pagerInner = viewPagerQuiz.getChildAt(0);
+                if (pagerInner != null) {
+                    pagerInner.setFocusable(false);
+                    pagerInner.setFocusableInTouchMode(false);
+                }
+            }
+
             // 长按提交按钮：按满触发提交，中途松手会中断动画
             com.znxsgl.student.widget.HoldSubmitButton btnDone = view.findViewById(R.id.btn_quiz_done);
             if (btnDone != null) btnDone.setOnHoldSubmitListener(this::collectAndSubmit);
@@ -116,6 +130,7 @@ public class FocusFragment extends Fragment {
                             viewPagerQuiz.setCurrentItem(pos + 1, true);
                     }
                     @Override public void onAutoSkip(int pos) {}
+                    @Override public void onInputFocused(EditText et) { keepAnswerFocus(et); }
                 });
                 if (viewPagerQuiz != null) {
                     viewPagerQuiz.setOrientation(ViewPager2.ORIENTATION_VERTICAL);
@@ -676,6 +691,24 @@ public class FocusFragment extends Fragment {
 
     /** 供 MainActivity 调用：是否正在答题 */
     public boolean isQuizActive() { return quizActive; }
+
+    /**
+     * 软键盘弹起时窗口会重新布局（adjustResize），ViewPager2 的内容页会被重新挂载，
+     * 输入框的焦点随之被清空。焦点不在输入框时，退格键事件无人接收，表现为
+     * 「能打字但删不掉」。这里在键盘可见、且输入框仍然挂载的情况下把焦点还给它。
+     */
+    private void keepAnswerFocus(EditText et) {
+        View root = getView();
+        if (et == null || root == null) return;
+        root.postDelayed(() -> {
+            if (!et.isAttachedToWindow() || et.isFocused()) return;
+            androidx.core.view.WindowInsetsCompat insets =
+                    androidx.core.view.ViewCompat.getRootWindowInsets(root);
+            if (insets == null
+                    || !insets.isVisible(androidx.core.view.WindowInsetsCompat.Type.ime())) return;
+            et.requestFocus();
+        }, 450);
+    }
 
     /** 供 MainActivity 调用：取消答题 */
     public void cancelQuiz() {

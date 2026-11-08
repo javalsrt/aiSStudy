@@ -39,7 +39,7 @@ public class JwtUtil {
     @PostConstruct
     public void warnIfDefaultSecret() {
         if (DEFAULT_SECRET.equals(rawSecret)) {
-            log.warn("⚠️  正在使用默认 JWT 密钥，仅限本地开发！生产环境请通过环境变量 JWT_SECRET 注入强随机密钥");
+            log.warn("JWT 使用默认开发密钥（仅限本地，生产请注入 JWT_SECRET）");
         }
     }
 

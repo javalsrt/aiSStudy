@@ -59,7 +59,6 @@ public class FrontendServiceLauncher {
     @PostConstruct
     public void start() {
         if (!autoStart) {
-            System.out.println("=== 本地前端（官网/管理端）自动启动已关闭，跳过启动");
             return;
         }
         if (websiteEnabled) {
@@ -79,7 +78,6 @@ public class FrontendServiceLauncher {
     /** 启动官网静态站点：python -m http.server */
     private void startWebsite() {
         if (isServiceHealthy(websitePort)) {
-            System.out.println("=== 本地官网已在运行（http://localhost:" + websitePort + "），无需重复启动");
             return;
         }
         Path siteDir = resolveDir(websiteWorkDir, "website", "index.html");
@@ -88,7 +86,7 @@ public class FrontendServiceLauncher {
             return;
         }
 
-        System.out.println("=== 正在启动本地官网静态服务，目录: " + siteDir);
+        System.out.println("[本地] 启动官网 :" + websitePort);
         try {
             List<String> commands = new ArrayList<>();
             commands.add(websitePythonCmd);
@@ -113,7 +111,6 @@ public class FrontendServiceLauncher {
     /** 启动 React 管理端：npm run dev（Vite 开发服务器） */
     private void startAdmin() {
         if (isServiceHealthy(adminPort)) {
-            System.out.println("=== 本地管理端已在运行（http://localhost:" + adminPort + "），无需重复启动");
             return;
         }
         Path adminDir = resolveDir(adminWorkDir, "web-admin-react", "package.json");
@@ -126,7 +123,7 @@ public class FrontendServiceLauncher {
             return;
         }
 
-        System.out.println("=== 正在启动本地管理端（Vite），目录: " + adminDir);
+        System.out.println("[本地] 启动管理端 :" + adminPort);
         try {
             List<String> commands = new ArrayList<>();
             // Windows 下 npm 是 npm.cmd 批处理，必须经 cmd.exe 启动；进程树关闭时用 taskkill /T
@@ -176,7 +173,7 @@ public class FrontendServiceLauncher {
         long deadline = System.currentTimeMillis() + timeoutSeconds * 1000L;
         while (System.currentTimeMillis() < deadline) {
             if (isServiceHealthy(port)) {
-                System.out.println("=== 本地" + name + "启动成功（http://localhost:" + port + "）");
+                System.out.println("[本地] " + name + " 就绪 :" + port);
                 return;
             }
             if (process != null && !process.isAlive()) {

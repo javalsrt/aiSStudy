@@ -36,6 +36,8 @@ public class QuizPagerAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
     public interface OnAnswerListener {
         void onAnswered(int position, String answer);
         void onAutoSkip(int position);
+        /** 解析题/填空题输入框获得焦点（软键盘随之弹起） */
+        default void onInputFocused(EditText et) { }
     }
 
     public QuizPagerAdapter(List<QuizQuestion> questions) { this.questions = questions; }
@@ -173,7 +175,16 @@ public class QuizPagerAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
         }
         // 回显已保存答案（先清监听再回显，避免回显触发写回导致光标跳动）
         String saved = q.getUserAnswer();
-        et.setText(saved == null ? "" : saved);
+        if (saved == null) saved = "";
+        // 文本没变就不要重设：bind 阶段调用 setText 会让输入法与 EditText 的编辑状态失步，
+        // 出现「能继续输入但退格删不掉」的问题
+        if (!saved.contentEquals(et.getText())) {
+            et.setText(saved);
+            // 光标收到末尾：setText 会把光标重置到开头，导致继续输入时插在最前面
+            Editable cur = et.getText();
+            if (cur != null) et.setSelection(cur.length());
+        }
+
         TextWatcher watcher = new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) { }
@@ -183,6 +194,24 @@ public class QuizPagerAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
         };
         et.addTextChangedListener(watcher);
         et.setTag(watcher);
+
+        // 输入框内的触摸不再交给 ViewPager2：否则横向拖动会被当成翻页手势，
+        // 表现为长按选择、拖选、退格等操作失灵（「能输入但删不掉」）
+        et.setOnTouchListener((v, event) -> {
+            v.getParent().requestDisallowInterceptTouchEvent(true);
+            return false;
+        });
+
+        // 获得焦点后把输入框滚到可见区域，避免被软键盘挡住
+        et.setOnFocusChangeListener((v, hasFocus) -> {
+            if (!hasFocus) return;
+            if (listener != null) listener.onInputFocused(et);
+            et.post(() -> {
+                android.graphics.Rect rect = new android.graphics.Rect();
+                et.getDrawingRect(rect);
+                et.requestRectangleOnScreen(rect, false);
+            });
+        });
     }
 
     /** 选项行：圆形字母徽标 + 选项胶囊按钮（点徽标或胶囊均可选中） */

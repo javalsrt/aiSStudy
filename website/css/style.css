@@ -156,7 +156,8 @@ a { color: inherit; text-decoration: none; }
 .stat span { font-size: 12.5px; color: rgba(255,255,255,.5); letter-spacing: .5px; }
 
 /* 手机样机（uiverse 悬浮卡片风格：暗色机身+悬停3D倾斜+三色辉光，题目悬停浮现） */
-.hero-phone { position: relative; display: flex; justify-content: center; animation: float 6s ease-in-out infinite; }
+/* 手机样机（原有悬浮动画已移除，改由多光标搭建引擎控制出场） */
+.hero-phone { position: relative; display: flex; justify-content: center; }
 @keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-14px); } }
 .phone {
   position: relative; width: 300px;
@@ -213,11 +214,13 @@ a { color: inherit; text-decoration: none; }
 /* ===== 通用区块 ===== */
 .section { padding: 110px 0; }
 .section-alt { background: var(--bg-alt); }
+/* 学生端区块使用苹果灰底，衬托白色描边的 App 截图 */
+#student { background: var(--bg-alt); }
 .section-dark { position: relative; background: var(--bg-dark); color: #fff; overflow: hidden; }
 .section-dark .glow { position: absolute; }
 .sec-head { text-align: center; max-width: 640px; margin: 0 auto 60px; }
 .sec-label { display: inline-block; font-size: 12px; font-weight: 700; letter-spacing: 3px; color: var(--blue); margin-bottom: 14px; }
-.sec-head h2 { font-size: clamp(28px, 3.6vw, 40px); font-weight: 700; letter-spacing: -.5px; }
+.sec-head h2 { font-size: clamp(28px, 3.6vw, 40px); font-weight: 700; letter-spacing: -.5px; text-wrap: balance; }
 .sec-head p { margin-top: 16px; font-size: 15.5px; line-height: 1.7; color: var(--ink-2); }
 .sec-head-dark .sec-label { color: #8ea2ff; }
 .sec-head-dark p { color: rgba(255,255,255,.6); }
@@ -379,7 +382,7 @@ a { color: inherit; text-decoration: none; }
   display: block; width: 100%; height: 640px;
   background: transparent;
   /* 光晕改由 GPU 合成层承担，替代 JS 逐帧 shadowBlur（原为 2.4 万次/帧的软件高斯模糊） */
-  filter: drop-shadow(0 0 5px rgba(139, 92, 246, .45));
+  filter: drop-shadow(0 0 3px rgba(139, 92, 246, .38));
 }
 @media (prefers-reduced-motion: reduce) {
   .tech-mosaic { animation: none; }
@@ -397,11 +400,71 @@ a { color: inherit; text-decoration: none; }
   #particleCanvas { height: 430px; }
 }
 
+/* ===== 全站多光标搭建（Multi-agent Page Builder） =====
+   每个区块进入视口后，由彩色光标把标题、卡片与界面样机逐个「画」出来。
+   光标只在执行任务时出现，不空转、不随机漂移；打字时严格吸附在光标位置。 */
+.sb-layer { position: fixed; inset: 0; z-index: 98; pointer-events: none; overflow: hidden; }
+.sb-cursors { position: absolute; inset: 0; }
+.sb-cursor { position: absolute; left: 0; top: 0; opacity: 0; will-change: transform, opacity; }
+.sb-cursor svg { display: block; width: 19px; height: 21px; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .25)); }
+.sb-cursor svg path { fill: var(--c); stroke: #fff; stroke-width: 1.4; stroke-linejoin: round; }
+.sb-cursor .sb-name {
+  position: absolute; left: 13px; top: 17px; background: var(--c); color: #fff;
+  font-size: 10.5px; line-height: 1; padding: 4px 5px; border-radius: 4px; white-space: nowrap;
+}
+.sb-sel { position: absolute; display: none; border: 1px solid var(--blue); z-index: 1; }
+.sb-h { position: absolute; width: 6px; height: 6px; background: #fff; border: 1px solid var(--blue); }
+.sb-h.tl { left: -3.5px; top: -3.5px; }
+.sb-h.tr { right: -3.5px; top: -3.5px; }
+.sb-h.bl { left: -3.5px; bottom: -3.5px; }
+.sb-h.br { right: -3.5px; bottom: -3.5px; }
+.sb-sel-label {
+  position: absolute; left: 0; top: -19px; font-size: 10.5px; color: var(--blue);
+  font-weight: 600; white-space: nowrap;
+}
+.sb-sel-size {
+  position: absolute; right: -1px; bottom: -24px; background: var(--blue); color: #fff;
+  font-size: 10px; padding: 2px 6px; border-radius: 4px; white-space: nowrap;
+}
+.sb-caret {
+  display: inline-block; width: 1.5px; height: 1em; margin-left: 2px;
+  background: var(--blue); vertical-align: text-bottom;
+  animation: sbCaret 1s steps(2) infinite;
+}
+@keyframes sbCaret { 0%, 50% { opacity: 1; } 50.01%, 100% { opacity: 0; } }
+
+/* 建造初态：隐藏但保留布局，选区框可按最终位置精确绘制 */
+.sb-hold { opacity: 0 !important; }
+.sb-hold.reveal { transform: none !important; }
+/* 容器先显示，内部元素再逐个搭建 */
+.sb-pre { opacity: 1 !important; transform: none !important; transition: none !important; }
+/* 绘制完成后的揭晓动画（非 .reveal 元素） */
+.sb-in { animation: sbIn .55s cubic-bezier(.22, .61, .36, 1) both; }
+@keyframes sbIn {
+  from { opacity: 0; clip-path: inset(0 100% 0 0); }
+  to { opacity: 1; clip-path: inset(0 0 0 0); }
+}
+/* 椭圆轨道卡片由 JS 控制内联 opacity，揭晓时用过渡而非动画 */
+.orbit-card { transition: opacity .45s ease, filter .45s ease; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sb-caret { animation: none; }
+  .sb-layer { display: none; }
+  .sb-hold, .sb-pre { opacity: 1 !important; transform: none !important; }
+  .sb-in { animation: none; }
+}
+@media (max-width: 560px) {
+  .sb-cursor svg { width: 17px; height: 19px; }
+  .sb-cursor .sb-name { font-size: 10px; left: 12px; top: 15px; padding: 3px 4px; }
+  .sb-sel-label { font-size: 10px; top: -17px; }
+  .sb-sel-size { font-size: 9px; bottom: -21px; }
+}
+
 /* ===== FAQ（Apple 风格：大留白 + 细分割线 + 分组手风琴） ===== */
 .faq-section { background: #fff; }
 .faq-layout { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 72px; align-items: start; }
 .faq-aside { position: sticky; top: 96px; }
-.faq-aside h2 { font-size: clamp(30px, 3.2vw, 40px); font-weight: 700; letter-spacing: -.5px; line-height: 1.2; }
+.faq-aside h2 { font-size: clamp(30px, 3.2vw, 40px); font-weight: 700; letter-spacing: -.5px; line-height: 1.2; text-wrap: balance; }
 .faq-aside-sub { margin-top: 14px; font-size: 14px; line-height: 1.9; color: var(--ink-2); }
 .faq-nav { display: flex; flex-direction: column; margin-top: 28px; border-top: 1px solid var(--line); }
 .faq-nav a { padding: 11px 2px; font-size: 13.5px; color: var(--ink-2); border-bottom: 1px solid var(--line); transition: color .2s ease; }
@@ -685,7 +748,7 @@ a { color: inherit; text-decoration: none; }
 
 /* 学生列表自动滚动（无缝循环） */
 .sp-scroll { height: 402px; overflow: hidden; }
-.sp-scroll .sp-table { animation: spScroll 20s linear infinite; }
+.sp-scroll .sp-table { animation: none; }
 .sp-scroll:hover .sp-table { animation-play-state: paused; }
 @keyframes spScroll {
   from { transform: translateY(0); }
@@ -738,14 +801,12 @@ a { color: inherit; text-decoration: none; }
   gap: 26px; margin-top: 46px;
   align-items: start;
 }
+/* 统一四张截图的比例与圆角：原图比例接近，cover 只裁掉 1%~2% 边缘 */
 .shot-phone {
-  margin: 0; background: #fff;
-  border: 1px solid var(--line); border-radius: 34px; padding: 10px;
-  box-shadow: 0 24px 60px rgba(23, 30, 60, .12);
-  transition: transform .25s ease;
+  margin: 0; aspect-ratio: 24 / 50;
+  border: 1px solid #fff; border-radius: 16px; overflow: hidden;
 }
-.shot-phone:hover { transform: translateY(-6px); }
-.shot-phone img { display: block; width: 100%; border-radius: 26px; }
+.shot-phone img { display: block; width: 100%; height: 100%; object-fit: cover; }
 
 /* ===== 手机展示：逐台逐项入场动画（参考 ReactBits AnimatedContent） ===== */
 .app-shots.ac-ready .shot-phone {
@@ -762,9 +823,6 @@ a { color: inherit; text-decoration: none; }
   opacity: 1;
   transform: translateY(0) scale(1);
   filter: blur(0);
-}
-.app-shots.ac-ready .shot-phone.ac-in:hover {
-  transform: translateY(-6px) scale(1);
 }
 .app-shots.ac-ready .ac-item {
   opacity: 0;
@@ -905,18 +963,13 @@ a { color: inherit; text-decoration: none; }
 .am-sw p { font-size: 8.5px; line-height: 1.55; margin: 0; }
 .am-sw .adv b { color: #16a34a; } .am-sw .adv p { color: var(--ink-2); background: rgba(34,197,94,.08); border-radius: 8px; padding: 7px 8px; }
 .am-sw .weak b { color: #ff3b30; } .am-sw .weak p { color: var(--ink-2); background: rgba(255,59,48,.07); border-radius: 8px; padding: 7px 8px; }
-.shot-phone figcaption {
-  text-align: center; font-size: 13px;
-  color: var(--ink-2); padding: 12px 0 6px;
-}
 @media (max-width: 960px) {
   .app-shots { grid-template-columns: repeat(2, 1fr); }
 }
 @media (max-width: 760px) {
   .app-shots { grid-template-columns: 1fr; }
-  /* 移动端：机身占列宽 3/4 居中，屏幕内容等比缩小 */
-  .shot-phone { width: 75%; margin: 0 auto; display: flex; flex-direction: column; align-items: center; }
-  .shot-phone .am { zoom: .85; width: 100%; }
+  /* 移动端：截图占列宽 3/4 居中 */
+  .shot-phone { width: 75%; margin: 0 auto; }
 }
 @media (max-width: 520px) {
   .app-shots { gap: 14px; }
@@ -1173,20 +1226,16 @@ a { color: inherit; text-decoration: none; }
   .orbit-card p { font-size: 17px; line-height: 1.5; }
 }
 
-/* ===== 「学练测评管」True Focus 逐词聚焦（移植自 reactbits TrueFocus） ===== */
+/* ===== 「学练测评管」词链静态展示（原 True Focus 逐词聚焦动画已移除） ===== */
 .focus-container { position: relative; display: inline-block; white-space: nowrap; }
 .focus-container i { font-style: normal; opacity: .55; margin: 0 .28em; }
 .focus-word {
   display: inline-block; font-weight: 600;
-  filter: blur(4px);
-  transition: filter .5s ease;
+  filter: none;
 }
 .focus-word.active { filter: blur(0); }
 .focus-frame {
-  position: absolute; top: 0; left: 0;
-  pointer-events: none;
-  opacity: 0;
-  transition: left .5s ease, top .5s ease, width .5s ease, height .5s ease, opacity .5s ease;
+  display: none;
 }
 .focus-frame.on { opacity: 1; }
 .corner { position: absolute; width: 9px; height: 9px; border: 0 solid var(--blue); }

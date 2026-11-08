@@ -42,7 +42,7 @@ public class DataInitializer implements CommandLineRunner {
         List<User> users = userMapper.selectList(null);
 
         if (users.isEmpty()) {
-            System.out.println("===== 用户表为空，请先执行 seed_all.sql ======");
+            System.err.println("[初始化] 用户表为空，请先执行 seed_all.sql");
             return;
         }
 
@@ -54,14 +54,11 @@ public class DataInitializer implements CommandLineRunner {
                 u.setPasswordHash(passwordEncoder.encode(rawPassword));
                 userMapper.updateById(u);
                 updated++;
-                System.out.println("  密码加密: " + u.getUsername());
             }
         }
 
         if (updated > 0) {
-            System.out.println("===== 已加密/重置 " + updated + " 个用户密码（空密码重置为 123456）=====");
-        } else {
-            System.out.println("===== 所有密码均已加密，跳过 =====");
+            System.out.println("[初始化] 已加密/重置 " + updated + " 个用户密码");
         }
     }
 
@@ -112,8 +109,7 @@ public class DataInitializer implements CommandLineRunner {
 
         int fixed = jdbc.queryForObject("SELECT COUNT(*) FROM course WHERE credit IS NULL OR credit = 0", Integer.class);
         if (fixed > 0) {
-            System.out.println("===== 仍有 " + fixed + " 个课程课时为0 =====");
+            System.err.println("[初始化] 仍有 " + fixed + " 个课程课时为 0");
         }
-        System.out.println("===== 课程课时已检查 =====");
     }
 }

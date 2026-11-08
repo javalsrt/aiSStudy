@@ -18,7 +18,7 @@
   <meta property="og:site_name" content="智学职达" />
   <link rel="icon" type="image/png" href="assets/logo.png" />
   <link rel="apple-touch-icon" href="assets/logo.png" />
-  <link rel="stylesheet" href="css/style.css?v=20261107e" />
+  <link rel="stylesheet" href="css/style.css?v=20261108h" />
 </head>
 <body>
 
@@ -150,120 +150,26 @@
         </div>
       </div>
 
-      <!-- App 实机界面预览（CSS 模拟，参考真机截图；进入视口后逐台逐项动画呈现） -->
+      <!-- App 实机界面预览（真实 App 截图，由多光标引擎逐台搭建） -->
       <div class="app-shots">
-        <!-- App 登录 -->
+        <!-- 课表 -->
         <figure class="shot-phone">
-          <div class="am am-login">
-            <div class="am-status"><span>11:00</span><span>LTE ▮</span></div>
-            <div class="am-body">
-              <b class="am-appname">智学职达APP</b>
-              <span class="am-appsub">DeepSeek V4 Flash 01</span>
-              <label>学号 / 用户名</label>
-              <div class="am-input">请输入学号 / 用户名</div>
-              <label>密码</label>
-              <div class="am-input">请输入密码</div>
-              <div class="am-check"><i></i>记住密码</div>
-              <div class="am-check"><i></i>已阅读并同意<em>服务协议</em>和<em>隐私政策</em></div>
-              <div class="am-btn-off">登 录</div>
-              <span class="am-hint">教师请使用 Web 管理端登录</span>
-            </div>
-          </div>
-          <figcaption>App登录</figcaption>
+          <img src="assets/app/schedule.png" width="595" height="1225" decoding="async" alt="智学职达 App 第 10 周课表" />
+        </figure>
+
+        <!-- 智学助手 -->
+        <figure class="shot-phone">
+          <img src="assets/app/assistant.png" width="580" height="1231" decoding="async" alt="智学职达 App 智学助手" />
         </figure>
 
         <!-- 章节学习 -->
         <figure class="shot-phone">
-          <div class="am">
-            <div class="am-status"><span>10:36</span><span>LTE ▮</span></div>
-            <div class="am-nav">‹ 计算机网络基础</div>
-            <div class="am-progress">已完成 <b>3/21</b> 课时</div>
-            <div class="am-scroll">
-              <div class="am-ch">
-                <div class="am-ch-head"><i class="dot done"></i>
-                  <div><span>第 1 章</span><b>计算机网络与体系结构概述</b>
-                  <p>建立对计算机网络基本概念、分类与分层体系结构的整体认识。</p><u>已完成 3/3 课时</u></div>
-                </div>
-                <div class="am-lesson"><em>文</em>计算机网络的定义与分类</div>
-                <div class="am-lesson"><em>文</em>网络体系结构与协议分层</div>
-                <div class="am-lesson"><em>文</em>网络性能指标与参考模型比较</div>
-              </div>
-              <div class="am-ch">
-                <div class="am-ch-head"><i class="dot"></i>
-                  <div><span>第 2 章</span><b>物理层</b>
-                  <p>学习物理层的数据通信基础、传输介质和信道复用技术。</p><u>已完成 0/3 课时</u></div>
-                </div>
-              </div>
-              <div class="am-ch">
-                <div class="am-ch-head"><i class="dot"></i>
-                  <div><span>第 3 章</span><b>数据链路层</b>
-                  <p>掌握数据链路层的成帧、差错控制、介质访问控制技术。</p><u>已完成 0/3 课时</u></div>
-                </div>
-              </div>
-              <div class="am-ch">
-                <div class="am-ch-head"><i class="dot"></i>
-                  <div><span>第 4 章</span><b>网络层</b>
-                  <p>学习 IP 地址、子网划分、路由算法和网络层协议。</p><u>已完成 0/3 课时</u></div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <figcaption>章节学习</figcaption>
+          <img src="assets/app/chapter.png" width="529" height="1119" decoding="async" alt="智学职达 App 章节学习 · 数学" />
         </figure>
 
-        <!-- 智能刷题 -->
+        <!-- 请假申请 -->
         <figure class="shot-phone">
-          <div class="am am-quiz">
-            <div class="am-status"><span>10:41</span><span>LTE ▮</span></div>
-            <b class="am-q-title">专注刷题 · 数学</b>
-            <span class="am-q-sub">今日专注 03:30 · 上次 01:00</span>
-            <div class="am-q-meta"><span class="am-tag">简答题</span><em>5/15</em></div>
-            <p class="am-question">写出函数 f(x) 在 x = a 处的泰勒展开式（带拉格朗日余项），并说明 a = 0 时该公式的名称。</p>
-            <div class="am-ans">
-              <b>参考答案 · 解析</b>
-              <p class="am-formula">f(x) = f(a) + f′(a)(x − a) + <span class="frac"><span class="up">f″(a)</span><span class="dn">2!</span></span>(x − a)<sup>2</sup> + ⋯ + <span class="frac"><span class="up">f<sup>(n)</sup>(a)</span><span class="dn">n!</span></span>(x − a)<sup>n</sup> + R<sub>n</sub>(x)</p>
-              <p class="am-formula">R<sub>n</sub>(x) = <span class="frac"><span class="up">f<sup>(n+1)</sup>(ξ)</span><span class="dn">(n+1)!</span></span>(x − a)<sup>n+1</sup>，ξ 介于 a 与 x 之间。</p>
-              <p class="am-formula">a = 0 时称麦克劳林公式：e<sup>x</sup> = Σ<sub>n=0</sub><sup>∞</sup> <span class="frac"><span class="up">x<sup>n</sup></span><span class="dn">n!</span></span>。</p>
-            </div>
-            <div class="am-submit">长按提交</div>
-            <div class="am-tabbar"><span>课表</span><span class="on">专注</span><span>我的</span></div>
-          </div>
-          <figcaption>智能刷题</figcaption>
-        </figure>
-
-        <!-- 测评报告 -->
-        <figure class="shot-phone">
-          <div class="am">
-            <div class="am-status"><span>10:47</span><span>LTE ▮</span></div>
-            <div class="am-nav">‹ 测评报告</div>
-            <div class="am-body">
-              <div class="am-rep-card"><span>正确率</span><b>100%</b></div>
-              <div class="am-rep-stats">
-                <div><span>答对题数</span><b>15/15</b></div>
-                <div><span>已答题</span><b>15</b></div>
-                <div><span>未答/不会</span><b>0</b></div>
-                <div><span>用时</span><b>6分2秒</b></div>
-              </div>
-              <div class="am-sec">本次答题详情</div>
-              <div class="am-detail">
-                <span>第1题 带宽单位 <i>正确</i></span>
-                <span>第2题 吞吐量概念 <i>正确</i></span>
-                <span>第3题 时延组成 <i>正确</i></span>
-                <span>第4题 发送时延计算 <i>正确</i></span>
-                <span>第5题 OSI模型 <i>正确</i></span>
-              </div>
-              <div class="am-sec">知识点掌握</div>
-              <div class="am-kp"><span>带宽与吞吐量</span><i><b style="width:100%"></b></i><u>100%</u></div>
-              <div class="am-kp"><span>时延计算</span><i><b style="width:100%"></b></i><u>100%</u></div>
-              <div class="am-kp"><span>OSI 模型分层</span><i><b style="width:100%"></b></i><u>100%</u></div>
-              <div class="am-sec">能力维度分析</div>
-              <div class="am-sw">
-                <div class="adv"><b>优势</b><p>核心概念理解准确，能正确区分带宽、吞吐量、时延等基础概念。</p></div>
-                <div class="weak"><b>薄弱</b><p>Q5 耗时 95s，说明部分基础知识联系理解尚不熟练，可提升。</p></div>
-              </div>
-            </div>
-          </div>
-          <figcaption>测评报告</figcaption>
+          <img src="assets/app/leave.png" width="580" height="1191" decoding="async" alt="智学职达 App 请假申请" />
         </figure>
       </div>
     </div>
@@ -711,7 +617,12 @@
     </div>
   </footer>
 
+  <!-- 全站多光标搭建层：光标与选区框由 JS 驱动，仅展示，不拦截交互 -->
+  <div class="sb-layer" id="sbLayer" aria-hidden="true">
+    <div class="sb-cursors" id="sbCursors"></div>
+  </div>
+
   <script src="js/dark-veil.js?v=20261107a"></script>
-  <script src="js/main.js?v=20261107e"></script>
+  <script src="js/main.js?v=20261108m"></script>
 </body>
 </html>

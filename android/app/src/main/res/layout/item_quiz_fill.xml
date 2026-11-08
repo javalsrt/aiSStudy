@@ -1,10 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  填空题卡片。
+  输入框紧跟题干下方（不再用弹性空白顶到底部），并整体放进 ScrollView，
+  软键盘弹起时仍能滚动到输入框，不会被遮挡。
+-->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:background="@color/canvas"
-    android:paddingTop="44dp"
+    android:paddingTop="16dp"
     android:paddingHorizontal="12dp"
     android:paddingBottom="12dp">
 
@@ -13,43 +18,53 @@
         android:background="@drawable/bg_quiz_card"
         android:padding="20dp">
 
-        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:orientation="horizontal" android:gravity="center_vertical"
-            android:layout_marginBottom="20dp">
-            <TextView android:id="@+id/tv_quiz_tag" android:layout_width="wrap_content"
-                android:layout_height="wrap_content" android:text="填空题"
-                android:textSize="12sp" android:textColor="@color/primary"
-                android:paddingHorizontal="10dp" android:paddingVertical="4dp"
-                android:background="@drawable/bg_tag" />
-            <View android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" />
-            <TextView android:id="@+id/tv_quiz_num" android:layout_width="wrap_content"
-                android:layout_height="wrap_content" android:text="1/15"
-                android:textSize="13sp" android:textColor="@color/ink_subtle"
-                android:fontFamily="@font/harmonyos_sans_sc_medium" />
-        </LinearLayout>
+        <ScrollView android:layout_width="match_parent" android:layout_height="0dp"
+            android:layout_weight="1"
+            android:fillViewport="true"
+            android:scrollbars="none"
+            android:overScrollMode="never">
 
-        <TextView android:id="@+id/tv_quiz_question" android:layout_width="match_parent"
-            android:layout_height="wrap_content" android:text="题目内容"
-            android:textSize="19sp" android:textColor="@color/ink"
-            android:lineSpacingExtra="6dp" android:layout_marginBottom="20dp" />
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="vertical">
 
-        <com.znxsgl.student.widget.FunctionPlotView
-            android:id="@+id/graph_view"
-            android:layout_width="match_parent" android:layout_height="190dp"
-            android:layout_marginBottom="20dp"
-            android:visibility="gone"
-            android:background="@drawable/bg_graph_panel"
-            android:padding="10dp" />
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="horizontal" android:gravity="center_vertical"
+                    android:layout_marginBottom="20dp">
+                    <TextView android:id="@+id/tv_quiz_tag" android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" android:text="填空题"
+                        android:textSize="12sp" android:textColor="@color/primary"
+                        android:paddingHorizontal="10dp" android:paddingVertical="4dp"
+                        android:background="@drawable/bg_tag" />
+                    <View android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" />
+                    <TextView android:id="@+id/tv_quiz_num" android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" android:text="1/15"
+                        android:textSize="13sp" android:textColor="@color/ink_subtle"
+                        android:fontFamily="@font/harmonyos_sans_sc_medium" />
+                </LinearLayout>
 
-        <EditText android:id="@+id/et_answer" android:layout_width="match_parent"
-            android:layout_height="52dp" android:paddingHorizontal="16dp"
-            android:background="@drawable/bg_input"
-            android:hint="请输入答案"
-            android:textSize="16sp" android:textColor="@color/ink"
-            android:textColorHint="@color/ink_tertiary"
-            android:singleLine="true" />
+                <TextView android:id="@+id/tv_quiz_question" android:layout_width="match_parent"
+                    android:layout_height="wrap_content" android:text="题目内容"
+                    android:textSize="19sp" android:textColor="@color/ink"
+                    android:lineSpacingExtra="6dp" android:layout_marginBottom="20dp" />
 
-        <View android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" />
+                <com.znxsgl.student.widget.FunctionPlotView
+                    android:id="@+id/graph_view"
+                    android:layout_width="match_parent" android:layout_height="190dp"
+                    android:layout_marginBottom="20dp"
+                    android:visibility="gone"
+                    android:background="@drawable/bg_graph_panel"
+                    android:padding="10dp" />
+
+                <EditText android:id="@+id/et_answer" android:layout_width="match_parent"
+                    android:layout_height="52dp" android:paddingHorizontal="16dp"
+                    android:background="@drawable/bg_input"
+                    android:hint="请输入答案"
+                    android:inputType="text"
+                    android:textSize="16sp" android:textColor="@color/ink"
+                    android:textColorHint="@color/ink_tertiary"
+                    android:singleLine="true" />
+            </LinearLayout>
+        </ScrollView>
 
         <TextView android:layout_width="match_parent"
             android:layout_height="wrap_content" android:text="完成后点击下方「长按提交」"
