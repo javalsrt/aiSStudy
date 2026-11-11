@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Select } from '@/components/ui/select'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Search, UserCheck, Users } from 'lucide-react'
 import { getClassHeadList, type ClassHeadItem } from '@/api/teacher-duty'
@@ -108,13 +109,13 @@ export function ClassCadrePage() {
         <div className="relative">
           <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-neutral-400" />
           <input
-            className="h-9 w-52 rounded-md border border-neutral-200 pl-7 pr-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary-500"
+            className="h-9 w-52 rounded-md border border-neutral-200 pl-7 pr-2 text-xs focus:outline-hidden focus:ring-2 focus:ring-emerald-300"
             placeholder="搜索班级 / 年级 / 专业"
             value={classSearch}
             onChange={(e) => setClassSearch(e.target.value)}
           />
         </div>
-        <select
+        <Select
           className="h-9 w-64 rounded-md border border-neutral-200 px-2 text-sm"
           value={classId}
           onChange={(e) => {
@@ -131,7 +132,7 @@ export function ClassCadrePage() {
               {c.grade ? `（${c.grade}）` : ''}
             </option>
           ))}
-        </select>
+        </Select>
         {classSearch && (
           <span className="text-[11px] text-neutral-400">匹配 {filteredClasses.length} 个班</span>
         )}
@@ -139,7 +140,7 @@ export function ClassCadrePage() {
         <div className="relative">
           <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-neutral-400" />
           <input
-            className="h-9 w-56 rounded-md border border-neutral-200 pl-7 pr-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary-500"
+            className="h-9 w-56 rounded-md border border-neutral-200 pl-7 pr-2 text-xs focus:outline-hidden focus:ring-2 focus:ring-emerald-300"
             placeholder="搜索学生姓名 / 学号"
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
@@ -192,17 +193,17 @@ export function ClassCadrePage() {
             {filtered.map((s) => (
               <div
                 key={s.id}
-                className="flex items-center justify-between gap-3 rounded-lg border border-neutral-200 px-3 py-2"
+                className="flex items-center justify-between gap-3 rounded-xl border border-line-separator bg-surface-primary px-4 py-3 transition-colors hover:border-neutral-300"
               >
                 <div className="min-w-0">
-                  <div className="truncate text-[13px] font-medium text-neutral-900" title={s.name}>
+                  <div className="truncate text-[13px] font-medium text-ink-primary" title={s.name}>
                     {s.name}
                   </div>
-                  <div className="text-[11px] text-neutral-400">{s.studentNo || '-'}</div>
+                  <div className="text-[11px] text-ink-tertiary">{s.studentNo || '-'}</div>
                 </div>
-                <select
-                  className={`h-8 w-36 shrink-0 rounded-md border px-2 text-xs ${
-                    s.position ? 'border-primary-200 bg-primary-50 text-primary-700' : 'border-neutral-200'
+                <Select
+                  className={`h-8 w-36 shrink-0 rounded-lg border px-2 text-xs transition-colors focus:border-emerald-300 focus:outline-hidden focus:ring-2 focus:ring-emerald-200 ${
+                    s.position ? 'border-emerald-300 bg-surface-primary text-ink-primary' : 'border-line-separator bg-surface-primary text-ink-secondary'
                   }`}
                   value={s.position || ''}
                   disabled={saving === s.id}
@@ -214,7 +215,7 @@ export function ClassCadrePage() {
                       {p}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
             ))}
           </div>
@@ -233,24 +234,27 @@ export function ClassCadrePage() {
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-neutral-200 bg-neutral-50/60">
-                    <th className="px-3 py-2 text-left text-[11px] font-medium text-neutral-400 whitespace-nowrap">时间</th>
-                    <th className="px-3 py-2 text-left text-[11px] font-medium text-neutral-400 whitespace-nowrap">操作人</th>
-                    <th className="px-3 py-2 text-left text-[11px] font-medium text-neutral-400">学生</th>
-                    <th className="px-3 py-2 text-left text-[11px] font-medium text-neutral-400 whitespace-nowrap">班级</th>
-                    <th className="px-3 py-2 text-left text-[11px] font-medium text-neutral-400">变更</th>
+                <thead className="bg-neutral-50 text-caption-1-medium text-ink-tertiary">
+                  <tr>
+                    <th className="h-10 px-3 text-left font-medium whitespace-nowrap">时间</th>
+                    <th className="h-10 px-3 text-left font-medium whitespace-nowrap">操作人</th>
+                    <th className="h-10 px-3 text-left font-medium">学生</th>
+                    <th className="h-10 px-3 text-left font-medium whitespace-nowrap">班级</th>
+                    <th className="h-10 px-3 text-left font-medium">变更</th>
                   </tr>
                 </thead>
                 <tbody>
                   {logs.map((l) => (
-                    <tr key={l.id} className="border-b border-neutral-100 last:border-0">
-                      <td className="px-3 py-2 text-xs text-neutral-500 tabular-nums whitespace-nowrap">{l.createdAt}</td>
-                      <td className="px-3 py-2 text-xs text-neutral-700 whitespace-nowrap">{l.operatorName || '-'}</td>
-                      <td className="px-3 py-2 text-xs text-neutral-700 whitespace-nowrap">{l.studentName || '-'}</td>
-                      <td className="px-3 py-2 text-xs text-neutral-500 whitespace-nowrap">{l.className || '-'}</td>
-                      <td className="px-3 py-2 text-xs text-neutral-600">
-                        {l.oldPosition || '普通学生'} → <span className="font-medium">{l.newPosition || '普通学生'}</span>
+                    <tr
+                      key={l.id}
+                      className="border-t border-line-separator transition-colors last:border-0 hover:bg-neutral-50/60"
+                    >
+                      <td className="px-3 py-2.5 text-xs text-ink-tertiary tabular-nums whitespace-nowrap">{l.createdAt}</td>
+                      <td className="px-3 py-2.5 text-xs text-ink-secondary whitespace-nowrap">{l.operatorName || '-'}</td>
+                      <td className="px-3 py-2.5 text-xs text-ink-primary whitespace-nowrap">{l.studentName || '-'}</td>
+                      <td className="px-3 py-2.5 text-xs text-ink-secondary whitespace-nowrap">{l.className || '-'}</td>
+                      <td className="px-3 py-2.5 text-xs text-ink-secondary">
+                        {l.oldPosition || '普通学生'} → <span className="font-medium text-ink-primary">{l.newPosition || '普通学生'}</span>
                       </td>
                     </tr>
                   ))}
@@ -261,9 +265,8 @@ export function ClassCadrePage() {
         </CardContent>
       </Card>
 
-      <div className="rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-700">
-        管理员可设置全部职务；教师只能为本人担任班主任或授课班级的学生设置班干部职务（班长、学习委员等）。
-      </div>
+      {/* 权限规则（原蓝色横幅）：管理员可设置全部职务；教师只能为本人担任班主任或授课班级的学生设置班干部职务 */}
+      <p className="text-xs text-neutral-400">职务范围按角色自动限制，无权限项不可选</p>
     </div>
   )
 }

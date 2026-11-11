@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Card, CardContent } from '@/components/ui/card'
-import { HtmlMath } from '@/components/rich-text'
+import { HtmlMath, MathText } from '@/components/rich-text'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
@@ -98,7 +98,7 @@ function AnswerCard({ answer }: { answer: QuizReportAnswer }) {
   const options = parseOptions(answer.options)
 
   return (
-    <div className="p-4 rounded-xl border border-neutral-100 bg-white">
+    <div className="p-4 rounded-xl border border-neutral-100 bg-surface-primary">
       <div className="flex items-start justify-between gap-3">
         <div className="text-sm font-medium text-neutral-900 flex items-center gap-2">
           <span className="text-neutral-500">第{answer.questionIndex}题</span>
@@ -132,15 +132,17 @@ function AnswerCard({ answer }: { answer: QuizReportAnswer }) {
       <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
         <div className="p-2 rounded-lg bg-neutral-50">
           <span className="text-neutral-500">学生答案：</span>
-          <span className="text-neutral-900 break-all">
-            {answer.userAnswer || '未作答'}
-          </span>
+          <MathText
+            className="text-neutral-900 break-all"
+            text={answer.userAnswer || '未作答'}
+          />
         </div>
         <div className="p-2 rounded-lg bg-neutral-50">
           <span className="text-neutral-500">正确答案：</span>
-          <span className="text-neutral-900 break-all">
-            {answer.correctAnswer || '-'}
-          </span>
+          <MathText
+            className="text-neutral-900 break-all"
+            text={answer.correctAnswer || '-'}
+          />
         </div>
       </div>
 
@@ -370,7 +372,7 @@ export function QuizReportPage() {
             <ol className="space-y-3">
               {session.studyPlan.map((p, i) => (
                 <li key={i} className="flex items-start gap-3">
-                  <span className="shrink-0 w-6 h-6 rounded-full bg-primary-50 text-primary-600 text-xs font-semibold flex items-center justify-center">
+                  <span className="shrink-0 w-6 h-6 rounded-full bg-neutral-100 text-ink-secondary text-xs font-semibold flex items-center justify-center">
                     {i + 1}
                   </span>
                   <span className="text-sm text-neutral-700 leading-relaxed">{p}</span>

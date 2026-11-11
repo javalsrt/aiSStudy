@@ -60,8 +60,13 @@ export interface BatchImportResult {
 }
 
 // 教室管理
-export const getClassrooms = (type?: string) =>
-  request.get<any, Classroom[]>('/admin/schedule/classrooms', { params: type ? { type } : undefined })
+export const getClassrooms = (type?: string, includeInactive?: boolean) =>
+  request.get<any, Classroom[]>('/admin/schedule/classrooms', {
+    params: {
+      ...(type ? { type } : {}),
+      ...(includeInactive ? { includeInactive: true } : {}),
+    },
+  })
 
 export const addClassroom = (data: Omit<Classroom, 'id'>) =>
   request.post<any, { id: number; message: string }>('/admin/schedule/classroom', data)
@@ -90,6 +95,33 @@ export const autoGenerateSchedule = (semester?: string, clearExisting = true) =>
   request.post<any, ScheduleResult>('/admin/schedule/auto-generate', null, {
     params: { semester, clearExisting },
   })
+
+export interface AutoGenerateJob {
+  jobId: string
+  semester?: string
+  status: 'running' | 'done' | 'failed'
+  total: number
+  processed: number
+  elapsedMs?: number
+  result?: ScheduleResult
+  error?: string
+}
+
+/** 启动异步排课任务：立即返回 jobId，避免长时间同步请求卡住页面 */
+export const startAutoGenerateJob = (semester?: string, clearExisting = true) =>
+  request.post<any, { jobId: string; status: string; message: string }>(
+    '/admin/schedule/auto-generate/jobs',
+    null,
+    { params: { semester, clearExisting } }
+  )
+
+/** 查询排课任务进度/结果 */
+export const getAutoGenerateJob = (jobId: string) =>
+  request.get<any, AutoGenerateJob>(`/admin/schedule/auto-generate/jobs/${jobId}`)
+
+/** 查询当前正在执行的排课任务（页面刷新后可重新接上进度） */
+export const getRunningAutoGenerateJob = () =>
+  request.get<any, AutoGenerateJob | { status: 'idle' }>('/admin/schedule/auto-generate/jobs/running')
 
 // 排课统计
 export const getScheduleStats = (semester?: string) =>

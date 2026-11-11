@@ -47,7 +47,7 @@ function MermaidView({ code }: { code: string }) {
       </div>
     )
   }
-  return <div ref={ref} className="my-3 overflow-x-auto rounded-lg border border-neutral-100 bg-white p-3" />
+  return <div ref={ref} className="my-3 overflow-x-auto rounded-lg border border-neutral-100 bg-surface-primary p-3" />
 }
 
 /**
@@ -69,7 +69,7 @@ export function MarkdownView({ content, className }: { content: string; classNam
             }
             return (
               <code
-                className={cls || ''}
+                className={cls ? `${cls} squircle` : 'squircle'}
                 style={
                   match
                     ? { display: 'block', background: '#1E293B', color: '#E2E8F0', padding: '12px',
@@ -98,7 +98,7 @@ export function MarkdownView({ content, className }: { content: string; classNam
           },
           blockquote({ children }) {
             return (
-              <blockquote className="my-3 border-l-4 border-primary-500 bg-primary-50/50 px-4 py-2 rounded-r-lg text-sm">
+              <blockquote className="my-3 border-l-4 border-emerald-300 bg-emerald-50/50 px-4 py-2 rounded-r-lg text-sm">
                 {children}
               </blockquote>
             )

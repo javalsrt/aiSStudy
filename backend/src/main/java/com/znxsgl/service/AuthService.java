@@ -46,7 +46,8 @@ public class AuthService {
         }
 
         if (user == null) {
-            return new LoginResponse("账号不存在");
+            // 不区分「账号不存在」与「密码错误」，避免被枚举账号
+            return new LoginResponse("账号或密码错误");
         }
 
         if (user.getStatus() != 1) {
@@ -54,7 +55,7 @@ public class AuthService {
         }
 
         if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
-            return new LoginResponse("密码错误");
+            return new LoginResponse("账号或密码错误");
         }
 
         // 自动填充会处理 lastLogin，这里显式赋值用于确保登录时间立即更新

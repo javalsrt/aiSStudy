@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import { Select } from '@/components/ui/select'
 import {
   CalendarClock,
   Play,
   RotateCcw,
   Plus,
+  Pencil,
   Trash2,
   AlertCircle,
   CheckCircle2,
@@ -17,15 +19,30 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
 import { useDialog } from '@/hooks/use-dialog'
 import {
-  autoGenerateSchedule,
+  addClassroom,
   batchImportTasks,
   clearTeachingTasks,
+  deleteClassroom,
   deleteTeachingTask,
+  getAutoGenerateJob,
   getClassrooms,
+  getRunningAutoGenerateJob,
   getScheduleStats,
   getTeachingTasks,
+  startAutoGenerateJob,
+  updateClassroom,
+  type AutoGenerateJob,
+  type Classroom,
   type ScheduleResult,
   type ScheduleStats,
   type TeachingTask,
@@ -64,9 +81,34 @@ export function SchedulePage() {
   const [semester, setSemester] = useState('')
   const [stats, setStats] = useState<ScheduleStats | null>(null)
   const [tasks, setTasks] = useState<TeachingTask[]>([])
-  const [classrooms, setClassrooms] = useState<Array<Record<string, any>>>([])
+  const [classrooms, setClassrooms] = useState<Classroom[]>([])
   const [courses, setCourses] = useState<CourseItem[]>([])
+  /** 课程列表加载中：避免在课程未就绪时点「从课程生成任务」误报“没有可用课程” */
+  const [coursesLoading, setCoursesLoading] = useState(true)
   const [lastResult, setLastResult] = useState<ScheduleResult | null>(null)
+  /** 教室新增/编辑弹窗 */
+  const [roomDialogOpen, setRoomDialogOpen] = useState(false)
+  const [editingRoom, setEditingRoom] = useState<Classroom | null>(null)
+  const [roomForm, setRoomForm] = useState({
+    name: '',
+    type: 'normal',
+    capacity: '50',
+    building: '',
+    floor: '',
+    isActive: 1,
+  })
+  const [roomError, setRoomError] = useState('')
+  const [roomSaving, setRoomSaving] = useState(false)
+  // 与登录按钮同理：setState 要等渲染才生效，用同步 ref 防止连点重复创建
+  const roomSavingRef = useRef(false)
+  /** 正在执行的异步排课任务（null 表示没有） */
+  const [autoJob, setAutoJob] = useState<AutoGenerateJob | null>(null)
+  // 点击后立刻置位，避免连点重复创建任务（setAutoJob 要等下一次渲染才生效）
+  const autoStartingRef = useRef(false)
+  const autoRunning = autoJob?.status === 'running'
+  /** 展开查看失败原因的任务 id */
+  const [expandedTaskId, setExpandedTaskId] = useState<number | null>(null)
+  const failedTaskCount = tasks.filter((t) => t.status === 'failed').length
 
   const fetchSemester = async (): Promise<{ name: string } | null> => {
     try {
@@ -103,7 +145,8 @@ export function SchedulePage() {
 
   const fetchClassrooms = async () => {
     try {
-      const data = await getClassrooms()
+      // 管理端需要看到已停用教室，便于重新启用
+      const data = await getClassrooms(undefined, true)
       setClassrooms(data || [])
     } catch (err: any) {
       console.error('classrooms error', err)
@@ -112,11 +155,17 @@ export function SchedulePage() {
 
   const fetchCourses = async (targetSemester?: string) => {
     const sem = targetSemester || semester
+    setCoursesLoading(true)
     try {
       const data = await getTeacherCourses()
-      setCourses((data || []).filter((c: CourseItem) => c.semester === sem))
+      // 已下架课程不参与教学任务生成
+      setCourses(
+        (data || []).filter((c: CourseItem) => c.semester === sem && c.active !== false)
+      )
     } catch (err: any) {
       console.error('courses error', err)
+    } finally {
+      setCoursesLoading(false)
     }
   }
 
@@ -204,44 +253,133 @@ export function SchedulePage() {
     }
   }
 
-  const handleAutoSchedule = async () => {
-    const confirmed = await confirm({
-      title: '一键自动排课',
-      description: `将对 ${semester || '当前学期'} 执行自动排课，已锁定的课不会被覆盖。是否继续？`,
-      confirmText: '开始排课',
-      cancelText: '取消',
-    })
-    if (!confirmed) return
+  /** 排课任务完成：展示结果并刷新页面数据 */
+  const finishAutoJob = async (job: AutoGenerateJob) => {
+    const result = job.result
+    if (result) {
+      setLastResult(result)
+      await alert({
+        title: result.failed > 0 ? '排课完成（含失败）' : '排课成功',
+        description:
+          `总数 ${result.totalTasks} · 成功 ${result.scheduled} · 失败 ${result.failed} · 部分排 ${result.partialScheduled} · 耗时 ${result.elapsedMs}ms` +
+          (result.failed > 0 ? '；失败详情见页面「最近一次排课结果」卡片' : ''),
+      })
+    } else {
+      await alert({ title: '排课完成', description: job.error || '任务已完成' })
+    }
+    await refreshAll()
+    setAutoJob(null)
+  }
 
-    setLoading(true)
-    setLastResult(null)
+  // 轮询排课任务进度；排课在后台执行，页面保持可操作，避免长时间同步请求卡死页面
+  useEffect(() => {
+    if (!autoJob || autoJob.status !== 'running') return
+    let cancelled = false
+    let finished = false
+    let failures = 0
+    const timer = window.setInterval(async () => {
+      try {
+        const job = await getAutoGenerateJob(autoJob.jobId)
+        if (cancelled || finished) return
+        failures = 0
+        setAutoJob(job)
+        if (job.status === 'done') {
+          finished = true
+          window.clearInterval(timer)
+          await finishAutoJob(job)
+        } else if (job.status === 'failed') {
+          finished = true
+          window.clearInterval(timer)
+          await alert({
+            title: '排课失败',
+            description: job.error || '排课执行失败，请查看后端日志',
+          })
+          await refreshAll()
+          setAutoJob(null)
+        }
+      } catch (err: any) {
+        if (cancelled || finished) return
+        failures++
+        // 偶发网络抖动不立刻中断，连续失败才提示
+        if (failures >= 3) {
+          finished = true
+          window.clearInterval(timer)
+          setAutoJob(null)
+          await alert({
+            title: '进度查询失败',
+            description: err?.response?.data?.error || err?.message || '无法获取排课进度',
+          })
+        }
+      }
+    }, 1200)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [autoJob?.jobId, autoJob?.status, semester])
+
+  // 页面刷新/重新进入时，如果后台仍有排课任务，自动接上进度
+  useEffect(() => {
+    let cancelled = false
+    getRunningAutoGenerateJob()
+      .then((job) => {
+        if (!cancelled && job && job.status === 'running') {
+          setAutoJob(job as AutoGenerateJob)
+        }
+      })
+      .catch(() => {
+        // 无运行中任务或接口不可用时静默处理
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const handleAutoSchedule = async () => {
+    if (autoStartingRef.current || autoRunning) return
+    // 在弹出确认框之前就上锁，避免连点弹出多个确认框
+    autoStartingRef.current = true
     try {
-      // 如果没有待排/失败任务，自动从课程生成任务，实现“一键”闭环
-      const actionableTasks = tasks.filter((t) => t.status === 'pending' || t.status === 'failed')
-      if (actionableTasks.length === 0) {
+      const confirmed = await confirm({
+        title: '一键自动排课',
+        description: `将对 ${semester || '当前学期'} 执行自动排课，已锁定的课不会被覆盖。是否继续？`,
+        confirmText: '开始排课',
+        cancelText: '取消',
+      })
+      if (!confirmed || autoRunning) return
+
+      setLoading(true)
+      setLastResult(null)
+
+      // 没有任何教学任务时，先从课程生成任务，实现“一键”闭环；
+      // 已有任务时直接全量重排（已排任务也会重新参与），不再重复生成
+      if (tasks.length === 0) {
         const generated = await generateTasksFromCourses()
         if (!generated.success) {
           await alert({ description: generated.message || '没有可用课程' })
-          setLoading(false)
           return
         }
         // 生成成功后 tasks 状态已刷新，但当前 tasks 变量未更新，重新获取一次确保后续排课使用最新数据
         await fetchTasks()
       }
 
-      const result = await autoGenerateSchedule(semester || undefined, true)
-      setLastResult(result)
-      await alert({
-        title: result.failed > 0 ? '排课完成（含失败）' : '排课成功',
-        description: result.message,
+      // 异步任务：接口立即返回 jobId，前端轮询进度，页面不会被长时间请求阻塞
+      const started = await startAutoGenerateJob(semester || undefined, true)
+      setAutoJob({
+        jobId: started.jobId,
+        semester: semester || undefined,
+        status: 'running',
+        total: 0,
+        processed: 0,
       })
-      await refreshAll()
     } catch (err: any) {
       await alert({
-        title: '排课失败',
-        description: err?.response?.data?.message || err?.response?.data?.error || err.message || '未知错误',
+        title: '排课启动失败',
+        description:
+          err?.response?.data?.error || err?.response?.data?.message || err.message || '未知错误',
       })
     } finally {
+      autoStartingRef.current = false
       setLoading(false)
     }
   }
@@ -323,6 +461,99 @@ export function SchedulePage() {
     }
   }
 
+  const openCreateRoom = () => {
+    setEditingRoom(null)
+    setRoomForm({ name: '', type: 'normal', capacity: '50', building: '', floor: '', isActive: 1 })
+    setRoomError('')
+    setRoomDialogOpen(true)
+  }
+
+  const openEditRoom = (room: Classroom) => {
+    setEditingRoom(room)
+    setRoomForm({
+      name: room.name,
+      type: room.type,
+      capacity: room.capacity == null ? '' : String(room.capacity),
+      building: room.building || '',
+      floor: room.floor == null ? '' : String(room.floor),
+      isActive: room.isActive ?? 1,
+    })
+    setRoomError('')
+    setRoomDialogOpen(true)
+  }
+
+  const saveRoom = async () => {
+    if (roomSavingRef.current) return
+    const name = roomForm.name.trim()
+    if (!name) {
+      setRoomError('请填写教室名称')
+      return
+    }
+    const capacity = Number(roomForm.capacity)
+    if (!Number.isInteger(capacity) || capacity < 1) {
+      setRoomError('容量必须是大于 0 的整数')
+      return
+    }
+    const floorText = roomForm.floor.trim()
+    const floor = floorText === '' ? undefined : Number(floorText)
+    if (floor !== undefined && !Number.isInteger(floor)) {
+      setRoomError('楼层必须是整数')
+      return
+    }
+    const duplicated = classrooms.some(
+      (r) => r.id !== editingRoom?.id && r.name.trim().toLowerCase() === name.toLowerCase()
+    )
+    if (duplicated) {
+      setRoomError(`已存在同名教室「${name}」`)
+      return
+    }
+
+    roomSavingRef.current = true
+    setRoomSaving(true)
+    setRoomError('')
+    try {
+      const payload = {
+        name,
+        type: roomForm.type,
+        capacity,
+        building: roomForm.building.trim(),
+        floor,
+        isActive: roomForm.isActive,
+        equipment: editingRoom?.equipment,
+      }
+      if (editingRoom) {
+        await updateClassroom(editingRoom.id, payload)
+      } else {
+        await addClassroom(payload as Omit<Classroom, 'id'>)
+      }
+      setRoomDialogOpen(false)
+      await fetchClassrooms()
+    } catch (err: any) {
+      setRoomError(err?.response?.data?.message || err?.response?.data?.error || err?.message || '保存失败')
+    } finally {
+      roomSavingRef.current = false
+      setRoomSaving(false)
+    }
+  }
+
+  const handleDeleteRoom = async (room: Classroom) => {
+    const confirmed = await confirm({
+      title: '删除教室',
+      description: `确定删除「${room.name}」？删除后该教室不再参与排课。`,
+      confirmText: '删除',
+      variant: 'danger',
+    })
+    if (!confirmed) return
+    try {
+      await deleteClassroom(room.id)
+      await fetchClassrooms()
+    } catch (err: any) {
+      await alert({
+        description: err?.response?.data?.message || err?.response?.data?.error || err.message || '删除失败',
+      })
+    }
+  }
+
   const pendingCount = useMemo(() => tasks.filter((t) => t.status === 'pending').length, [tasks])
   const failedCount = useMemo(() => tasks.filter((t) => t.status === 'failed').length, [tasks])
 
@@ -331,10 +562,8 @@ export function SchedulePage() {
       {DialogComponent}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-neutral-900">排课管理</h1>
-          <p className="text-neutral-500 mt-1 text-sm">
-            管理员录入教学任务，系统自动排课，师生按角色查看课表
-          </p>
+          {/* 副标题（不展示）：管理员录入教学任务，系统自动排课，师生按角色查看课表 */}
+          <h1 className="text-display-4-medium text-ink-primary">排课管理</h1>
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -350,19 +579,55 @@ export function SchedulePage() {
             variant="default"
             className="gap-2"
             onClick={handleAutoSchedule}
-            disabled={loading || !semester}
+            disabled={loading || autoRunning || !semester}
           >
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-            一键自动排课
+            {autoRunning || loading ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Play className="w-4 h-4" />
+            )}
+            {autoRunning
+              ? autoJob?.total
+                ? `排课中 ${autoJob.processed}/${autoJob.total}`
+                : '排课中…'
+              : '一键自动排课'}
           </Button>
         </div>
       </div>
+
+      {/* 排课进度：后台执行，页面保持可操作 */}
+      {autoRunning && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-3 text-sm text-emerald-700">
+          <div className="flex items-center gap-2">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <span>
+              正在自动排课：
+              {autoJob?.total ? `${autoJob.processed} / ${autoJob.total} 个任务` : '正在加载任务…'}
+            </span>
+          </div>
+          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-emerald-100">
+            <div
+              className="h-full bg-primary-500 transition-all duration-500"
+              style={{
+                width: `${
+                  autoJob?.total
+                    ? Math.min(100, Math.round((autoJob.processed / autoJob.total) * 100))
+                    : 5
+                }%`,
+              }}
+            />
+          </div>
+          <p className="mt-1.5 text-xs text-primary-600">
+            排课在后台执行，可继续操作页面；刷新后会自动接上进度。
+          </p>
+        </div>
+      )}
 
       {/* 统计卡片 */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-5 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-primary-50 flex items-center justify-center text-primary-600">
+            <div className="w-12 h-12 rounded-xl bg-neutral-100 flex items-center justify-center text-ink-secondary">
               <BookOpen className="w-6 h-6" />
             </div>
             <div>
@@ -407,7 +672,7 @@ export function SchedulePage() {
       </div>
 
       {/* 学期提示 */}
-      <div className="flex items-center gap-2 text-sm text-neutral-600 bg-white border border-neutral-200 rounded-xl px-4 py-3">
+      <div className="flex items-center gap-2 text-sm text-neutral-600 bg-surface-primary border border-neutral-200 rounded-xl px-4 py-3">
         <CalendarClock className="w-4 h-4 text-primary-500" />
         当前操作学期：
         <span className="font-medium text-neutral-900">{semester || '未设置'}</span>
@@ -431,7 +696,7 @@ export function SchedulePage() {
                   variant="outline"
                   className="gap-2"
                   onClick={handleGenerateTasks}
-                  disabled={loading || !semester}
+                  disabled={loading || autoRunning || !semester || coursesLoading}
                 >
                   <Plus className="w-4 h-4" />
                   从课程生成任务
@@ -440,7 +705,7 @@ export function SchedulePage() {
                   variant="outline"
                   className="gap-2 text-danger hover:text-danger"
                   onClick={handleClearTasks}
-                  disabled={loading || tasks.length === 0}
+                  disabled={loading || autoRunning || tasks.length === 0}
                 >
                   <Trash2 className="w-4 h-4" />
                   清空任务
@@ -486,6 +751,11 @@ export function SchedulePage() {
               <CardTitle className="text-base">
                 教学任务列表
                 <span className="ml-2 text-sm font-normal text-neutral-500">({tasks.length})</span>
+                {failedTaskCount > 0 && (
+                  <span className="ml-2 text-sm font-normal text-danger">
+                    失败 {failedTaskCount}，点行尾「失败原因」查看
+                  </span>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -505,36 +775,79 @@ export function SchedulePage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {tasks.map((task) => {
+                    {tasks.map((task, idx) => {
                       const status = STATUS_LABELS[task.status || 'pending']
+                      const isFailed = task.status === 'failed'
+                      const expanded = task.id != null && expandedTaskId === task.id
                       return (
-                        <tr key={task.id} className="border-b border-neutral-100 hover:bg-neutral-50">
-                          <td className="px-4 py-3 text-sm text-neutral-900">{task.courseName || '-'}</td>
-                          <td className="px-4 py-3 text-sm text-neutral-700">{task.classId || '-'}</td>
-                          <td className="px-4 py-3 text-sm text-neutral-700">{task.teacherName || '-'}</td>
-                          <td className="px-4 py-3 text-sm text-neutral-700">{task.weeklyHours} 节</td>
-                          <td className="px-4 py-3 text-sm text-neutral-700">{task.consecutive} 节</td>
-                          <td className="px-4 py-3 text-sm text-neutral-700">
-                            {ROOM_TYPE_LABELS[task.preferredRoomType || 'normal'] || task.preferredRoomType}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-neutral-700">
-                            {PERIOD_LABELS[task.preferredPeriod || 'any'] || task.preferredPeriod}
-                          </td>
-                          <td className="px-4 py-3">
-                            <Badge variant={status.variant}>{status.text}</Badge>
-                          </td>
-                          <td className="px-4 py-3 text-right">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="w-8 h-8 text-danger"
-                              onClick={() => handleDeleteTask(task)}
-                              disabled={loading}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </td>
-                        </tr>
+                        <Fragment key={task.id ?? idx}>
+                          <tr className="border-b border-neutral-100 hover:bg-neutral-50">
+                            <td className="px-4 py-3 text-sm text-neutral-900">
+                              <div>{task.courseName || '-'}</div>
+                              {isFailed && task.failReason && (
+                                <div
+                                  className="mt-0.5 max-w-[260px] truncate text-[11px] text-danger"
+                                  title={task.failReason}
+                                >
+                                  {task.failReason}
+                                </div>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-neutral-700">{task.classId || '-'}</td>
+                            <td className="px-4 py-3 text-sm text-neutral-700">{task.teacherName || '-'}</td>
+                            <td className="px-4 py-3 text-sm text-neutral-700">{task.weeklyHours} 节</td>
+                            <td className="px-4 py-3 text-sm text-neutral-700">{task.consecutive} 节</td>
+                            <td className="px-4 py-3 text-sm text-neutral-700">
+                              {ROOM_TYPE_LABELS[task.preferredRoomType || 'normal'] || task.preferredRoomType}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-neutral-700">
+                              {PERIOD_LABELS[task.preferredPeriod || 'any'] || task.preferredPeriod}
+                            </td>
+                            <td className="px-4 py-3">
+                              <Badge variant={status.variant}>{status.text}</Badge>
+                            </td>
+                            <td className="px-4 py-3 text-right whitespace-nowrap">
+                              {isFailed && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 px-2 text-[11px] text-danger"
+                                  onClick={() =>
+                                    setExpandedTaskId(expanded ? null : (task.id ?? null))
+                                  }
+                                >
+                                  {expanded ? '收起' : '失败原因'}
+                                </Button>
+                              )}
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="w-8 h-8 text-danger"
+                                onClick={() => handleDeleteTask(task)}
+                                disabled={loading}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </td>
+                          </tr>
+                          {expanded && (
+                            <tr className="border-b border-neutral-100 bg-red-50/60">
+                              <td colSpan={9} className="px-4 py-3 text-xs text-neutral-700">
+                                <div className="font-medium text-danger">失败原因</div>
+                                <div className="mt-1 whitespace-pre-wrap">
+                                  {task.failReason || '未记录原因'}
+                                </div>
+                                <div className="mt-1 text-neutral-400">
+                                  课程：{task.courseName || '-'} ｜ 班级ID：{task.classId || '-'} ｜
+                                  教师：{task.teacherName || '-'} ｜ 教室偏好：
+                                  {ROOM_TYPE_LABELS[task.preferredRoomType || 'normal'] ||
+                                    task.preferredRoomType ||
+                                    '-'}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
                       )
                     })}
                     {tasks.length === 0 && (
@@ -554,10 +867,16 @@ export function SchedulePage() {
         <TabsContent value="classrooms" className="mt-6">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Building2 className="w-5 h-5" />
-                教室资源
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Building2 className="w-5 h-5" />
+                  教室资源
+                </CardTitle>
+                <Button size="sm" onClick={openCreateRoom}>
+                  <Plus className="w-4 h-4 mr-1" />
+                  新增教室
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
@@ -569,23 +888,52 @@ export function SchedulePage() {
                       <th className="text-left px-4 py-3 text-sm font-medium text-neutral-500">容量</th>
                       <th className="text-left px-4 py-3 text-sm font-medium text-neutral-500">楼宇</th>
                       <th className="text-left px-4 py-3 text-sm font-medium text-neutral-500">楼层</th>
+                      <th className="text-left px-4 py-3 text-sm font-medium text-neutral-500">状态</th>
+                      <th className="text-right px-4 py-3 text-sm font-medium text-neutral-500">操作</th>
                     </tr>
                   </thead>
                   <tbody>
                     {classrooms.map((room) => (
                       <tr key={room.id} className="border-b border-neutral-100 hover:bg-neutral-50">
-                        <td className="px-4 py-3 text-sm text-neutral-900">{room.name}</td>
+                        <td className={`px-4 py-3 text-sm ${room.isActive === 1 ? 'text-neutral-900' : 'text-neutral-400'}`}>
+                          {room.name}
+                        </td>
                         <td className="px-4 py-3 text-sm text-neutral-700">
                           {ROOM_TYPE_LABELS[room.type] || room.type}
                         </td>
                         <td className="px-4 py-3 text-sm text-neutral-700">{room.capacity} 人</td>
                         <td className="px-4 py-3 text-sm text-neutral-700">{room.building || '-'}</td>
                         <td className="px-4 py-3 text-sm text-neutral-700">{room.floor ?? '-'}</td>
+                        <td className="px-4 py-3">
+                          <Badge variant={room.isActive === 1 ? 'success' : 'secondary'}>
+                            {room.isActive === 1 ? '启用' : '已停用'}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-3 text-right whitespace-nowrap">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="w-8 h-8 text-neutral-500"
+                            title="编辑"
+                            onClick={() => openEditRoom(room)}
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="w-8 h-8 text-danger"
+                            title="删除"
+                            onClick={() => handleDeleteRoom(room)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </td>
                       </tr>
                     ))}
                     {classrooms.length === 0 && (
                       <tr>
-                        <td colSpan={5} className="px-4 py-12 text-center text-neutral-400">
+                        <td colSpan={7} className="px-4 py-12 text-center text-neutral-400">
                           暂无教室数据
                         </td>
                       </tr>
@@ -595,6 +943,111 @@ export function SchedulePage() {
               </div>
             </CardContent>
           </Card>
+
+          <Dialog
+            open={roomDialogOpen}
+            onOpenChange={(open) => {
+              if (!roomSaving) setRoomDialogOpen(open)
+            }}
+          >
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>{editingRoom ? '编辑教室' : '新增教室'}</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <label htmlFor="room-name" className="text-xs font-medium text-neutral-600">
+                    名称
+                  </label>
+                  <Input
+                    id="room-name"
+                    value={roomForm.name}
+                    onChange={(e) => setRoomForm({ ...roomForm, name: e.target.value })}
+                    placeholder="如 A301"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label htmlFor="room-type" className="text-xs font-medium text-neutral-600">
+                      类型
+                    </label>
+                    <Select
+                      id="room-type"
+                      value={roomForm.type}
+                      onChange={(e) => setRoomForm({ ...roomForm, type: e.target.value })}
+                      className="h-11 w-full rounded-xl border border-neutral-200 bg-surface-primary px-3 text-sm text-neutral-900 focus:outline-hidden focus:ring-2 focus:ring-emerald-300"
+                    >
+                      {Object.entries(ROOM_TYPE_LABELS).map(([value, label]) => (
+                        <option key={value} value={value}>
+                          {label}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label htmlFor="room-capacity" className="text-xs font-medium text-neutral-600">
+                      容量
+                    </label>
+                    <Input
+                      id="room-capacity"
+                      type="number"
+                      min={1}
+                      value={roomForm.capacity}
+                      onChange={(e) => setRoomForm({ ...roomForm, capacity: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label htmlFor="room-building" className="text-xs font-medium text-neutral-600">
+                      楼宇
+                    </label>
+                    <Input
+                      id="room-building"
+                      value={roomForm.building}
+                      onChange={(e) => setRoomForm({ ...roomForm, building: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label htmlFor="room-floor" className="text-xs font-medium text-neutral-600">
+                      楼层
+                    </label>
+                    <Input
+                      id="room-floor"
+                      type="number"
+                      value={roomForm.floor}
+                      onChange={(e) => setRoomForm({ ...roomForm, floor: e.target.value })}
+                    />
+                  </div>
+                </div>
+                {editingRoom && (
+                  <div className="space-y-1.5">
+                    <label htmlFor="room-status" className="text-xs font-medium text-neutral-600">
+                      状态
+                    </label>
+                    <Select
+                      id="room-status"
+                      value={roomForm.isActive}
+                      onChange={(e) => setRoomForm({ ...roomForm, isActive: Number(e.target.value) })}
+                      className="h-11 w-full rounded-xl border border-neutral-200 bg-surface-primary px-3 text-sm text-neutral-900 focus:outline-hidden focus:ring-2 focus:ring-emerald-300"
+                    >
+                      <option value={1}>启用</option>
+                      <option value={0}>停用</option>
+                    </Select>
+                  </div>
+                )}
+                {roomError && <div className="text-xs text-danger">{roomError}</div>}
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setRoomDialogOpen(false)} disabled={roomSaving}>
+                  取消
+                </Button>
+                <Button onClick={saveRoom} disabled={roomSaving}>
+                  {roomSaving ? '保存中...' : '保存'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </TabsContent>
       </Tabs>
     </div>

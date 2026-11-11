@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { Select } from '@/components/ui/select'
 import {
   Plus,
   MoreHorizontal,
@@ -11,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -81,6 +83,9 @@ export function SemesterPage() {
   const [switchTarget, setSwitchTarget] = useState<Semester | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Semester | null>(null)
   const [switching, setSwitching] = useState(false)
+  // 与 switching 并行的同步锁：避免快速连点在重新渲染前重复提交
+  const switchGuard = useRef(false)
+  const deleteGuard = useRef(false)
   const [deleting, setDeleting] = useState(false)
 
   // 更多菜单展开状态
@@ -174,6 +179,9 @@ export function SemesterPage() {
 
   const handleSwitch = async () => {
     if (!switchTarget?.id) return
+    // React 的 setSwitching 要等下一次渲染才生效，快速连点会重复发请求，用同步 ref 上锁
+    if (switchGuard.current) return
+    switchGuard.current = true
     setSwitching(true)
     setActionError('')
     try {
@@ -185,12 +193,15 @@ export function SemesterPage() {
         err.response?.data?.message || err.response?.data?.error || '切换失败'
       )
     } finally {
+      switchGuard.current = false
       setSwitching(false)
     }
   }
 
   const handleDelete = async () => {
     if (!deleteTarget?.id) return
+    if (deleteGuard.current) return
+    deleteGuard.current = true
     setDeleting(true)
     setActionError('')
     try {
@@ -202,14 +213,17 @@ export function SemesterPage() {
         err.response?.data?.message || err.response?.data?.error || '删除失败'
       )
     } finally {
+      deleteGuard.current = false
       setDeleting(false)
     }
   }
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-neutral-400">数据加载中...</div>
+      <div className="space-y-6">
+        <Skeleton className="h-10 w-36" />
+        <Skeleton className="h-[180px] rounded-3xl" />
+        <Skeleton className="h-[320px] rounded-3xl" />
       </div>
     )
   }
@@ -233,7 +247,7 @@ export function SemesterPage() {
       {/* 操作错误提示 */}
       {actionError && (
         <div className="flex items-start gap-2 p-3 rounded-xl bg-danger/10 text-danger text-sm">
-          <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+          <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
           <span>{actionError}</span>
         </div>
       )}
@@ -241,10 +255,8 @@ export function SemesterPage() {
       {/* Page header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-neutral-900">学期管理</h1>
-          <p className="text-neutral-500 mt-1 text-sm">
-            管理学期信息，包括正常学期和假期培训
-          </p>
+          {/* 副标题（不展示）：管理学期信息，包括正常学期和假期培训 */}
+          <h1 className="text-display-4-medium text-ink-primary">学期管理</h1>
         </div>
         <Sheet
           open={sheetOpen}
@@ -266,7 +278,7 @@ export function SemesterPage() {
             <SheetHeader>
               <SheetTitle>{editingId ? '编辑学期' : '新建学期'}</SheetTitle>
             </SheetHeader>
-            <div className="py-6 space-y-5">
+            <div className="scrollbar-thin flex-1 overflow-y-auto space-y-5 px-6 py-5">
               <div className="space-y-2">
                 <Label>学期名称</Label>
                 <Input
@@ -315,7 +327,7 @@ export function SemesterPage() {
               </div>
               <div className="space-y-2">
                 <Label>学期类型</Label>
-                <select
+                <Select
                   className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
                   value={form.semesterType}
                   onChange={(e) =>
@@ -328,12 +340,12 @@ export function SemesterPage() {
                 >
                   <option value="NORMAL">正常学期（所有班级通用）</option>
                   <option value="EXTRA">假期培训（指定班级）</option>
-                </select>
+                </Select>
               </div>
               {form.semesterType === 'EXTRA' && (
                 <div className="space-y-2">
                   <Label>关联班级</Label>
-                  <div className="max-h-48 overflow-y-auto rounded-md border border-input p-3 space-y-2">
+                  <div className="max-h-48 overflow-y-auto rounded-xl border border-input p-3 space-y-2">
                     {classes.length === 0 ? (
                       <div className="text-sm text-neutral-400">暂无班级</div>
                     ) : (
@@ -384,30 +396,28 @@ export function SemesterPage() {
         </Sheet>
       </div>
 
-      {/* 当前学期信息卡片 */}
+      {/* 当前学期信息卡片：左上浅蓝 → 右下浅绿渐变 */}
       {current && statusMeta && (
-        <Card className="overflow-hidden">
-          <div className="h-28 bg-gradient-to-br from-primary-500 via-primary-550 to-cyan-500 relative">
-            <div className="absolute top-4 right-4">
-              <Badge className="bg-white/20 text-white backdrop-blur-sm border-0">
-                {statusMeta.label}
-              </Badge>
+        <Card className="overflow-hidden bg-gradient-to-br from-sky-100 via-white to-emerald-100 dark:from-sky-900/30 dark:via-surface-primary dark:to-emerald-900/30">
+          <div className="relative h-28">
+            <div className="absolute right-4 top-4">
+              <span className="text-caption-1-medium text-ink-secondary">{statusMeta.label}</span>
             </div>
             <div className="absolute bottom-4 left-5">
-              <div className="text-white/80 text-sm">当前学期</div>
-              <div className="text-white font-bold text-lg mt-0.5">
+              <div className="text-caption-1-regular text-ink-tertiary">当前学期</div>
+              <div className="mt-0.5 text-title-2-semibold text-ink-primary">
                 {current.name}
               </div>
             </div>
           </div>
           <CardContent className="p-5">
-            <div className="flex items-center gap-2 text-sm text-neutral-500 mb-3">
+            <div className="mb-3 flex items-center gap-2 text-body-2-regular text-ink-tertiary">
               <Calendar className="w-4 h-4" />
               <span>开始日期：{current.startDate}</span>
             </div>
             {current.notice && (
-              <div className="flex items-start gap-2 p-3 rounded-xl bg-primary-50 text-primary-700 text-sm">
-                <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <div className="flex items-start gap-2 rounded-xl bg-neutral-50 p-3 text-body-2-regular text-ink-secondary">
+                <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
                 <span>{current.notice}</span>
               </div>
             )}
@@ -423,21 +433,21 @@ export function SemesterPage() {
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead>
-                <tr className="border-b border-neutral-200">
-                  <th className="text-left px-6 py-4 text-sm font-medium text-neutral-500">
+              <thead className="bg-neutral-50 text-caption-1-medium text-ink-tertiary">
+                <tr>
+                  <th className="text-left px-6 py-3 font-medium">
                     学期名称
                   </th>
-                  <th className="text-left px-6 py-4 text-sm font-medium text-neutral-500">
+                  <th className="text-left px-6 py-3 font-medium">
                     起止日期
                   </th>
-                  <th className="text-left px-6 py-4 text-sm font-medium text-neutral-500">
+                  <th className="text-left px-6 py-3 font-medium">
                     周数
                   </th>
-                  <th className="text-left px-6 py-4 text-sm font-medium text-neutral-500">
+                  <th className="text-left px-6 py-3 font-medium">
                     状态
                   </th>
-                  <th className="text-right px-6 py-4 text-sm font-medium text-neutral-500">
+                  <th className="text-right px-6 py-3 font-medium">
                     操作
                   </th>
                 </tr>
@@ -456,19 +466,10 @@ export function SemesterPage() {
                   list.map((semester) => (
                     <tr
                       key={semester.id ?? semester.name}
-                      className="border-b border-neutral-100 hover:bg-neutral-50 transition-colors"
+                      className="border-t border-line-separator transition-colors last:border-0 hover:bg-neutral-50/60"
                     >
                       <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-neutral-900">
-                            {semester.name}
-                          </span>
-                          {semester.isCurrent && (
-                            <Badge variant="primary" className="text-xs">
-                              当前
-                            </Badge>
-                          )}
-                        </div>
+                        <span className="font-medium text-ink-primary">{semester.name}</span>
                       </td>
                       <td className="px-6 py-4 text-sm text-neutral-700">
                         {semester.startDate} ~ {semester.endDate || '未设置'}
@@ -547,7 +548,11 @@ export function SemesterPage() {
                                 onSelect={(e) => {
                                   e.preventDefault()
                                   setOpenMenuId(null)
-                                  if (semester.isCurrent) return
+                                  if (semester.isCurrent) {
+                                    // 当前学期不可删除，给出明确原因，而不是静默无响应
+                                    setActionError('当前学期不能删除，请先将其他学期设为当前学期')
+                                    return
+                                  }
                                   setActionError('')
                                   setDeleteTarget(semester)
                                 }}

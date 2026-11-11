@@ -674,7 +674,7 @@ export function SchedulePlanner({
     if (state.type === 'selected') return `${base} bg-green-500 text-white font-semibold`
     if (state.type === 'self') return `${base} bg-slate-500 text-white`
     if (state.type === 'other') return `${base} bg-indigo-100 text-indigo-700 cursor-default`
-    return `${base} bg-white hover:bg-primary-50`
+    return `${base} bg-surface-primary hover:bg-primary-50`
   }
 
   return (
@@ -724,7 +724,7 @@ export function SchedulePlanner({
         {/* 跨周移动提示 */}
         {crossWeekCancels.length > 0 && (
           <div className="mb-3.5 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2.5">
-            <ArrowRightLeft className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+            <ArrowRightLeft className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
             <div className="text-sm text-amber-800">
               <span className="font-medium">跨周移动中：</span>
               已从第 {crossWeekCancels.map(([w, c]) => `${w} 周（${c} 个时段）`).join('、')} 取消排课，
@@ -742,10 +742,10 @@ export function SchedulePlanner({
                 key={w}
                 data-week={w}
                 onClick={() => setSelectedWeek(w)}
-                className={`flex-shrink-0 w-9 h-8 border rounded text-sm cursor-pointer transition-all relative ${
+                className={`shrink-0 w-9 h-8 border rounded text-sm cursor-pointer transition-all relative ${
                   selectedWeek === w
-                    ? 'bg-primary-550 border-primary-550 text-white'
-                    : 'bg-white border-neutral-200 hover:border-primary-400 hover:text-primary-600'
+                    ? 'bg-primary-550 border-emerald-400 text-white'
+                    : 'bg-surface-primary border-neutral-200 hover:border-emerald-400 hover:text-primary-600'
                 }`}
               >
                 {w}
@@ -778,7 +778,7 @@ export function SchedulePlanner({
               其他课程
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="inline-block w-3 h-3 rounded-sm bg-white border border-neutral-200 flex items-center justify-center text-[10px] text-neutral-300">+</span>
+              <span className="inline-block w-3 h-3 rounded-sm bg-surface-primary border border-neutral-200 flex items-center justify-center text-[10px] text-neutral-300">+</span>
               空闲
             </span>
           </div>
@@ -813,7 +813,7 @@ export function SchedulePlanner({
         {/* 课表主体 */}
         <div className="overflow-x-auto relative">
           {loading && (
-            <div className="absolute inset-0 bg-white/60 flex items-center justify-center z-10">
+            <div className="absolute inset-0 bg-surface-primary/60 flex items-center justify-center z-10">
               <Loader2 className="w-6 h-6 animate-spin text-primary-550" />
             </div>
           )}

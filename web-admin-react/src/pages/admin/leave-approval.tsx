@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Select } from '@/components/ui/select'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import {
@@ -19,6 +20,7 @@ import {
   reviewLeave,
   type LeaveItem,
 } from '@/api/leave'
+import { useDialog } from '@/hooks/use-dialog'
 
 type Tab = 'pending' | 'history'
 
@@ -43,7 +45,7 @@ const statusStyle = (status: string) => {
     case 'APPROVED':
       return 'bg-emerald-50 text-emerald-700'
     case 'RETURNED':
-      return 'bg-primary-50 text-primary-700'
+      return 'bg-neutral-100 text-ink-secondary'
     case 'REJECTED':
       return 'bg-red-50 text-red-600'
     case 'CANCELED':
@@ -51,7 +53,7 @@ const statusStyle = (status: string) => {
     case 'PENDING_LEADER':
       return 'bg-amber-50 text-amber-700'
     default:
-      return 'bg-primary-50 text-primary-700'
+      return 'bg-amber-50 text-amber-700'
   }
 }
 
@@ -61,6 +63,7 @@ const statusStyle = (status: string) => {
  * 管理端可跨班审批，支持批量审批、已处理记录（含返校打卡）与表格导出。
  */
 export function LeaveApprovalPage() {
+  const { confirm, DialogComponent } = useDialog()
   const [tab, setTab] = useState<Tab>('pending')
   const [items, setItems] = useState<LeaveItem[]>([])
   const [records, setRecords] = useState<LeaveItem[]>([])
@@ -171,7 +174,13 @@ export function LeaveApprovalPage() {
       return
     }
     const verb = action === 'approve' ? '通过' : '驳回'
-    if (!window.confirm(`确定批量${verb} ${selected.length} 条申请？`)) return
+    const confirmed = await confirm({
+      title: '批量审批',
+      description: `确定批量${verb} ${selected.length} 条申请？`,
+      confirmText: verb,
+      variant: action === 'reject' ? 'danger' : 'default',
+    })
+    if (!confirmed) return
     setBatching(true)
     try {
       const res = await batchReviewLeave(selected, action, '')
@@ -191,7 +200,7 @@ export function LeaveApprovalPage() {
     if (item.status === 'PENDING_LEADER') {
       return <span className="rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-700">待领导终审</span>
     }
-    return <span className="rounded-md bg-primary-50 px-2 py-1 text-xs text-primary-700">待班主任审批</span>
+    return <span className="rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-700">待班主任审批</span>
   }
 
   /** 已处理记录：筛选 + 关键字 */
@@ -333,7 +342,7 @@ export function LeaveApprovalPage() {
           }
         >
           待审批
-          <span className="ml-1 rounded-full bg-neutral-100 px-1.5 py-0.5 text-[11px] text-neutral-500">
+          <span className="ml-1.5 text-[11px] text-ink-tertiary tabular-nums">
             {items.length}
           </span>
           {tab === 'pending' && <span className="absolute inset-x-2 -bottom-px h-0.5 rounded bg-primary-500" />}
@@ -346,7 +355,7 @@ export function LeaveApprovalPage() {
           }
         >
           已处理
-          <span className="ml-1 rounded-full bg-neutral-100 px-1.5 py-0.5 text-[11px] text-neutral-500">
+          <span className="ml-1.5 text-[11px] text-ink-tertiary tabular-nums">
             {records.length}
           </span>
           {tab === 'history' && <span className="absolute inset-x-2 -bottom-px h-0.5 rounded bg-primary-500" />}
@@ -365,9 +374,9 @@ export function LeaveApprovalPage() {
           ) : (
             <>
               {/* 筛选：班级 + 关键字 */}
-              <div className="flex flex-wrap items-center gap-2 rounded-lg bg-white px-3 py-2 ring-1 ring-neutral-200">
-                <select
-                  className="h-8 rounded-md border border-neutral-200 bg-white px-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary-500"
+              <div className="flex flex-wrap items-center gap-2 rounded-lg bg-surface-primary px-3 py-2 ring-1 ring-neutral-200">
+                <Select
+                  className="h-8 rounded-md border border-neutral-200 bg-surface-primary px-2 text-xs focus:outline-hidden focus:ring-2 focus:ring-emerald-300"
                   value={pendingClass}
                   onChange={(e) => setPendingClass(e.target.value)}
                 >
@@ -377,9 +386,9 @@ export function LeaveApprovalPage() {
                       {c}
                     </option>
                   ))}
-                </select>
+                </Select>
                 <input
-                  className="h-8 w-52 rounded-md border border-neutral-200 px-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="h-8 w-52 rounded-md border border-neutral-200 px-2 text-xs focus:outline-hidden focus:ring-2 focus:ring-emerald-300"
                   placeholder="搜索姓名 / 学号 / 事由"
                   value={pendingKeyword}
                   onChange={(e) => setPendingKeyword(e.target.value)}
@@ -401,7 +410,7 @@ export function LeaveApprovalPage() {
               </div>
 
               {/* 批量操作 */}
-              <div className="flex flex-wrap items-center gap-3 rounded-lg bg-white px-3 py-2 ring-1 ring-neutral-200">
+              <div className="flex flex-wrap items-center gap-3 rounded-lg bg-surface-primary px-3 py-2 ring-1 ring-neutral-200">
                 <label className="flex items-center gap-2 text-xs text-neutral-600">
                   <input
                     type="checkbox"
@@ -513,7 +522,7 @@ export function LeaveApprovalPage() {
 
                     <div className="mt-2 flex flex-wrap items-center gap-2">
                       <input
-                        className="h-8 min-w-[220px] flex-1 rounded-md border border-neutral-200 px-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        className="h-8 min-w-[220px] flex-1 rounded-md border border-neutral-200 px-2 text-xs focus:outline-hidden focus:ring-2 focus:ring-emerald-300"
                         placeholder={item.canReview === false ? '你无权审批该申请' : '审批意见（可选）'}
                         disabled={item.canReview === false}
                         value={comment[item.id] || ''}
@@ -561,12 +570,12 @@ export function LeaveApprovalPage() {
             <CardTitle className="text-base">已处理记录 · {filteredRecords.length}</CardTitle>
             <div className="flex flex-wrap items-center gap-2">
               <input
-                className="h-8 w-40 rounded-md border border-neutral-200 px-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="h-8 w-40 rounded-md border border-neutral-200 px-2 text-xs focus:outline-hidden focus:ring-2 focus:ring-emerald-300"
                 placeholder="搜索姓名 / 学号 / 班级"
                 value={keyword}
                 onChange={(e) => setKeyword(e.target.value)}
               />
-              <select
+              <Select
                 className="h-8 rounded-md border border-neutral-200 px-2 text-xs"
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
@@ -576,7 +585,7 @@ export function LeaveApprovalPage() {
                 <option value="RETURNED">已返校</option>
                 <option value="REJECTED">已驳回</option>
                 <option value="CANCELED">已取消</option>
-              </select>
+              </Select>
             </div>
           </CardHeader>
           <CardContent className="p-0">
@@ -713,6 +722,7 @@ export function LeaveApprovalPage() {
           </button>
         </div>
       )}
+      {DialogComponent}
     </div>
   )
 }

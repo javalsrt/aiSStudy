@@ -1,7 +1,17 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Select } from '@/components/ui/select'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Label } from '@/components/ui/label'
+
+
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Users2, Search, Save, Crown, GraduationCap, UserCheck } from 'lucide-react'
 import {
   getClassHeadList,
@@ -35,6 +45,11 @@ export function TeacherDutyPage() {
   const [classKeyword, setClassKeyword] = useState('')
   const [gradeFilter, setGradeFilter] = useState('')
   const [logs, setLogs] = useState<HeadTeacherLog[]>([])
+  /** 待确认取消班主任的班级：用页面内 Dialog 而非 window.confirm（后者在无头浏览器会被自动 dismiss） */
+  const [clearTarget, setClearTarget] = useState<ClassHeadItem | null>(null)
+  const [clearing, setClearing] = useState(false)
+  // clearTarget 的 setState 要等下一次渲染才生效，快速连点会重复发请求，用同步 ref 上锁
+  const clearGuard = useRef(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -138,19 +153,30 @@ export function TeacherDutyPage() {
     }
   }
 
-  /** 取消班主任 */
-  const clearHead = async (c: ClassHeadItem) => {
-    if (!window.confirm(`确定取消「${c.className}」的班主任（${c.headTeacherName || ''}）？`)) return
-    setSaving(c.id)
+  /** 取消班主任：先打开页面内确认弹窗 */
+  const clearHead = (c: ClassHeadItem) => {
+    setMessage(null)
+    setClearTarget(c)
+  }
+
+  /** 确认取消班主任（真正发请求） */
+  const confirmClear = async () => {
+    if (!clearTarget) return
+    if (clearGuard.current) return
+    clearGuard.current = true
+    setClearing(true)
     try {
-      const res = await setClassHeadTeacher(c.id, null)
+      const res = await setClassHeadTeacher(clearTarget.id, null)
       setMessage({ type: 'ok', text: res.msg })
+      setClearTarget(null)
       setEditingClass(null)
       await load()
     } catch (e: any) {
       setMessage({ type: 'err', text: e?.response?.data?.error || e?.message || '取消失败' })
+      setClearTarget(null)
     } finally {
-      setSaving(null)
+      clearGuard.current = false
+      setClearing(false)
     }
   }
 
@@ -175,7 +201,7 @@ export function TeacherDutyPage() {
         <div className="relative">
           <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
           <input
-            className="h-9 w-64 rounded-md border border-neutral-200 pl-8 pr-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+            className="h-9 w-64 rounded-md border border-neutral-200 pl-8 pr-2 text-sm focus:outline-hidden focus:ring-2 focus:ring-emerald-300"
             placeholder="搜索教师姓名 / 工号"
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
@@ -212,7 +238,7 @@ export function TeacherDutyPage() {
         <CardContent className="space-y-3">
           {/* 筛选：年级 + 关键字（班级/专业/班主任） */}
           <div className="flex flex-wrap items-center gap-2">
-            <select
+            <Select
               className="h-8 rounded-md border border-neutral-200 px-2 text-xs"
               value={gradeFilter}
               onChange={(e) => setGradeFilter(e.target.value)}
@@ -223,11 +249,11 @@ export function TeacherDutyPage() {
                   {g}
                 </option>
               ))}
-            </select>
+            </Select>
             <div className="relative">
               <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-neutral-400" />
               <input
-                className="h-8 w-56 rounded-md border border-neutral-200 pl-7 pr-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="h-8 w-56 rounded-md border border-neutral-200 pl-7 pr-2 text-xs focus:outline-hidden focus:ring-2 focus:ring-emerald-300"
                 placeholder="搜索班级 / 专业 / 班主任"
                 value={classKeyword}
                 onChange={(e) => setClassKeyword(e.target.value)}
@@ -271,7 +297,7 @@ export function TeacherDutyPage() {
                           className={`ml-1 rounded px-1.5 py-0.5 text-[10px] ${
                             c.headTeacherIsLeader === 1
                               ? 'bg-amber-100 text-amber-700'
-                              : 'bg-primary-50 text-primary-700'
+                              : 'bg-neutral-100 text-ink-secondary'
                           }`}
                         >
                           {c.headTeacherDuty || '班主任'}
@@ -293,7 +319,7 @@ export function TeacherDutyPage() {
 
                 {editingClass === c.id && (
                   <div className="mt-2 flex items-center gap-1.5 border-t border-dashed border-neutral-200 pt-2">
-                    <select
+                    <Select
                       className="h-7 min-w-0 flex-1 rounded-md border border-neutral-200 px-1.5 text-[11px]"
                       value={picked[c.id] ?? ''}
                       onChange={(e) =>
@@ -306,7 +332,7 @@ export function TeacherDutyPage() {
                           {teacherLabel(t)}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                     <Button
                       size="sm"
                       className="h-7 px-2 text-[11px]"
@@ -357,7 +383,7 @@ export function TeacherDutyPage() {
                 <span className="text-[11px] text-neutral-500">兼班主任：{t.headClasses.join('、')}</span>
               )}
               <div className="ml-auto flex items-center gap-2">
-                <select
+                <Select
                   className="h-8 rounded-md border border-neutral-200 px-2 text-xs"
                   value={t.duty}
                   disabled={saving === t.id}
@@ -368,7 +394,7 @@ export function TeacherDutyPage() {
                       {d}
                     </option>
                   ))}
-                </select>
+                </Select>
                 <Button
                   variant="outline"
                   size="sm"
@@ -433,7 +459,7 @@ export function TeacherDutyPage() {
                 <div className="text-[11px] text-neutral-400">{t.duty} · {t.title || '未填职称'}</div>
               </div>
               <div className="flex items-center gap-1">
-                <select
+                <Select
                   className="h-7 rounded-md border border-neutral-200 px-1 text-[11px]"
                   value={t.duty}
                   disabled={saving === t.id}
@@ -444,7 +470,7 @@ export function TeacherDutyPage() {
                       {d}
                     </option>
                   ))}
-                </select>
+                </Select>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -513,12 +539,47 @@ export function TeacherDutyPage() {
         </CardContent>
       </Card>
 
-      <div className="flex items-start gap-2 rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-700">
-        <Label className="mt-0.5 shrink-0 text-xs text-blue-700">规则</Label>
-        <span>
-          请假 3 天以内由本班班主任审批；超过 3 天需班主任初审后由校级领导（如教导主任）终审。审批时系统会记录审批人身份（班主任 / 教导主任 / 管理员）。
-        </span>
-      </div>
+      {/* 审批链规则（原蓝色横幅）：3 天内班主任审批，超过 3 天班主任初审 + 校级终审 */}
+      <p className="text-xs text-neutral-400">
+        请假 3 天内由班主任审批，超过 3 天需校级领导终审
+      </p>
+
+      {/* 取消班主任确认弹窗 */}
+      <Dialog
+        open={!!clearTarget}
+        onOpenChange={(o) => {
+          if (!o && !clearing) setClearTarget(null)
+        }}
+      >
+        <DialogContent className="max-w-sm" showClose={false}>
+          <DialogHeader>
+            <DialogTitle>取消班主任</DialogTitle>
+            <DialogDescription>
+              确定取消「{clearTarget?.className}」的班主任
+              {clearTarget?.headTeacherName ? `（${clearTarget.headTeacherName}）` : ''}？
+              取消后该班将没有班主任，相关请假审批需重新指派。
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={clearing}
+              onClick={() => setClearTarget(null)}
+            >
+              再想想
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={clearing}
+              onClick={confirmClear}
+            >
+              {clearing ? '取消中…' : '确认取消'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

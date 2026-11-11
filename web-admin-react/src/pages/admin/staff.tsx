@@ -1,16 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Select } from '@/components/ui/select'
 import { useLocation } from 'react-router-dom'
 import {
   Search,
   Plus,
   MoreHorizontal,
   Upload,
-  ChevronRight,
   Download,
   Loader2,
   CheckCircle2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { SegmentedControl } from '@/components/ui/segmented-control'
+import { DataTable, type DataTableColumnMeta } from '@/components/ui/data-table'
+import type { ColumnDef } from '@tanstack/react-table'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -135,6 +138,22 @@ export function StaffPage() {
             ? 'students'
             : 'teachers'
   const [activeTab, setActiveTab] = useState<'teachers' | 'students' | 'duty' | 'cadre'>(initialTab)
+
+  // 侧边栏全局搜索可直接跳到 ?tab=xxx，URL 变化时同步当前页签
+  useEffect(() => {
+    const next =
+      tabParam === 'duty'
+        ? 'duty'
+        : tabParam === 'cadre'
+          ? 'cadre'
+          : tabParam === 'students'
+            ? 'students'
+            : location.pathname === '/admin/students'
+              ? 'students'
+              : 'teachers'
+    setActiveTab(next)
+  }, [tabParam, location.pathname])
+
   const [searchInput, setSearchInput] = useState('')
   const [keyword, setKeyword] = useState('')
   const [searchField, setSearchField] = useState('all')
@@ -150,7 +169,8 @@ export function StaffPage() {
     deptMembers?: { dept: string; realName: string; username: string; status: number }[]
   } | null>(null)
   const [pageNum, setPageNum] = useState(1)
-  const pageSize = PAGE_SIZE
+  const [pageSize, setPageSize] = useState(PAGE_SIZE)
+  const [density, setDensity] = useState<'normal' | 'compact'>('normal')
   const [total, setTotal] = useState(0)
   const [list, setList] = useState<UserListItem[]>([])
   const [classes, setClasses] = useState<ClassInfo[]>([])
@@ -350,14 +370,26 @@ export function StaffPage() {
     setSheetOpen(true)
   }
 
+  const showFormError = (message: string) => {
+    setFormError(message)
+    // 表单较长，错误提示在底部时可能不在可视区，滚动到提示位置
+    setTimeout(() => {
+      document.getElementById('staff-form-error')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 0)
+  }
+
   const handleSubmit = async () => {
     setFormError('')
     if (!form.username.trim() || !form.realName.trim()) {
-      setFormError('账号和姓名为必填项')
+      showFormError('账号和姓名为必填项')
       return
     }
     if (!editingUser && !form.password.trim()) {
-      setFormError('请填写初始密码')
+      showFormError('请填写初始密码')
+      return
+    }
+    if (!editingUser && currentRole === ROLE_STUDENT && !form.classId) {
+      showFormError('请选择班级')
       return
     }
     setSubmitting(true)
@@ -393,7 +425,7 @@ export function StaffPage() {
       setSheetOpen(false)
       await refreshList()
     } catch (err: any) {
-      setFormError(
+      showFormError(
         err.response?.data?.message || err.response?.data?.error || '操作失败'
       )
     } finally {
@@ -469,6 +501,10 @@ export function StaffPage() {
     } catch {
       // 忽略存储失败（如隐私模式禁用存储）
     }
+    // 结果卡片在列表上方，滚动到可见位置，避免用户以为「没有任何提示」
+    setTimeout(() => {
+      document.getElementById('staff-import-result')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 0)
   }
 
   const clearImportResult = () => {
@@ -484,8 +520,22 @@ export function StaffPage() {
     const file = e.target.files?.[0]
     if (!file) return
     e.target.value = ''
-    setImporting(true)
     setActionError('')
+
+    const showFailure = (message: string) => {
+      setActionError(message)
+      saveImportResult({ success: false, message })
+    }
+    if (!/\.(xlsx|xls)$/i.test(file.name)) {
+      showFailure('仅支持 .xlsx / .xls 格式，请使用批量导入模板')
+      return
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      showFailure('文件大小不能超过 10MB')
+      return
+    }
+
+    setImporting(true)
     clearImportResult()
     try {
       // 按当前标签导入对应角色名单
@@ -520,6 +570,7 @@ export function StaffPage() {
         err.response?.data?.message ||
         err.response?.data?.error ||
         '导入失败，请检查文件后重试'
+      setActionError(msg)
       saveImportResult({ success: false, message: msg })
     } finally {
       setImporting(false)
@@ -661,9 +712,6 @@ export function StaffPage() {
     }, 50)
   }
 
-  const goPrev = () => setPageNum((p) => Math.max(1, p - 1))
-  const goNext = () => setPageNum((p) => Math.min(totalPages, p + 1))
-
   const updateField = (key: keyof FormState, value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }))
   }
@@ -692,12 +740,263 @@ export function StaffPage() {
     document.body.removeChild(link)
   }
 
+  // 教师列（BoardUI Data Table）：身份列可点击查看所教课程，操作列固定右侧
+  const teacherColumns: ColumnDef<UserListItem, any>[] = [
+    {
+      id: 'teacher',
+      accessorFn: (row) => row.realName || row.username || '',
+      header: '教师',
+      cell: ({ row }) => {
+        const teacher = row.original
+        return (
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-neutral-500 to-neutral-700 text-sm font-medium text-white">
+              {(teacher.realName || teacher.username || '?').charAt(0)}
+            </div>
+            <div className="min-w-0">
+              <button
+                onClick={() => openTeacherCourses(teacher)}
+                className="text-body-2-medium text-ink-primary transition-colors hover:text-primary-550 hover:underline"
+                title="点击查看所教课程与班级"
+              >
+                {teacher.realName || '-'}
+              </button>
+              <div className="text-caption-2-medium text-ink-tertiary">@{teacher.username}</div>
+            </div>
+          </div>
+        )
+      },
+      meta: { className: 'min-w-[180px]' } as DataTableColumnMeta,
+    },
+    {
+      id: 'phone',
+      accessorFn: (row) => row.phone || '',
+      header: '手机号',
+      cell: ({ row }) => (
+        <span className="text-body-2-regular text-ink-secondary tnum">{row.original.phone || '-'}</span>
+      ),
+    },
+    {
+      id: 'email',
+      accessorFn: (row) => row.email || '',
+      header: '邮箱',
+      cell: ({ row }) => (
+        <span className="text-body-2-regular text-ink-secondary">{row.original.email || '-'}</span>
+      ),
+      meta: { className: 'min-w-[200px]' } as DataTableColumnMeta,
+    },
+    {
+      id: 'status',
+      accessorFn: (row) => row.status,
+      header: '状态',
+      cell: ({ row }) => statusBadge(row.original.status),
+    },
+    {
+      id: 'createdAt',
+      accessorFn: (row) => row.createdAt || '',
+      header: '注册时间',
+      cell: ({ row }) => (
+        <span className="text-body-2-regular text-ink-secondary tnum">
+          {row.original.createdAt ? new Date(row.original.createdAt).toLocaleDateString() : '-'}
+        </span>
+      ),
+    },
+    {
+      id: 'actions',
+      header: '操作',
+      cell: ({ row }) => {
+        const teacher = row.original
+        return (
+          <div className="flex items-center justify-end gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-1"
+              onClick={() => openTeacherCourses(teacher)}
+            >
+              <BookOpen className="w-3.5 h-3.5" />
+              课程
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => openEditSheet(teacher)}>
+              编辑
+            </Button>
+            <DropdownMenu
+              open={openMenuId === teacher.id}
+              onOpenChange={(open) => setOpenMenuId(open ? teacher.id : null)}
+            >
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="w-8 h-8">
+                  <MoreHorizontal className="w-4 h-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-36">
+                <DropdownMenuItem
+                  onSelect={(e) => {
+                    e.preventDefault()
+                    setOpenMenuId(null)
+                    openEditSheet(teacher)
+                  }}
+                >
+                  查看详情
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={(e) => {
+                    e.preventDefault()
+                    setOpenMenuId(null)
+                    openResetDialog(teacher)
+                  }}
+                >
+                  重置密码
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="text-danger"
+                  onSelect={(e) => {
+                    e.preventDefault()
+                    setOpenMenuId(null)
+                    openDeleteDialog(teacher)
+                  }}
+                >
+                  删除账号
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        )
+      },
+      meta: { align: 'right' } as DataTableColumnMeta,
+    },
+  ]
+
+  // 学生列（BoardUI Data Table）
+  const studentColumns: ColumnDef<UserListItem, any>[] = [
+    {
+      id: 'student',
+      accessorFn: (row) => row.realName || row.username || '',
+      header: '学生',
+      cell: ({ row }) => {
+        const student = row.original
+        return (
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-cyan-400 to-cyan-600 text-sm font-medium text-white">
+              {(student.realName || student.username || '?').charAt(0)}
+            </div>
+            <div className="min-w-0">
+              <div className="text-body-2-medium text-ink-primary">{student.realName || '-'}</div>
+              <div className="text-caption-2-medium text-ink-tertiary">
+                {student.phone || `@${student.username}`}
+              </div>
+            </div>
+          </div>
+        )
+      },
+      meta: { className: 'min-w-[180px]' } as DataTableColumnMeta,
+    },
+    {
+      id: 'studentNo',
+      accessorFn: (row) => row.studentNo || '',
+      header: '学号',
+      cell: ({ row }) => (
+        <span className="font-mono text-body-2-regular text-ink-secondary tnum">
+          {row.original.studentNo || '-'}
+        </span>
+      ),
+    },
+    {
+      id: 'className',
+      accessorFn: (row) => classNameById(row.classId),
+      header: '班级',
+      cell: ({ row }) => (
+        <span className="text-body-2-regular text-ink-secondary">
+          {classNameById(row.original.classId)}
+        </span>
+      ),
+      meta: { className: 'min-w-[140px]' } as DataTableColumnMeta,
+    },
+    {
+      id: 'major',
+      accessorFn: (row) => row.major || '',
+      header: '专业 / 年级',
+      cell: ({ row }) => (
+        <div>
+          <div className="text-body-2-regular text-ink-secondary">{row.original.major || '-'}</div>
+          <div className="text-caption-2-medium text-ink-tertiary">
+            {row.original.grade || '未设置年级'}
+          </div>
+        </div>
+      ),
+      meta: { className: 'min-w-[150px]' } as DataTableColumnMeta,
+    },
+    {
+      id: 'status',
+      accessorFn: (row) => row.status,
+      header: '状态',
+      cell: ({ row }) => statusBadge(row.original.status),
+    },
+    {
+      id: 'actions',
+      header: '操作',
+      cell: ({ row }) => {
+        const student = row.original
+        return (
+          <div className="flex items-center justify-end gap-1">
+            <Button variant="ghost" size="sm" onClick={() => openEditSheet(student)}>
+              编辑
+            </Button>
+            <DropdownMenu
+              open={openMenuId === student.id}
+              onOpenChange={(open) => setOpenMenuId(open ? student.id : null)}
+            >
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="w-8 h-8">
+                  <MoreHorizontal className="w-4 h-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-36">
+                <DropdownMenuItem
+                  onSelect={(e) => {
+                    e.preventDefault()
+                    setOpenMenuId(null)
+                    openEditSheet(student)
+                  }}
+                >
+                  查看详情
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={(e) => {
+                    e.preventDefault()
+                    setOpenMenuId(null)
+                    openResetDialog(student)
+                  }}
+                >
+                  重置密码
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="text-danger"
+                  onSelect={(e) => {
+                    e.preventDefault()
+                    setOpenMenuId(null)
+                    openDeleteDialog(student)
+                  }}
+                >
+                  删除账号
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        )
+      },
+      meta: { align: 'right' } as DataTableColumnMeta,
+    },
+  ]
+
   return (
     <div className="space-y-6">
       {/* 导入期间全屏遮罩：锁定页面操作，避免误点击打断 */}
       {importing && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-neutral-900/40 backdrop-blur-sm">
-          <div className="flex items-center gap-4 rounded-2xl bg-white px-8 py-6 shadow-2xl">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-neutral-900/40 backdrop-blur-xs">
+          <div className="flex items-center gap-4 rounded-2xl bg-surface-primary px-8 py-6 shadow-2xl">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
             <div>
               <div className="text-base font-semibold text-neutral-900">
@@ -714,55 +1013,29 @@ export function StaffPage() {
       {/* Page header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-neutral-900">人员管理</h1>
-          <p className="text-neutral-500 mt-1 text-sm">
-            管理教师和学生账号信息
-          </p>
+          {/* 副标题（不展示）：管理教师和学生账号信息 */}
+          <h1 className="text-display-4-medium text-ink-primary">人员管理</h1>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {/* 角色标签（原列表上方的标签页上移至此） */}
-          <div className="flex items-center rounded-full border border-neutral-200 bg-white p-1 mr-1">
-            <button
-              onClick={() => handleTabChange('teachers')}
-              className={`h-8 px-4 rounded-full text-sm font-medium transition-colors ${
-                activeTab === 'teachers'
-                  ? 'bg-primary-600 text-white'
-                  : 'text-neutral-600 hover:text-neutral-900'
-              }`}
-            >
-              教师管理{activeTab === 'teachers' && total > 0 ? ` (${total})` : ''}
-            </button>
-            <button
-              onClick={() => handleTabChange('students')}
-              className={`h-8 px-4 rounded-full text-sm font-medium transition-colors ${
-                activeTab === 'students'
-                  ? 'bg-primary-600 text-white'
-                  : 'text-neutral-600 hover:text-neutral-900'
-              }`}
-            >
-              学生管理{activeTab === 'students' && total > 0 ? ` (${total})` : ''}
-            </button>
-            <button
-              onClick={() => handleTabChange('duty')}
-              className={`h-8 px-4 rounded-full text-sm font-medium transition-colors ${
-                activeTab === 'duty'
-                  ? 'bg-primary-600 text-white'
-                  : 'text-neutral-600 hover:text-neutral-900'
-              }`}
-            >
-              教师职务
-            </button>
-            <button
-              onClick={() => handleTabChange('cadre')}
-              className={`h-8 px-4 rounded-full text-sm font-medium transition-colors ${
-                activeTab === 'cadre'
-                  ? 'bg-primary-600 text-white'
-                  : 'text-neutral-600 hover:text-neutral-900'
-              }`}
-            >
-              班干部设置
-            </button>
-          </div>
+          {/* 角色切换：分段控件（BoardUI SegmentedControl） */}
+          <SegmentedControl
+            className="mr-1"
+            ariaLabel="人员角色"
+            value={activeTab}
+            onChange={(next) => handleTabChange(next)}
+            options={[
+              {
+                value: 'teachers',
+                label: `教师管理${activeTab === 'teachers' && total > 0 ? ` (${total})` : ''}`,
+              },
+              {
+                value: 'students',
+                label: `学生管理${activeTab === 'students' && total > 0 ? ` (${total})` : ''}`,
+              },
+              { value: 'duty', label: '教师职务' },
+              { value: 'cadre', label: '班干部设置' },
+            ]}
+          />
           <input
             ref={importInputRef}
             type="file"
@@ -808,13 +1081,13 @@ export function StaffPage() {
         <CardContent className="p-5">
           <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
             <div className="flex items-center gap-2 w-full md:w-auto">
-              <select
+              <Select
                 value={searchField}
                 onChange={(e) => {
                   setSearchField(e.target.value)
                   setPageNum(1)
                 }}
-                className="h-10 px-2 rounded-md border border-neutral-200 bg-white text-sm text-neutral-700 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="h-10 px-2 rounded-md border border-neutral-200 bg-surface-primary text-sm text-neutral-700 focus:outline-hidden focus:ring-2 focus:ring-emerald-300"
               >
                 {(activeTab === 'teachers' ? TEACHER_SEARCH_FIELDS : STUDENT_SEARCH_FIELDS).map(
                   (f) => (
@@ -823,7 +1096,7 @@ export function StaffPage() {
                     </option>
                   )
                 )}
-              </select>
+              </Select>
               <div className="relative flex-1 md:w-72">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
                 <Input
@@ -834,7 +1107,19 @@ export function StaffPage() {
                 />
               </div>
             </div>
-            <div className="text-sm text-neutral-500">共 {total} 人</div>
+            <div className="flex items-center gap-3">
+              <SegmentedControl
+                size="sm"
+                ariaLabel="表格密度"
+                value={density}
+                onChange={setDensity}
+                options={[
+                  { value: 'normal', label: '正常' },
+                  { value: 'compact', label: '紧凑' },
+                ]}
+              />
+              <div className="text-sm text-neutral-500">共 {total} 人</div>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -885,7 +1170,7 @@ export function StaffPage() {
                     <button
                       key={m.name}
                       onClick={() => handleMajorClick(m.name)}
-                      className="text-left p-3 rounded-lg border border-neutral-200 bg-neutral-50 hover:border-primary-300 hover:bg-primary-50 transition-colors group"
+                      className="text-left p-3 rounded-xl border border-neutral-200 bg-neutral-50 hover:border-emerald-300 hover:bg-emerald-50/60 transition-colors group"
                     >
                       <div className="flex items-center gap-2 mb-2">
                         <div className="w-7 h-7 rounded-md bg-primary-100 text-primary flex items-center justify-center">
@@ -917,7 +1202,7 @@ export function StaffPage() {
                       className="flex items-center justify-between px-4 py-2.5 rounded-lg border border-neutral-200 bg-neutral-50"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white text-xs font-medium">
+                        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-neutral-500 to-neutral-700 flex items-center justify-center text-white text-xs font-medium">
                           {(m.realName || '?').slice(0, 1)}
                         </div>
                         <div>
@@ -951,7 +1236,7 @@ export function StaffPage() {
                     <button
                       key={c.id}
                       onClick={() => handleClassClick(c.name)}
-                      className="text-left p-3 rounded-lg border border-neutral-200 bg-neutral-50 hover:border-primary-300 hover:bg-primary-50 transition-colors group"
+                      className="text-left p-3 rounded-xl border border-neutral-200 bg-neutral-50 hover:border-emerald-300 hover:bg-emerald-50/60 transition-colors group"
                     >
                       <div className="flex items-center gap-2 mb-2">
                         <div className="w-7 h-7 rounded-md bg-cyan-100 text-cyan-600 flex items-center justify-center">
@@ -976,14 +1261,17 @@ export function StaffPage() {
       <Tabs value={activeTab} onValueChange={handleTabChange}>
 
         {importResult && (
-            <div className="mt-4 rounded-lg border border-neutral-200 bg-white">
+            <div
+              id="staff-import-result"
+              className="mt-4 rounded-xl border border-neutral-200 bg-surface-primary"
+            >
               <div className="flex items-start justify-between gap-3 p-4">
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-sm text-neutral-900">导入记录</p>
                   <p className="text-sm text-neutral-600 mt-1">{importResult.message}</p>
                 </div>
                 <button
-                  className="text-xs text-neutral-400 hover:text-neutral-700 flex-shrink-0"
+                  className="text-xs text-neutral-400 hover:text-neutral-700 shrink-0"
                   onClick={clearImportResult}
                 >
                   关闭
@@ -1017,358 +1305,50 @@ export function StaffPage() {
           </div>
         )}
 
-        {/* Teachers table */}
-        <TabsContent value="teachers" className="mt-6">
-          <Card>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-neutral-200">
-                    <th className="text-left px-4 py-3 text-xs font-medium text-neutral-500 whitespace-nowrap">
-                      教师
-                    </th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-neutral-500 whitespace-nowrap">
-                      手机号
-                    </th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-neutral-500 whitespace-nowrap">
-                      邮箱
-                    </th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-neutral-500 whitespace-nowrap">
-                      状态
-                    </th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-neutral-500 whitespace-nowrap">
-                      注册时间
-                    </th>
-                    <th className="text-right px-4 py-3 text-xs font-medium text-neutral-500 whitespace-nowrap">
-                      操作
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {loading ? (
-                    <tr>
-                      <td colSpan={6} className="px-6 py-10 text-center text-neutral-400">
-                        数据加载中...
-                      </td>
-                    </tr>
-                  ) : error ? (
-                    <tr>
-                      <td colSpan={6} className="px-6 py-10 text-center text-danger">
-                        {error}
-                      </td>
-                    </tr>
-                  ) : list.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="px-6 py-10 text-center text-neutral-400">
-                        暂无数据
-                      </td>
-                    </tr>
-                  ) : (
-                    list.map((teacher) => (
-                      <tr
-                        key={teacher.id}
-                        className="border-b border-neutral-100 hover:bg-neutral-50 transition-colors"
-                      >
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white font-medium">
-                              {(teacher.realName || teacher.username || '?').charAt(0)}
-                            </div>
-                            <div>
-                              <button
-                                onClick={() => openTeacherCourses(teacher)}
-                                className="font-medium text-neutral-900 hover:text-primary hover:underline transition-colors cursor-pointer"
-                                title="点击查看所教课程与班级"
-                              >
-                                {teacher.realName || '-'}
-                              </button>
-                              <div className="text-xs text-neutral-500">
-                                @{teacher.username}
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-neutral-700">
-                          {teacher.phone || '-'}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-neutral-700">
-                          {teacher.email || '-'}
-                        </td>
-                        <td className="px-4 py-3">{statusBadge(teacher.status)}</td>
-                        <td className="px-4 py-3 text-sm text-neutral-700">
-                          {teacher.createdAt
-                            ? new Date(teacher.createdAt).toLocaleDateString()
-                            : '-'}
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="gap-1"
-                              onClick={() => openTeacherCourses(teacher)}
-                            >
-                              <BookOpen className="w-3.5 h-3.5" />
-                              课程
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => openEditSheet(teacher)}
-                            >
-                              编辑
-                            </Button>
-                            <DropdownMenu
-                              open={openMenuId === teacher.id}
-                              onOpenChange={(open) => setOpenMenuId(open ? teacher.id : null)}
-                            >
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="w-8 h-8">
-                                  <MoreHorizontal className="w-4 h-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="w-36">
-                                <DropdownMenuItem
-                                  onSelect={(e) => {
-                                    e.preventDefault()
-                                    setOpenMenuId(null)
-                                    openEditSheet(teacher)
-                                  }}
-                                >
-                                  查看详情
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onSelect={(e) => {
-                                    e.preventDefault()
-                                    setOpenMenuId(null)
-                                    openResetDialog(teacher)
-                                  }}
-                                >
-                                  重置密码
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                  className="text-danger"
-                                  onSelect={(e) => {
-                                    e.preventDefault()
-                                    setOpenMenuId(null)
-                                    openDeleteDialog(teacher)
-                                  }}
-                                >
-                                  删除账号
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Pagination */}
-            {!loading && !error && list.length > 0 && (
-              <div className="flex items-center justify-between px-4 py-3 border-t border-neutral-100">
-                <div className="text-sm text-neutral-500">
-                  第 {pageNum} / {totalPages} 页 · 共 {total} 条
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={goPrev}
-                    disabled={pageNum <= 1}
-                    className="gap-1"
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                    上一页
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={goNext}
-                    disabled={pageNum >= totalPages}
-                    className="gap-1"
-                  >
-                    下一页
-                    <ChevronRight className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
-            )}
-          </Card>
+        {/* 教师列表：BoardUI Data Table（服务端分页，行选择） */}
+        <TabsContent value="teachers" className="mt-2">
+          <DataTable<UserListItem>
+            data={list}
+            columns={teacherColumns}
+            getRowId={(row) => String(row.id)}
+            loading={loading}
+            error={error}
+            emptyText="暂无教师数据"
+            enableSelection
+            enableSorting={false}
+            density={density}
+            pagination={{ pageIndex: pageNum - 1, pageSize }}
+            onPaginationChange={({ pageIndex, pageSize: nextSize }) => {
+              setPageSize(nextSize)
+              setPageNum(pageIndex + 1)
+            }}
+            pageCount={totalPages}
+            totalRows={total}
+            resetSelectionKey={`${activeTab}-${keyword}-${searchField}-${pageNum}`}
+          />
         </TabsContent>
 
-        {/* Students table */}
-        <TabsContent value="students" className="mt-6">
-          <Card>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-neutral-200">
-                    <th className="text-left px-4 py-3 text-xs font-medium text-neutral-500 whitespace-nowrap">
-                      学生
-                    </th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-neutral-500 whitespace-nowrap">
-                      学号
-                    </th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-neutral-500 whitespace-nowrap">
-                      班级
-                    </th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-neutral-500 whitespace-nowrap">
-                      专业 / 年级
-                    </th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-neutral-500 whitespace-nowrap">
-                      状态
-                    </th>
-                    <th className="text-right px-4 py-3 text-xs font-medium text-neutral-500 whitespace-nowrap">
-                      操作
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {loading ? (
-                    <tr>
-                      <td colSpan={6} className="px-6 py-10 text-center text-neutral-400">
-                        数据加载中...
-                      </td>
-                    </tr>
-                  ) : error ? (
-                    <tr>
-                      <td colSpan={6} className="px-6 py-10 text-center text-danger">
-                        {error}
-                      </td>
-                    </tr>
-                  ) : list.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="px-6 py-10 text-center text-neutral-400">
-                        暂无数据
-                      </td>
-                    </tr>
-                  ) : (
-                    list.map((student) => (
-                      <tr
-                        key={student.id}
-                        className="border-b border-neutral-100 hover:bg-neutral-50 transition-colors"
-                      >
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-400 to-cyan-600 flex items-center justify-center text-white font-medium">
-                              {(student.realName || student.username || '?').charAt(0)}
-                            </div>
-                            <div>
-                              <div className="font-medium text-neutral-900">
-                                {student.realName || '-'}
-                              </div>
-                              <div className="text-xs text-neutral-500">
-                                {student.phone || `@${student.username}`}
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-neutral-700 font-mono">
-                          {student.studentNo || '-'}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-neutral-700">
-                          {classNameById(student.classId)}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-neutral-700">
-                          <div>{student.major || '-'}</div>
-                          <div className="text-[11px] text-neutral-400">{student.grade || '未设置年级'}</div>
-                        </td>
-                        <td className="px-4 py-3">{statusBadge(student.status)}</td>
-                        <td className="px-4 py-3 text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => openEditSheet(student)}
-                            >
-                              编辑
-                            </Button>
-                            <DropdownMenu
-                              open={openMenuId === student.id}
-                              onOpenChange={(open) => setOpenMenuId(open ? student.id : null)}
-                            >
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="w-8 h-8">
-                                  <MoreHorizontal className="w-4 h-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="w-36">
-                                <DropdownMenuItem
-                                  onSelect={(e) => {
-                                    e.preventDefault()
-                                    setOpenMenuId(null)
-                                    openEditSheet(student)
-                                  }}
-                                >
-                                  查看详情
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onSelect={(e) => {
-                                    e.preventDefault()
-                                    setOpenMenuId(null)
-                                    openResetDialog(student)
-                                  }}
-                                >
-                                  重置密码
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                  className="text-danger"
-                                  onSelect={(e) => {
-                                    e.preventDefault()
-                                    setOpenMenuId(null)
-                                    openDeleteDialog(student)
-                                  }}
-                                >
-                                  删除账号
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Pagination */}
-            {!loading && !error && list.length > 0 && (
-              <div className="flex items-center justify-between px-4 py-3 border-t border-neutral-100">
-                <div className="text-sm text-neutral-500">
-                  第 {pageNum} / {totalPages} 页 · 共 {total} 条
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={goPrev}
-                    disabled={pageNum <= 1}
-                    className="gap-1"
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                    上一页
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={goNext}
-                    disabled={pageNum >= totalPages}
-                    className="gap-1"
-                  >
-                    下一页
-                    <ChevronRight className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
-            )}
-          </Card>
+        {/* 学生列表：BoardUI Data Table（服务端分页，行选择） */}
+        <TabsContent value="students" className="mt-2">
+          <DataTable<UserListItem>
+            data={list}
+            columns={studentColumns}
+            getRowId={(row) => String(row.id)}
+            loading={loading}
+            error={error}
+            emptyText="暂无学生数据"
+            enableSelection
+            enableSorting={false}
+            density={density}
+            pagination={{ pageIndex: pageNum - 1, pageSize }}
+            onPaginationChange={({ pageIndex, pageSize: nextSize }) => {
+              setPageSize(nextSize)
+              setPageNum(pageIndex + 1)
+            }}
+            pageCount={totalPages}
+            totalRows={total}
+            resetSelectionKey={`${activeTab}-${keyword}-${searchField}-${pageNum}`}
+          />
         </TabsContent>
 
         {/* 教师职务：从原「教师职务」独立页面合并进来 */}
@@ -1391,7 +1371,7 @@ export function StaffPage() {
               {tabLabel}
             </SheetTitle>
           </SheetHeader>
-          <div className="pt-6 pb-24 space-y-5">
+          <div className="scrollbar-thin flex-1 overflow-y-auto space-y-5 px-6 py-5">
             <div className="space-y-2">
               <Label>姓名</Label>
               <Input
@@ -1437,8 +1417,8 @@ export function StaffPage() {
                 </div>
                 <div className="space-y-2">
                   <Label>所属班级</Label>
-                  <select
-                    className="w-full h-10 px-3 rounded-md border border-neutral-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  <Select
+                    className="w-full h-10 px-3 rounded-md border border-neutral-200 bg-surface-primary text-sm focus:outline-hidden focus:ring-2 focus:ring-emerald-300"
                     value={form.classId}
                     onChange={(e) => handleClassChange(e.target.value)}
                   >
@@ -1448,7 +1428,7 @@ export function StaffPage() {
                         {c.className}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -1481,7 +1461,11 @@ export function StaffPage() {
               />
             </div>
             {formError && (
-              <div className="p-3 rounded-lg bg-danger/10 text-danger text-sm">
+              <div
+                id="staff-form-error"
+                role="alert"
+                className="p-3 rounded-lg bg-danger/10 text-danger text-sm"
+              >
                 {formError}
               </div>
             )}
@@ -1660,7 +1644,7 @@ export function StaffPage() {
                 {teacherCourseGroups.map((item) => (
                   <div
                     key={`${item.semester}-${item.course_id}`}
-                    className="rounded-lg border border-neutral-200 bg-neutral-50 p-4"
+                    className="rounded-xl border border-neutral-200 bg-neutral-50 p-4"
                   >
                     <div className="flex items-center justify-between mb-2">
                       <div className="font-medium text-neutral-900">
@@ -1687,7 +1671,7 @@ export function StaffPage() {
               </div>
             )}
           </div>
-          <DialogFooter className="border-t border-neutral-100 pt-4 mt-2 flex-shrink-0">
+          <DialogFooter className="border-t border-neutral-100 pt-4 mt-2 shrink-0">
             <Button variant="outline" onClick={closeTeacherCourses}>
               关闭
             </Button>

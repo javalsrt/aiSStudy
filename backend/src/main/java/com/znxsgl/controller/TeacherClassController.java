@@ -36,18 +36,25 @@ public class TeacherClassController {
         this.bellTimeService = bellTimeService;
     }
 
-    /** 列出教师管理的所有班级 */
+    /** 列出教师管理的所有班级；管理员可看到全部班级 */
     @GetMapping("/list")
     public ResponseEntity<List<Map<String, Object>>> listClasses(Authentication auth) {
-        Long teacherUserId = (Long) auth.getPrincipal();
-        Long realTeacherId = getRealTeacherId(teacherUserId);
-        List<Map<String, Object>> list = jdbc.queryForList(
-            "SELECT DISTINCT ci.id, ci.class_name AS className, ci.major, ci.grade, ci.department, " +
-            "  (SELECT COUNT(*) FROM user u WHERE u.class_id = ci.id AND u.role = 1) AS studentCount " +
-            "FROM class_info ci " +
-            "JOIN course_class cc ON cc.class_id = ci.id " +
-            "JOIN course c ON c.id = cc.course_id " +
-            "WHERE c.teacher_id = ? ORDER BY ci.id", realTeacherId);
+        boolean isAdmin = auth.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+        String baseSql = "SELECT DISTINCT ci.id, ci.class_name AS className, ci.major, ci.grade, ci.department, " +
+                "  (SELECT COUNT(*) FROM user u WHERE u.class_id = ci.id AND u.role = 1) AS studentCount " +
+                "FROM class_info ci ";
+        List<Map<String, Object>> list;
+        if (isAdmin) {
+            list = jdbc.queryForList(baseSql + "ORDER BY ci.id");
+        } else {
+            Long teacherUserId = (Long) auth.getPrincipal();
+            Long realTeacherId = getRealTeacherId(teacherUserId);
+            list = jdbc.queryForList(baseSql +
+                    "JOIN course_class cc ON cc.class_id = ci.id " +
+                    "JOIN course c ON c.id = cc.course_id " +
+                    "WHERE c.teacher_id = ? ORDER BY ci.id", realTeacherId);
+        }
         return ResponseEntity.ok(list);
     }
 

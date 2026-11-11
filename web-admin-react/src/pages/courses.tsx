@@ -1,21 +1,17 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import {
-  Search,
-  Plus,
-  ChevronLeft,
-  ChevronRight,
-  LayoutList,
-  Grid3X3,
-  RefreshCw,
-  X,
-} from 'lucide-react'
+import { Plus, LayoutList, Grid3X3, Search, Loader2 } from 'lucide-react'
+import type { ColumnDef } from '@tanstack/react-table'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { SegmentedControl } from '@/components/ui/segmented-control'
+import { DataTable, type DataTableColumnMeta } from '@/components/ui/data-table'
+import { Pagination } from '@/components/ui/pagination'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Select } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useRole } from '@/hooks/use-role'
 import { useDialog } from '@/hooks/use-dialog'
 import {
@@ -23,8 +19,10 @@ import {
   hideCourse,
   unhideCourse,
   removeCourse,
+  invalidateCoursesCache,
 } from '@/api/courses'
 import { SchedulePlanner } from '@/components/schedule-planner'
+import { getTeacherClasses } from '@/api/teacher-class'
 import type { CourseItem } from '@/types'
 
 // 班级信息（来自后端 classes 数组）
@@ -35,10 +33,12 @@ interface ClassInfo {
   scheduleId?: number
 }
 
+type CourseRow = CourseItem & { classes: ClassInfo[] }
+
 const COVER_GRADIENTS = [
   'from-blue-400 to-blue-600',
   'from-emerald-400 to-emerald-600',
-  'from-purple-400 to-purple-600',
+  'from-green-400 to-green-600',
   'from-orange-400 to-orange-600',
   'from-pink-400 to-pink-600',
   'from-cyan-400 to-cyan-600',
@@ -78,19 +78,22 @@ const formatTime = (course: CourseItem) => {
   return parts.join(' ')
 }
 
-/** 元信息：小号标签 + 值，超长省略，绝不换行堆叠 */
+/** 元信息：小号标签 + 值，超长省略；空值直接不渲染，避免「-」无效占位 */
 function MetaItem({
   label,
   value,
   chip,
+  className,
 }: {
   label: string
   value?: string | null
   chip?: boolean
+  className?: string
 }) {
-  const text = value && String(value).trim() ? String(value) : '-'
+  const text = value && String(value).trim() ? String(value) : ''
+  if (!text) return null
   return (
-    <div className="flex min-w-0 items-baseline gap-1.5">
+    <div className={`flex min-w-0 items-baseline gap-1.5 ${className || ''}`}>
       <span className="shrink-0 text-[11px] text-neutral-400">{label}</span>
       <span
         className={
@@ -106,11 +109,9 @@ function MetaItem({
   )
 }
 
-/** 时段字符串 → 紧凑标签：去掉秒与「等 N 个时段」后缀，最多展示 2 个时段，其余折叠 */
-function ScheduleCell({ text }: { text?: string }) {
-  if (!text || text === '-') {
-    return <span className="text-neutral-400">-</span>
-  }
+/** 时段字符串 → 紧凑标签：无时段不渲染；最多展示 maxShown 个时段，其余折叠进提示 */
+function ScheduleCell({ text, maxShown = 2 }: { text?: string; maxShown?: number }) {
+  if (!text || text === '-') return null
   // 后端 scheduleInfo 可能带「等 N 个时段」/「等N个时段」后缀，先剥离，避免污染标签
   const cleaned = text.replace(/[，,]?\s*等\s*\d+\s*个?时段\s*$/, '').trim()
   const items = cleaned
@@ -118,24 +119,25 @@ function ScheduleCell({ text }: { text?: string }) {
     .map((s) => s.trim())
     .filter(Boolean)
     .map((s) => s.replace(/(\d{2}:\d{2}):\d{2}/g, '$1'))
-  if (items.length === 0) return <span className="text-neutral-400">-</span>
-  const shown = items.slice(0, 2)
+  if (items.length === 0) return null
+  const shown = items.slice(0, maxShown)
   return (
-    <div className="flex flex-wrap items-center gap-1.5" title={items.join('\n')}>
+    <span
+      className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-body-2-regular text-ink-secondary"
+      title={items.join('\n')}
+    >
       {shown.map((it, i) => (
-        <span
-          key={i}
-          className="inline-flex items-center rounded-md bg-neutral-100 px-2 py-0.5 text-xs text-neutral-600 whitespace-nowrap tabular-nums"
-        >
+        <span key={i} className="inline-flex items-center gap-1.5 whitespace-nowrap tabular-nums">
+          {i > 0 && <span className="text-ink-tertiary">·</span>}
           {it}
         </span>
       ))}
       {items.length > shown.length && (
-        <span className="text-xs text-neutral-400 whitespace-nowrap">
-          +{items.length - shown.length} 个时段
+        <span className="text-caption-1-regular text-ink-tertiary whitespace-nowrap">
+          +{items.length - shown.length} 时段
         </span>
       )}
-    </div>
+    </span>
   )
 }
 
@@ -183,14 +185,21 @@ const normalizeCourse = (raw: any): CourseItem & { classes: ClassInfo[] } => {
 }
 
 export function CoursesPage() {
-  const { isAdmin, user } = useRole()
+  const { isAdmin } = useRole()
   const navigate = useNavigate()
   const { alert, confirm, select, DialogComponent } = useDialog()
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list')
   const [searchText, setSearchText] = useState('')
+  // 专业 / 班级筛选：与学习统计页的筛选方式一致，用于按班级查课程
+  const [teacherClasses, setTeacherClasses] = useState<
+    { id: number; className: string; major?: string | null }[]
+  >([])
+  const [majorFilter, setMajorFilter] = useState('all')
+  const [classFilter, setClassFilter] = useState('all')
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+  const [density, setDensity] = useState<'normal' | 'compact'>('normal')
   const [activeTab, setActiveTab] = useState<'all' | 'active' | 'inactive'>('all')
-  const pageSize = 10
 
   const [courses, setCourses] = useState<(CourseItem & { classes: ClassInfo[] })[]>([])
   const [loading, setLoading] = useState(true)
@@ -217,7 +226,8 @@ export function CoursesPage() {
     semester: '',
   })
 
-  const fetchCourses = async () => {
+  const fetchCourses = async (force = false) => {
+    if (force) invalidateCoursesCache()
     setLoading(true)
     setError('')
     try {
@@ -236,6 +246,17 @@ export function CoursesPage() {
 
   useEffect(() => {
     fetchCourses()
+  }, [])
+
+  // 加载班级列表：专业/班级下拉的数据源（管理员为全校，教师为任教班级）
+  useEffect(() => {
+    getTeacherClasses()
+      .then((data) =>
+        setTeacherClasses(
+          (data || []).map((c) => ({ id: c.id, className: c.className, major: c.major }))
+        )
+      )
+      .catch(() => setTeacherClasses([]))
   }, [])
 
   const pickClassId = async (course: CourseItem & { classes: ClassInfo[] }): Promise<number | null> => {
@@ -345,7 +366,34 @@ export function CoursesPage() {
     setPlannerOpen(true)
   }
 
-  const searchedCourses = courses.filter((c) => {
+  // 专业/班级筛选：与学习统计页一致，先选专业缩小班级范围，再选具体班级
+  const majorOptions = Array.from(
+    new Set(teacherClasses.map((c) => c.major).filter((m): m is string => !!m))
+  ).sort((a, b) => a.localeCompare(b, 'zh-CN'))
+
+  const classOptions =
+    majorFilter === 'all'
+      ? teacherClasses
+      : teacherClasses.filter((c) => c.major === majorFilter)
+
+  const majorClassIds =
+    majorFilter === 'all'
+      ? null
+      : new Set(
+          teacherClasses.filter((c) => c.major === majorFilter).map((c) => String(c.id))
+        )
+
+  const classFilteredCourses = courses.filter((c) => {
+    if (classFilter !== 'all') {
+      return (c.classes || []).some((cls) => String(cls.classId) === classFilter)
+    }
+    if (majorClassIds) {
+      return (c.classes || []).some((cls) => majorClassIds.has(String(cls.classId)))
+    }
+    return true
+  })
+
+  const searchedCourses = classFilteredCourses.filter((c) => {
     if (!searchText) return true
     const keyword = searchText.toLowerCase()
     return (
@@ -373,12 +421,162 @@ export function CoursesPage() {
 
   useEffect(() => {
     setPage(1)
-  }, [activeTab, searchText])
+  }, [activeTab, searchText, majorFilter, classFilter])
+
+  // 列定义（BoardUI Data Table）：键值列可排序，状态/操作列固定
+  const courseColumns: ColumnDef<CourseRow, any>[] = [
+    {
+      id: 'course',
+      accessorFn: (row) => row.courseName || '',
+      header: '课程',
+      cell: ({ row }) => {
+        const course = row.original
+        return (
+          <div className="flex min-w-0 items-center gap-2.5">
+            <div
+              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-gradient-to-br ${getCoverGradient(
+                course.courseName || ''
+              )} text-xs font-semibold text-white`}
+            >
+              {course.courseName?.charAt(0) || '?'}
+            </div>
+            <div className="min-w-0">
+              <div
+                className="truncate text-body-2-medium text-ink-primary"
+                title={course.courseName || ''}
+                data-testid="course-name"
+              >
+                {course.courseName || '-'}
+              </div>
+              {course.hours != null && (
+                <div className="text-caption-2-medium text-ink-tertiary">{course.hours} 课时</div>
+              )}
+            </div>
+          </div>
+        )
+      },
+      meta: { className: 'min-w-[190px]' } as DataTableColumnMeta,
+    },
+    ...(isAdmin
+      ? [
+          {
+            id: 'teacher',
+            accessorFn: (row: CourseRow) => row.teacherName || '',
+            header: '教师',
+            cell: ({ row }: { row: { original: CourseRow } }) => (
+              <span className="text-body-2-regular text-ink-secondary">
+                {row.original.teacherName || '-'}
+              </span>
+            ),
+          },
+        ]
+      : []),
+    {
+      id: 'className',
+      accessorFn: (row) => row.className || '',
+      header: '班级',
+      cell: ({ row }) => (
+        <span className="text-body-2-regular text-ink-secondary">{row.original.className || '-'}</span>
+      ),
+      meta: { className: 'min-w-[140px]' } as DataTableColumnMeta,
+    },
+    {
+      id: 'classroom',
+      accessorFn: (row) => row.classroom || '',
+      header: '教室',
+      cell: ({ row }) => (
+        <span className="text-body-2-regular text-ink-tertiary">{row.original.classroom || '-'}</span>
+      ),
+      enableSorting: false,
+    },
+    {
+      id: 'semester',
+      accessorFn: (row) => row.semester || '',
+      header: '学期',
+      cell: ({ row }) =>
+        row.original.semester ? (
+          <span className="whitespace-nowrap text-body-2-regular text-ink-secondary tnum">
+            {row.original.semester}
+          </span>
+        ) : (
+          <span className="text-body-2-regular text-ink-tertiary">-</span>
+        ),
+    },
+    {
+      id: 'time',
+      header: '上课时间',
+      enableSorting: false,
+      cell: ({ row }) => <ScheduleCell text={formatTime(row.original)} maxShown={2} />,
+      meta: { className: 'min-w-[180px]' } as DataTableColumnMeta,
+    },
+    {
+      id: 'status',
+      header: '状态',
+      enableSorting: false,
+      cell: ({ row }) => {
+        const active = row.original.status === 1
+        return (
+          <div className="flex items-center gap-2 whitespace-nowrap">
+            <Switch
+              checked={active}
+              onCheckedChange={(checked) => handleToggleStatus(row.original, checked)}
+            />
+            <span className={`text-caption-1-medium ${active ? 'text-success' : 'text-ink-tertiary'}`}>
+              {active ? '已上架' : '已下架'}
+            </span>
+          </div>
+        )
+      },
+    },
+    {
+      id: 'actions',
+      header: '操作',
+      enableSorting: false,
+      cell: ({ row }) => (
+        <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 px-2.5 text-xs"
+            disabled={actionLoading}
+            onClick={() => { openPlanner(row.original) }}
+          >
+            {row.original.classes.some((c) => c.scheduled) ? '调课' : '排课'}
+          </Button>
+          {isAdmin && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 px-2.5 text-xs text-danger"
+              disabled={actionLoading}
+              onClick={() => { handleRemove(row.original) }}
+            >
+              删除
+            </Button>
+          )}
+        </div>
+      ),
+      meta: { align: 'right' } as DataTableColumnMeta,
+    },
+  ]
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-neutral-400">课程加载中...</div>
+      <div className="space-y-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <Skeleton className="h-10 w-40" />
+          <Skeleton className="h-9 w-28" />
+        </div>
+        <Skeleton className="h-9 w-72 rounded-lg" />
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <Skeleton className="h-9 w-full sm:w-80" />
+          <Skeleton className="h-9 w-40 rounded-lg" />
+        </div>
+        <Skeleton className="h-[460px] rounded-3xl" />
+        <div className="flex items-center gap-2 text-body-2-regular text-ink-tertiary">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          正在加载课程，请稍候…
+        </div>
       </div>
     )
   }
@@ -387,7 +585,7 @@ export function CoursesPage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
         <div className="text-danger">{error}</div>
-        <Button variant="outline" onClick={fetchCourses}>
+        <Button variant="outline" onClick={() => fetchCourses(true)}>
           重新加载
         </Button>
       </div>
@@ -398,16 +596,9 @@ export function CoursesPage() {
     <div className="space-y-6">
       {DialogComponent}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-neutral-900">
-            {isAdmin ? '课程管理' : '我的课程'}
-          </h1>
-          <p className="text-neutral-500 mt-1 text-sm">
-            {isAdmin
-              ? '管理所有课程，支持下架、删除等操作'
-              : `你好，${user?.realName || '老师'}，查看你教授的课程`}
-          </p>
-        </div>
+        <h1 className="text-display-4-medium text-ink-primary">
+          {isAdmin ? '课程管理' : '我的课程'}
+        </h1>
         {isAdmin && (
           <Button
             variant="default"
@@ -419,55 +610,6 @@ export function CoursesPage() {
           </Button>
         )}
       </div>
-
-      <Card>
-        <CardContent className="p-5">
-          <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
-            <div className="flex items-center gap-3 w-full md:w-auto">
-              <div className="relative flex-1 md:w-80">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
-                <Input
-                  placeholder={
-                    isAdmin ? '搜索课程名称、教师、班级...' : '搜索课程名称...'
-                  }
-                  value={searchText}
-                  onChange={(e) => setSearchText(e.target.value)}
-                  className="pl-11 h-10"
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 w-full md:w-auto">
-              <div className="flex items-center bg-neutral-100 rounded-full p-0.5">
-                <button
-                  aria-label="列表视图"
-                  data-testid="view-list"
-                  onClick={() => setViewMode('list')}
-                  className={`p-2 rounded-full transition-all ${
-                    viewMode === 'list'
-                      ? 'bg-white shadow-sm text-neutral-900'
-                      : 'text-neutral-500 hover:text-neutral-700'
-                  }`}
-                >
-                  <LayoutList className="w-4 h-4" />
-                </button>
-                <button
-                  aria-label="卡片视图"
-                  data-testid="view-grid"
-                  onClick={() => setViewMode('grid')}
-                  className={`p-2 rounded-full transition-all ${
-                    viewMode === 'grid'
-                      ? 'bg-white shadow-sm text-neutral-900'
-                      : 'text-neutral-500 hover:text-neutral-700'
-                  }`}
-                >
-                  <Grid3X3 className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       <Tabs
         value={activeTab}
@@ -481,148 +623,96 @@ export function CoursesPage() {
           <TabsTrigger value="inactive">已下架 ({inactiveCount})</TabsTrigger>
         </TabsList>
 
-        <TabsContent value={activeTab} className="mt-6">
+        <TabsContent value={activeTab} className="mt-6 space-y-4">
+          {/* 搜索 + 专业/班级筛选 + 视图切换：列表/卡片两种视图共用，避免切换后控件消失 */}
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-col gap-2 md:flex-row md:items-center">
+              <div className="relative w-full md:w-72">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-tertiary" />
+                <input
+                  value={searchText}
+                  onChange={(e) => setSearchText(e.target.value)}
+                  placeholder={isAdmin ? '搜索课程名称、教师、班级...' : '搜索课程名称...'}
+                  className="h-9 w-full rounded-[10px] bg-surface-primary pl-9 pr-3 text-body-2-regular text-ink-primary shadow-card outline-hidden transition-shadow placeholder:text-ink-tertiary focus-visible:shadow-focus-double"
+                />
+              </div>
+              <div className="w-[150px] shrink-0">
+                <Select
+                  value={majorFilter}
+                  onChange={(e) => {
+                    setMajorFilter(e.target.value)
+                    setClassFilter('all')
+                  }}
+                  aria-label="按专业筛选课程"
+                  className="w-full"
+                >
+                  <option value="all">全部专业</option>
+                  {majorOptions.map((major) => (
+                    <option key={major} value={major}>
+                      {major}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <div className="w-[170px] shrink-0">
+                <Select
+                  value={classFilter}
+                  onChange={(e) => setClassFilter(e.target.value)}
+                  aria-label="按班级筛选课程"
+                  className="w-full"
+                >
+                  <option value="all">全部班级</option>
+                  {classOptions.map((c) => (
+                    <option key={c.id} value={String(c.id)}>
+                      {c.className}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {viewMode === 'list' && (
+                <SegmentedControl
+                  size="sm"
+                  ariaLabel="表格密度"
+                  value={density}
+                  onChange={setDensity}
+                  options={[
+                    { value: 'normal', label: '正常' },
+                    { value: 'compact', label: '紧凑' },
+                  ]}
+                />
+              )}
+              <SegmentedControl
+                ariaLabel="视图模式"
+                value={viewMode}
+                onChange={(next) => setViewMode(next)}
+                options={[
+                  { value: 'list', icon: LayoutList, ariaLabel: '列表视图' },
+                  { value: 'grid', icon: Grid3X3, ariaLabel: '卡片视图' },
+                ]}
+              />
+            </div>
+          </div>
+
           {viewMode === 'list' ? (
-            <Card>
-              <div className="overflow-hidden">
-                {/* 固定列宽 + table-fixed：避免表头/内容被挤压成竖排文字 */}
-                {/* 卡片行布局：不依赖表格列宽机制，任何屏幕宽度下都不会竖排/挤压 */}
-                <div className="divide-y divide-neutral-100">
-                  {pagedCourses.map((course, idx) => {
-                    const active = course.status === 1
-                    return (
-                      <div
-                        key={`${course.courseName}-${idx}`}
-                        className="flex flex-col gap-3 px-5 py-4 transition-colors hover:bg-neutral-50/70 lg:flex-row lg:items-center"
-                      >
-                        {/* 课程 */}
-                        <div className="flex min-w-0 items-center gap-3 lg:w-[230px] lg:shrink-0">
-                          <div
-                            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${getCoverGradient(
-                              course.courseName || ''
-                            )} text-sm font-bold text-white`}
-                          >
-                            {course.courseName?.charAt(0) || '?'}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div
-                              className="truncate text-[13.5px] font-medium text-neutral-900"
-                              title={course.courseName || ''}
-                              data-testid="course-name"
-                            >
-                              {course.courseName || '-'}
-                            </div>
-                            {course.hours != null && (
-                              <div className="mt-0.5 text-[11px] text-neutral-400">
-                                {course.hours} 课时
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* 教师 / 班级 / 教室 / 学期 */}
-                        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-5 gap-y-1.5">
-                          {isAdmin && <MetaItem label="教师" value={course.teacherName} />}
-                          <MetaItem label="班级" value={course.className} />
-                          <MetaItem label="教室" value={course.classroom} />
-                          {course.semester && <MetaItem label="学期" value={course.semester} chip />}
-                        </div>
-
-                        {/* 上课时间 */}
-                        <div className="lg:w-[300px] lg:shrink-0">
-                          <div className="mb-1 text-[11px] text-neutral-400 lg:hidden">上课时间</div>
-                          <ScheduleCell text={formatTime(course)} />
-                        </div>
-
-                        {/* 状态 + 操作 */}
-                        <div className="flex items-center justify-between gap-4 lg:w-[232px] lg:shrink-0 lg:justify-end">
-                          <div className="flex items-center gap-2 whitespace-nowrap">
-                            <Switch
-                              checked={active}
-                              onCheckedChange={(checked) => handleToggleStatus(course, checked)}
-                            />
-                            <span
-                              className={`text-xs font-medium ${
-                                active ? 'text-success' : 'text-neutral-400'
-                              }`}
-                            >
-                              {active ? '已上架' : '已下架'}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2 whitespace-nowrap">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-8 px-3 text-xs"
-                              disabled={actionLoading}
-                              onClick={() => { openPlanner(course) }}
-                            >
-                              {course.classes.some((c) => c.scheduled) ? '调课' : '排课'}
-                            </Button>
-                            {isAdmin && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-8 px-3 text-xs text-danger"
-                                disabled={actionLoading}
-                                onClick={() => { handleRemove(course) }}
-                              >
-                                删除
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })}
-                  {pagedCourses.length === 0 && (
-                    <div className="px-6 py-12 text-center text-neutral-400">暂无课程数据</div>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between px-6 py-4 border-t border-neutral-100">
-                <div className="text-sm text-neutral-500">
-                  共 {filteredCourses.length} 条记录
-                </div>
-                <div className="flex items-center gap-3">
-                  {/* 总页数显示：当前页 / 总页数 */}
-                  <span className="whitespace-nowrap text-xs text-neutral-400 tabular-nums">
-                    第 {currentPage} / {totalPages} 页
-                  </span>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="w-8 h-8 rounded-lg"
-                      data-testid="pagination-prev"
-                      onClick={() => setPage(Math.max(1, currentPage - 1))}
-                      disabled={currentPage === 1}
-                    >
-                      <ChevronLeft className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="default"
-                      size="sm"
-                      className="w-8 h-8 p-0 rounded-lg tabular-nums"
-                    >
-                      {currentPage}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="w-8 h-8 rounded-lg"
-                      data-testid="pagination-next"
-                      onClick={() => setPage(Math.min(totalPages, currentPage + 1))}
-                      disabled={currentPage >= totalPages}
-                    >
-                      <ChevronRight className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </Card>
+            <DataTable<CourseRow>
+              data={filteredCourses}
+              columns={courseColumns}
+              getRowId={(row) => `${row.courseName}-${row.classId ?? 'x'}-${row.className ?? ''}`}
+              enableSelection
+              density={density}
+              pagination={{ pageIndex: currentPage - 1, pageSize }}
+              onPaginationChange={({ pageIndex, pageSize: nextSize }) => {
+                setPageSize(nextSize)
+                setPage(pageIndex + 1)
+              }}
+              totalRows={filteredCourses.length}
+              resetSelectionKey={`${activeTab}-${searchText}-${majorFilter}-${classFilter}-${viewMode}`}
+              emptyText="暂无课程数据"
+            />
           ) : (
+            <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {pagedCourses.map((course, idx) => {
                 const active = course.status === 1
@@ -740,6 +830,11 @@ export function CoursesPage() {
                 </div>
               )}
             </div>
+            {/* 卡片视图页脚：与表格视图保持一致的分页入口 */}
+            <div className="flex items-center justify-end">
+              <Pagination page={currentPage} totalPages={totalPages} onChange={setPage} />
+            </div>
+            </>
           )}
         </TabsContent>
       </Tabs>
@@ -754,7 +849,7 @@ export function CoursesPage() {
         scheduled={plannerData.scheduled}
         totalCredit={plannerData.totalCredit}
         semester={plannerData.semester}
-        onSuccess={fetchCourses}
+        onSuccess={() => fetchCourses()}
       />
 
     </div>

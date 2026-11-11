@@ -43,6 +43,20 @@ public class SecurityConfig {
                         "/actuator/health", "/actuator/info").permitAll()
                 .anyRequest().authenticated()
             )
+            // 未登录/无效 token 统一返回 401，前端据此清理登录态并跳转登录页；
+            // 已登录但角色不足返回 403，前端只提示无权限，不清 token
+            .exceptionHandling(ex -> ex
+                .authenticationEntryPoint((request, response, e) -> {
+                    response.setStatus(401);
+                    response.setContentType("application/json;charset=UTF-8");
+                    response.getWriter().write("{\"error\":\"Unauthorized\",\"message\":\"请先登录\"}");
+                })
+                .accessDeniedHandler((request, response, e) -> {
+                    response.setStatus(403);
+                    response.setContentType("application/json;charset=UTF-8");
+                    response.getWriter().write("{\"error\":\"Forbidden\",\"message\":\"无权限访问该资源\"}");
+                })
+            )
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }

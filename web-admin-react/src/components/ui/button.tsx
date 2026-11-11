@@ -4,24 +4,25 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/lib/utils'
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
+  'inline-flex items-center justify-center gap-2 whitespace-nowrap text-body-2-medium transition-all duration-150 ease-out focus-visible:outline-hidden focus-visible:shadow-[0_0_0_1px_#86efac,0_0_0_4px_rgb(134_239_172/0.18)] disabled:pointer-events-none disabled:opacity-50 active:scale-[0.97] [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:translate-y-[0.08em]',
   {
     variants: {
       variant: {
-        default: 'bg-neutral-900 text-white hover:bg-neutral-800',
-        primary: 'bg-primary-550 text-white hover:bg-primary-600',
-        secondary: 'bg-neutral-100 text-neutral-900 hover:bg-neutral-200',
-        outline: 'border border-neutral-200 bg-white text-neutral-900 hover:bg-neutral-100 hover:border-neutral-300',
-        ghost: 'text-neutral-900 hover:bg-neutral-100',
+        default: 'bg-neutral-950 text-white hover:bg-neutral-800 shadow-[0_1px_2px_rgba(0,0,0,0.12)]',
+        primary: 'bg-neutral-950 text-white hover:bg-neutral-800 shadow-[0_1px_2px_rgba(0,0,0,0.12)]',
+        secondary: 'border border-line-separator bg-surface-primary text-ink-primary hover:bg-neutral-100',
+        outline: 'border border-line-separator bg-surface-primary text-ink-primary hover:bg-neutral-100 hover:border-line-strong',
+        ghost: 'text-ink-primary hover:bg-neutral-100',
         link: 'text-primary-550 underline-offset-4 hover:underline',
-        destructive: 'bg-danger text-white hover:bg-danger/90',
+        destructive: 'bg-danger text-white hover:bg-danger/90 shadow-[0_1px_2px_rgba(243,57,57,0.24)]',
         success: 'bg-success text-white hover:bg-success/90',
       },
       size: {
-        default: 'h-10 px-5 py-2 rounded-full',
-        sm: 'h-8 px-4 text-xs rounded-full',
-        lg: 'h-12 px-8 text-base rounded-full',
-        icon: 'h-10 w-10 rounded-full',
+        default: 'h-9 px-4 rounded-[10px]',
+        sm: 'h-8 px-3 rounded-lg text-caption-1-medium',
+        xs: 'h-6 px-2 rounded-md text-caption-2-medium',
+        lg: 'h-10 px-5 rounded-xl text-body-medium',
+        icon: 'h-9 w-9 rounded-[10px]',
       },
     },
     defaultVariants: {

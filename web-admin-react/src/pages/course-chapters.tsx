@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Select } from '@/components/ui/select'
 import {
   BookOpen,
   ChevronDown,
@@ -40,7 +41,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useRole } from '@/hooks/use-role'
 import { useDialog } from '@/hooks/use-dialog'
-import { getTeacherCourses, getStudentCourses } from '@/api/courses'
+import { getTeacherCourses, getStudentCourses, invalidateCoursesCache } from '@/api/courses'
 import {
   getChaptersByCourse,
   saveChapter,
@@ -94,7 +95,7 @@ const emptyLesson = (): LessonSaveRequest => ({
 })
 
 export function CourseChaptersPage() {
-  const { isAdmin, isTeacher, user, hasPermission } = useRole()
+  const { isAdmin, isTeacher, hasPermission } = useRole()
   const { alert, confirm, DialogComponent } = useDialog()
 
   const [courses, setCourses] = useState<CourseOption[]>([])
@@ -140,11 +141,14 @@ export function CourseChaptersPage() {
   const canDeleteResource = useMemo(() => hasPermission('resource:delete'), [hasPermission])
   const canImport = useMemo(() => hasPermission('chapter:import'), [hasPermission])
 
-  const fetchCourses = async () => {
+  const fetchCourses = async (force = false) => {
+    if (force) invalidateCoursesCache()
     setCourseLoading(true)
     try {
       const data = isAdmin || isTeacher ? await getTeacherCourses() : await getStudentCourses()
-      const list = (data || []).map((c: CourseItem) => ({
+      // 章节管理只针对已上架课程
+      const visible = (data || []).filter((c: CourseItem) => c.active !== false)
+      const list = visible.map((c: CourseItem) => ({
         courseId: c.courseId || 0,
         courseName: c.courseName,
       }))
@@ -450,27 +454,27 @@ export function CourseChaptersPage() {
           <div className="space-y-4">
             <div className="space-y-1.5">
               <Label>生成范围（章节数量）</Label>
-              <select
+              <Select
                 value={genChapterCount}
                 onChange={(e) => setGenChapterCount(Number(e.target.value))}
-                className="h-10 w-full pl-3 pr-10 rounded-lg border border-neutral-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="h-10 w-full pl-3 pr-10 rounded-lg border border-neutral-200 bg-surface-primary text-sm focus:outline-hidden focus:ring-2 focus:ring-emerald-300"
               >
                 {[3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((n) => (
                   <option key={n} value={n}>{n} 章（每章 2-3 课时）</option>
                 ))}
-              </select>
+              </Select>
             </div>
             <div className="space-y-1.5">
               <Label>基础难易程度</Label>
-              <select
+              <Select
                 value={genDifficulty}
                 onChange={(e) => setGenDifficulty(e.target.value)}
-                className="h-10 w-full pl-3 pr-10 rounded-lg border border-neutral-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="h-10 w-full pl-3 pr-10 rounded-lg border border-neutral-200 bg-surface-primary text-sm focus:outline-hidden focus:ring-2 focus:ring-emerald-300"
               >
                 <option value="入门">入门（零基础，例子多、铺垫细）</option>
                 <option value="基础">基础（标准大学课程深度）</option>
                 <option value="进阶">进阶（原理推导 + 综合实战）</option>
-              </select>
+              </Select>
             </div>
             <div className="space-y-1.5">
               <Label>内容备注（可选）</Label>
@@ -488,7 +492,7 @@ export function CourseChaptersPage() {
             <Button variant="outline" onClick={() => setGenOpen(false)} disabled={generating}>
               取消
             </Button>
-            <Button onClick={handleGenerateConfirm} className="bg-indigo-600 hover:bg-indigo-700">
+            <Button onClick={handleGenerateConfirm}>
               确定
             </Button>
           </DialogFooter>
@@ -496,24 +500,22 @@ export function CourseChaptersPage() {
       </Dialog>
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-neutral-900">章节管理</h1>
-          <p className="text-neutral-500 mt-1 text-sm">
-            {isAdmin ? '管理所有课程的章节与课时资源' : `你好，${user?.realName || '老师'}，管理你所授课程的章节`}
-          </p>
+          {/* 副标题（不展示）：管理员=管理所有课程的章节与课时资源；教师=管理你所授课程的章节 */}
+          <h1 className="text-display-4-medium text-ink-primary">章节管理</h1>
         </div>
         <div className="flex items-center gap-3">
           <div className="relative">
-            <select
+            <Select
               value={selectedCourseId ?? ''}
               onChange={(e) => setSelectedCourseId(Number(e.target.value))}
-              className="h-10 pl-4 pr-10 rounded-lg border border-neutral-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="h-10 pl-4 pr-10 rounded-lg border border-neutral-200 bg-surface-primary text-sm focus:outline-hidden focus:ring-2 focus:ring-emerald-300"
             >
               {courses.map((c) => (
                 <option key={c.courseId} value={c.courseId}>
                   {c.courseName}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
           {canImport && (
             <>
@@ -532,7 +534,7 @@ export function CourseChaptersPage() {
               variant="default"
               onClick={handleGenerate}
               disabled={generating || !selectedCourseId}
-              className="gap-2 bg-indigo-600 hover:bg-indigo-700"
+              className="gap-2"
             >
               {generating ? (
                 <>
@@ -569,7 +571,7 @@ export function CourseChaptersPage() {
               <div className="text-neutral-400">
                 {isAdmin || isTeacher ? '暂无可管理课程' : '你还没有选修任何课程'}
               </div>
-              <Button variant="outline" onClick={fetchCourses}>
+              <Button variant="outline" onClick={() => fetchCourses(true)}>
                 重新加载
               </Button>
             </div>
@@ -672,13 +674,13 @@ export function CourseChaptersPage() {
                             {(chapter.lessons || []).map((lesson) => (
                               <div
                                 key={lesson.id}
-                                className="flex items-center justify-between bg-white border border-neutral-100 rounded-xl px-4 py-3 group/lesson hover:border-primary-200 transition-colors"
+                                className="flex items-center justify-between bg-surface-primary border border-neutral-100 rounded-xl px-4 py-3 group/lesson hover:border-emerald-200 transition-colors"
                               >
                                 <div
                                   className="flex items-center gap-3 flex-1 cursor-pointer"
                                   onClick={() => setViewingLesson(lesson)}
                                 >
-                                  <div className="w-8 h-8 rounded-lg bg-primary-50 text-primary-600 flex items-center justify-center">
+                                  <div className="w-8 h-8 rounded-lg bg-neutral-100 text-ink-secondary flex items-center justify-center">
                                     {RESOURCE_ICONS[lesson.resourceType] || <FileText className="w-4 h-4" />}
                                   </div>
                                   <div>
@@ -818,7 +820,7 @@ export function CourseChaptersPage() {
                 onClick={() => { setImportType('excel'); setImportFile(null); setImportResult(null) }}
                 className={`flex-1 py-1.5 text-sm rounded-md transition-colors ${
                   importType === 'excel'
-                    ? 'bg-white text-primary-600 shadow-sm'
+                    ? 'bg-surface-primary text-primary-600 shadow-xs'
                     : 'text-neutral-500 hover:text-neutral-700'
                 }`}
               >
@@ -829,14 +831,14 @@ export function CourseChaptersPage() {
                 onClick={() => { setImportType('word'); setImportFile(null); setImportResult(null) }}
                 className={`flex-1 py-1.5 text-sm rounded-md transition-colors ${
                   importType === 'word'
-                    ? 'bg-white text-primary-600 shadow-sm'
+                    ? 'bg-surface-primary text-primary-600 shadow-xs'
                     : 'text-neutral-500 hover:text-neutral-700'
                 }`}
               >
                 Word
               </button>
             </div>
-            <div className="rounded-lg border border-dashed border-neutral-300 bg-neutral-50 p-6 text-center">
+            <div className="rounded-xl border border-dashed border-neutral-300 bg-neutral-50 p-6 text-center">
               {importType === 'excel' ? (
                 <FileSpreadsheet className="w-8 h-8 text-primary-500 mx-auto mb-3" />
               ) : (
@@ -854,7 +856,7 @@ export function CourseChaptersPage() {
                   ? '.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
                   : '.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document'}
                 onChange={(e) => setImportFile(e.target.files?.[0] || null)}
-                className="bg-white"
+                className="bg-surface-primary"
               />
               {importFile && (
                 <div className="mt-3 text-xs text-neutral-600">已选择：{importFile.name}</div>
@@ -873,7 +875,7 @@ export function CourseChaptersPage() {
               </a>
             </div>
             {importResult && (
-              <div className="rounded-lg border border-neutral-200 bg-white p-4 space-y-3">
+              <div className="rounded-xl border border-neutral-200 bg-surface-primary p-4 space-y-3">
                 <div className="flex items-center gap-4 text-sm">
                   <span className="text-neutral-600">章节：<strong className="text-neutral-900">{importResult.chapterCount}</strong></span>
                   <span className="text-neutral-600">课时：<strong className="text-neutral-900">{importResult.lessonCount}</strong></span>
@@ -925,7 +927,7 @@ export function CourseChaptersPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="resourceType">资源类型</Label>
-                <select
+                <Select
                   id="resourceType"
                   value={editingLesson?.resourceType || 'video'}
                   onChange={(e) =>
@@ -933,13 +935,13 @@ export function CourseChaptersPage() {
                       prev ? { ...prev, resourceType: e.target.value as LessonSaveRequest['resourceType'] } : prev
                     )
                   }
-                  className="w-full h-10 px-3 rounded-lg border border-neutral-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full h-10 px-3 rounded-lg border border-neutral-200 bg-surface-primary text-sm focus:outline-hidden focus:ring-2 focus:ring-emerald-300"
                 >
                   <option value="video">视频</option>
                   <option value="document">文档</option>
                   <option value="quiz">测验</option>
                   <option value="link">链接</option>
-                </select>
+                </Select>
               </div>
             </div>
             <div className="space-y-2">
@@ -1051,8 +1053,8 @@ export function CourseChaptersPage() {
 
       {/* AI 生成中全局遮罩：禁止点击、切换课程等操作 */}
       {generating && (
-        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="inline-flex items-center gap-3 px-6 py-4 rounded-2xl bg-white shadow-xl">
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/40 backdrop-blur-xs">
+          <div className="inline-flex items-center gap-3 px-6 py-4 rounded-2xl bg-surface-primary shadow-xl">
             <span className="inline-block w-5 h-5 rounded-full border-2 border-indigo-600 border-t-transparent animate-spin" />
             <span className="text-sm font-medium text-neutral-800">AI 生成中，请勿关闭或切换页面…</span>
           </div>

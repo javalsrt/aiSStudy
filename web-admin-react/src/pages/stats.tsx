@@ -1,11 +1,15 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { Select } from '@/components/ui/select'
 import { useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { HtmlMath } from '@/components/rich-text'
+import { Input } from '@/components/ui/input'
+import { MetricCard } from '@/components/ui/metric-card'
+import { HtmlMath, MathText } from '@/components/rich-text'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   Dialog,
   DialogContent,
@@ -28,7 +32,6 @@ import {
   PolarAngleAxis,
   PolarRadiusAxis,
   Radar,
-  Legend,
   Cell,
   LineChart,
   Line,
@@ -38,9 +41,6 @@ import {
   Activity,
   Clock,
   Award,
-  TrendingUp,
-  Brain,
-  BookOpen,
   FileText,
   ListChecks,
   CheckCircle2,
@@ -48,10 +48,12 @@ import {
   HelpCircle,
   MinusCircle,
   Eye,
-  School,
+  ArrowLeft,
+  Search,
   ChevronDown,
   ChevronRight,
 } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { useRole } from '@/hooks/use-role'
 import {
   getTeacherStats,
@@ -75,7 +77,20 @@ import type {
   StudentExamAnswerDetail,
 } from '@/types'
 
-const chartColors = ['#5b58ff', '#06b6d4', '#10b981', '#f59e0b', '#ec4899', '#6b7280']
+/**
+ * BoardUI 图表基线：网格 / 坐标轴 / 提示框全页复用。
+ * 曲线统一品牌色，条形按排名递减透明度，不再使用多色分类。
+ */
+const GRID_COLOR = '#ebebeb'
+const AXIS_COLOR = '#a3a3a3'
+const TICK = { fontSize: 12, fill: AXIS_COLOR }
+const TOOLTIP_STYLE: CSSProperties = {
+  borderRadius: '10px',
+  border: '1px solid #ebebeb',
+  background: '#ffffff',
+  boxShadow: '0 1px 1px rgba(0,0,0,0.04), 0 4px 4px rgba(0,0,0,0.02)',
+  fontSize: '12px',
+}
 
 function formatDateTime(value?: string | null) {
   if (!value) return '-'
@@ -107,15 +122,15 @@ function parseOptions(options?: string | null): string[] {
 function getCorrectnessLabel(isCorrect: number) {
   switch (isCorrect) {
     case 1:
-      return { text: '正确', icon: CheckCircle2, className: 'bg-green-50 text-green-600 border-green-200' }
+      return { text: '正确', icon: CheckCircle2, className: 'bg-emerald-50 text-emerald-700 border-emerald-200' }
     case 0:
-      return { text: '错误', icon: XCircle, className: 'bg-red-50 text-red-600 border-red-200' }
+      return { text: '错误', icon: XCircle, className: 'bg-rose-50 text-rose-600 border-rose-200' }
     case -1:
-      return { text: '不会', icon: HelpCircle, className: 'bg-orange-50 text-orange-600 border-orange-200' }
+      return { text: '不会', icon: HelpCircle, className: 'bg-amber-50 text-amber-700 border-amber-200' }
     case -2:
-      return { text: '跳过', icon: MinusCircle, className: 'bg-neutral-50 text-neutral-500 border-neutral-200' }
+      return { text: '跳过', icon: MinusCircle, className: 'bg-neutral-50 text-ink-secondary border-line-separator' }
     default:
-      return { text: '未知', icon: HelpCircle, className: 'bg-neutral-50 text-neutral-500 border-neutral-200' }
+      return { text: '未知', icon: HelpCircle, className: 'bg-neutral-50 text-ink-secondary border-line-separator' }
   }
 }
 
@@ -149,8 +164,52 @@ export function StatsPage() {
   const [stats, setStats] = useState<TeacherStats | null>(null)
   const [trend, setTrend] = useState<TrendItem[]>([])
   const [classSummary, setClassSummary] = useState<ClassSummaryItem[]>([])
+  const [majorFilter, setMajorFilter] = useState('all')
+  const [classFilter, setClassFilter] = useState('all')
+  const [studentQuery, setStudentQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+
+  const classMajors = useMemo(() => {
+    const set = new Set<string>()
+    classSummary.forEach((item) => {
+      if (item.major) set.add(item.major)
+    })
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'zh-CN'))
+  }, [classSummary])
+
+  const classesForFilter = useMemo(
+    () =>
+      majorFilter === 'all'
+        ? classSummary
+        : classSummary.filter((item) => item.major === majorFilter),
+    [classSummary, majorFilter]
+  )
+
+  const visibleClassSummary = useMemo(
+    () =>
+      majorFilter === 'all'
+        ? classSummary
+        : classSummary.filter((item) => item.major === majorFilter),
+    [classSummary, majorFilter]
+  )
+
+  const selectedClass = useMemo(
+    () =>
+      classFilter === 'all'
+        ? null
+        : classSummary.find((item) => String(item.classId) === classFilter) ?? null,
+    [classFilter, classSummary]
+  )
+
+  const classStudents = useMemo(() => {
+    if (!selectedClass) return []
+    return (stats?.students ?? [])
+      .filter((student) => student.className === selectedClass.name)
+      .sort(
+        (a, b) => Number(b.online) - Number(a.online) || b.totalSeconds - a.totalSeconds
+      )
+  }, [stats, selectedClass])
 
   const [selectedStudentId, setSelectedStudentId] = useState<number | null>(null)
   const [studentStats, setStudentStats] = useState<StudentStats | null>(null)
@@ -262,8 +321,17 @@ export function StatsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-neutral-400">数据加载中...</div>
+      <div className="space-y-4">
+        <Skeleton className="h-10 w-40" />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <Skeleton key={index} className="h-[132px] rounded-3xl" />
+          ))}
+        </div>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <Skeleton className="h-[520px] rounded-3xl" />
+          <Skeleton className="h-[520px] rounded-3xl lg:col-span-2" />
+        </div>
       </div>
     )
   }
@@ -281,30 +349,42 @@ export function StatsPage() {
       label: isAdmin ? '学生总数' : '授课学生',
       value: stats?.totalStudents ?? 0,
       icon: Users,
-      color: 'bg-primary-50 text-primary-550',
     },
     {
       label: '今日在线',
       value: stats?.onlineToday ?? 0,
       icon: Activity,
-      color: 'bg-green-50 text-green-600',
     },
     {
       label: '平均专注时长',
       value: `${stats?.avgFocusMinutes ?? 0} 分钟`,
       icon: Clock,
-      color: 'bg-orange-50 text-orange-600',
     },
     {
       label: '答题正确率',
       value: `${stats?.quizAccuracy ?? 0}%`,
       icon: Award,
-      color: 'bg-cyan-50 text-cyan-600',
     },
   ]
 
   const classRankingData = stats?.classFocusRanking || []
   const students = stats?.students || []
+  const studentKeyword = studentQuery.trim().toLowerCase()
+  const filteredStudents = studentKeyword
+    ? students.filter(
+        (student) =>
+          student.realName.toLowerCase().includes(studentKeyword) ||
+          student.studentNo.toLowerCase().includes(studentKeyword)
+      )
+    : students
+  // 图表日期统一短格式 M/D，避免 7 个 ISO 日期刻度互相挤压、末端被裁切
+  const trendSeries = trend.map((item) => {
+    const matched = item.date.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/)
+    return {
+      ...item,
+      date: matched ? `${Number(matched[2])}/${Number(matched[3])}` : item.date,
+    }
+  })
 
   // 刷题记录筛选与趋势数据
   const quizSessions = focusQuiz?.quizSessions || []
@@ -333,34 +413,22 @@ export function StatsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-neutral-900">
+        {/* 副标题（不展示）：管理员=查看班级学习数据和趋势分析；教师=查看我的教学数据和学生情况 */}
+        <h1 className="text-display-4-medium text-ink-primary">
           {isAdmin ? '学习统计' : '教学统计'}
         </h1>
-        <p className="text-neutral-500 mt-1 text-sm">
-          {isAdmin ? '查看班级学习数据和趋势分析' : '查看我的教学数据和学生情况'}
-        </p>
       </div>
 
-      {/* 统计卡片 */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        {cards.map((card, i) => {
-          const Icon = card.icon
-          return (
-            <Card key={i}>
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <p className="text-sm text-neutral-500 mb-1">{card.label}</p>
-                    <p className="text-3xl font-bold text-neutral-900">{card.value}</p>
-                  </div>
-                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${card.color}`}>
-                    <Icon className="w-6 h-6" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )
-        })}
+      {/* 统计卡片：与数据总览共用 BoardUI MetricCard，图标弱化为中性色 */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-5">
+        {cards.map((card) => (
+          <MetricCard
+            key={card.label}
+            label={card.label}
+            value={card.value}
+            icon={card.icon}
+          />
+        ))}
       </div>
 
       <Tabs defaultValue="students">
@@ -372,145 +440,304 @@ export function StatsPage() {
 
         {/* 学生列表 + 学习画像 */}
         <TabsContent value="students" className="mt-6">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* 学生列表 */}
-            <Card className="lg:col-span-1">
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Users className="w-4 h-4 text-primary-550" />
-                  学生列表
-                </CardTitle>
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            {/* 学生列表：窄栏，选中态用中性底色而非品牌色 */}
+            <Card className="lg:col-span-1 self-start">
+              <CardHeader className="flex-row items-center justify-between space-y-0">
+                <CardTitle>学生列表</CardTitle>
+                <span className="text-caption-1-regular text-ink-tertiary tnum">
+                  {studentKeyword
+                    ? `${filteredStudents.length}/${students.length}`
+                    : students.length}
+                </span>
               </CardHeader>
               <CardContent>
-                {students.length > 0 ? (
-                  <div className="space-y-2 max-h-[560px] overflow-y-auto pr-1">
-                    {students.map((s) => (
-                      <div
+                <div className="relative mb-3">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-tertiary" />
+                  <Input
+                    value={studentQuery}
+                    onChange={(event) => setStudentQuery(event.target.value)}
+                    placeholder="搜索姓名或学号"
+                    aria-label="搜索学生姓名或学号"
+                    className="h-9 pl-9"
+                  />
+                </div>
+                {filteredStudents.length > 0 ? (
+                  <div className="scrollbar-thin max-h-[calc(100vh-520px)] min-h-[240px] space-y-1 overflow-y-auto pr-1">
+                    {filteredStudents.map((s) => (
+                      <button
                         key={s.id}
+                        type="button"
                         data-testid="student-list-item"
                         onClick={() => setSelectedStudentId(s.id)}
-                        className={`p-3 rounded-lg cursor-pointer transition-colors border ${
+                        className={cn(
+                          'w-full rounded-lg border px-3 py-2.5 text-left transition-colors',
                           selectedStudentId === s.id
-                            ? 'bg-primary-50 border-primary-200'
-                            : 'bg-white border-neutral-100 hover:bg-neutral-50'
-                        }`}
+                            ? 'border-line-separator bg-neutral-100'
+                            : 'border-transparent hover:bg-neutral-50'
+                        )}
                       >
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <div className="font-medium text-neutral-900 text-sm">
-                              {s.realName}
-                            </div>
-                            <div className="text-xs text-neutral-500 mt-1">
-                              {s.studentNo} · {s.className}
-                            </div>
-                          </div>
-                          {s.online ? (
-                            <Badge variant="success">在线</Badge>
-                          ) : (
-                            <Badge variant="secondary">离线</Badge>
-                          )}
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="truncate text-body-2-medium text-ink-primary">
+                            {s.realName}
+                          </span>
+                          <span className="inline-flex shrink-0 items-center gap-1.5 text-caption-1-regular text-ink-tertiary">
+                            <span
+                              className={cn(
+                                'h-1.5 w-1.5 rounded-full',
+                                s.online ? 'bg-emerald-500' : 'bg-neutral-300'
+                              )}
+                            />
+                            {s.online ? '在线' : '离线'}
+                          </span>
                         </div>
-                        <div className="flex items-center gap-3 mt-2 text-xs text-neutral-500">
+                        <div className="mt-0.5 truncate text-caption-1-regular text-ink-tertiary">
+                          {s.studentNo} · {s.className}
+                        </div>
+                        <div className="mt-1.5 flex items-center gap-3 text-caption-1-regular text-ink-secondary tnum">
                           <span>今日 {Math.floor(s.todaySeconds / 60)} 分钟</span>
                           <span>累计 {Math.floor(s.totalSeconds / 3600)} 小时</span>
                         </div>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 ) : (
-                  <div className="h-[200px] flex items-center justify-center text-neutral-400">
-                    暂无学生数据
+                  <div className="h-[200px] flex items-center justify-center text-ink-tertiary">
+                    {students.length === 0 ? '暂无学生数据' : '未找到匹配的学生'}
                   </div>
                 )}
               </CardContent>
             </Card>
 
             {/* 学生学习画像 / 专注刷题 / 章节进度 / 考试作业 */}
-            <Card className="lg:col-span-2">
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Award className="w-4 h-4 text-primary-550" />
+            <Card className="lg:col-span-3">
+              <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0">
+                <CardTitle>
                   {selectedStudentId == null ? '班级学习概览' : '学生学习画像'}
                 </CardTitle>
+                {selectedStudentId == null ? (
+                  classSummary.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="w-[140px] shrink-0">
+                        <Select
+                          value={majorFilter}
+                          onChange={(event) => {
+                            setMajorFilter(event.target.value)
+                            setClassFilter('all')
+                          }}
+                          aria-label="选择专业"
+                          className="w-full"
+                        >
+                          <option value="all">全部专业</option>
+                          {classMajors.map((major) => (
+                            <option key={major} value={major}>
+                              {major}
+                            </option>
+                          ))}
+                        </Select>
+                      </div>
+                      <div className="w-[160px] shrink-0">
+                        <Select
+                          value={classFilter}
+                          onChange={(event) => setClassFilter(event.target.value)}
+                          aria-label="选择班级"
+                          className="w-full"
+                        >
+                          <option value="all">全部班级</option>
+                          {classesForFilter.map((item) => (
+                            <option key={item.classId} value={String(item.classId)}>
+                              {item.name}
+                            </option>
+                          ))}
+                        </Select>
+                      </div>
+                    </div>
+                  )
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setSelectedStudentId(null)}
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                    返回班级概览
+                  </Button>
+                )}
               </CardHeader>
               <CardContent>
                 {selectedStudentId == null ? (
-                  classSummary.length > 0 ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[560px] overflow-y-auto pr-1">
-                      {classSummary.map((c) => (
-                        <div
-                          key={c.classId}
-                          className="rounded-xl border border-neutral-100 bg-white p-5 transition-shadow hover:shadow-sm"
-                        >
-                          {/* 头部：图标 + 班级名 + 专业年级 */}
-                          <div className="flex items-start gap-3">
-                            <div className="w-11 h-11 rounded-xl bg-primary-50 text-primary-550 flex items-center justify-center shrink-0">
-                              <School className="w-6 h-6" />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="font-semibold text-neutral-900 truncate">{c.name}</div>
-                              <div className="text-xs text-neutral-500 mt-0.5 truncate">
-                                {[c.grade, c.major].filter(Boolean).join(' · ') || '专业年级未设置'}
-                              </div>
-                            </div>
-                            <Badge variant="secondary" className="shrink-0">
-                              {c.studentCount} 人
-                            </Badge>
-                          </div>
-
-                          {/* 标签 pill */}
-                          <div className="mt-3 flex flex-wrap gap-1.5">
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-sky-50 text-sky-600 text-xs font-medium">
-                              <BookOpen className="w-3.5 h-3.5" />
-                              {c.courseCount} 门课程
-                            </span>
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600 text-xs font-medium">
-                              <Activity className="w-3.5 h-3.5" />
-                              {c.onlineCount} 人在线
-                            </span>
-                          </div>
-
-                          {/* 指标区 */}
-                          <div className="mt-4 pt-4 border-t border-neutral-100 grid grid-cols-2 gap-x-4 gap-y-3">
-                            <div>
-                              <div className="text-2xl font-bold text-primary-600">
-                                {c.avgMinutes}
-                                <span className="text-xs font-normal text-neutral-400 ml-1">分钟</span>
-                              </div>
-                              <div className="text-xs text-neutral-500 mt-0.5">人均学习时长</div>
-                            </div>
-                            <div>
-                              <div className="text-2xl font-bold text-green-600">
-                                {c.accuracy}
-                                <span className="text-xs font-normal text-neutral-400 ml-1">%</span>
-                              </div>
-                              <div className="text-xs text-neutral-500 mt-0.5">刷题正确率</div>
-                            </div>
-                            <div>
-                              <div className="text-2xl font-bold text-cyan-600">
-                                {c.completionRate}
-                                <span className="text-xs font-normal text-neutral-400 ml-1">%</span>
-                              </div>
-                              <div className="text-xs text-neutral-500 mt-0.5">章节完成率</div>
-                            </div>
-                            <div>
-                              <div className="text-2xl font-bold text-orange-600">
-                                {c.examAvgScore}
-                                <span className="text-xs font-normal text-neutral-400 ml-1">分</span>
-                              </div>
-                              <div className="text-xs text-neutral-500 mt-0.5">考试平均分</div>
-                            </div>
-                          </div>
+                  selectedClass ? (
+                    classStudents.length > 0 ? (
+                      <div>
+                        <div className="mb-2 text-caption-1-regular text-ink-tertiary">
+                          共 {classStudents.length} 名学生
                         </div>
-                      ))}
+                        <div className="max-h-[520px] overflow-auto">
+                          <table className="w-full min-w-[520px]">
+                            <thead className="sticky top-0 z-10 bg-surface-primary">
+                              <tr className="border-b border-line-separator">
+                                <th className="pb-2 pr-4 text-left text-caption-2-medium font-medium text-ink-tertiary">
+                                  学生
+                                </th>
+                                <th className="w-28 px-2 pb-2 text-right text-caption-2-medium font-medium text-ink-tertiary">
+                                  今日时长
+                                </th>
+                                <th className="w-28 px-2 pb-2 text-right text-caption-2-medium font-medium text-ink-tertiary">
+                                  累计时长
+                                </th>
+                                <th className="w-20 pl-2 pb-2 text-right text-caption-2-medium font-medium text-ink-tertiary">
+                                  状态
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {classStudents.map((student) => (
+                                <tr
+                                  key={student.id}
+                                  onClick={() => setSelectedStudentId(student.id)}
+                                  title={`查看 ${student.realName} 的学习画像`}
+                                  className="group cursor-pointer border-b border-line-separator transition-colors last:border-b-0 hover:bg-neutral-50"
+                                >
+                                  <td className="py-3 pr-4">
+                                    <div className="truncate text-body-2-medium text-ink-primary group-hover:underline">
+                                      {student.realName}
+                                    </div>
+                                    <div className="truncate text-caption-1-regular text-ink-tertiary">
+                                      {student.studentNo}
+                                    </div>
+                                  </td>
+                                  <td className="px-2 py-3 text-right text-body-2-regular text-ink-primary tnum">
+                                    {Math.floor(student.todaySeconds / 60)}
+                                    <span className="ml-0.5 text-caption-1-regular text-ink-tertiary">
+                                      分钟
+                                    </span>
+                                  </td>
+                                  <td className="px-2 py-3 text-right text-body-2-regular text-ink-primary tnum">
+                                    {Math.floor(student.totalSeconds / 3600)}
+                                    <span className="ml-0.5 text-caption-1-regular text-ink-tertiary">
+                                      小时
+                                    </span>
+                                  </td>
+                                  <td className="pl-2 py-3 text-right text-caption-1-regular text-ink-tertiary">
+                                    <span className="inline-flex items-center gap-1.5">
+                                      <span
+                                        className={cn(
+                                          'h-1.5 w-1.5 rounded-full',
+                                          student.online ? 'bg-emerald-500' : 'bg-neutral-300'
+                                        )}
+                                      />
+                                      {student.online ? '在线' : '离线'}
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="h-[300px] flex flex-col items-center justify-center gap-1.5 text-body-2-regular text-ink-tertiary border border-dashed border-line-separator rounded-lg">
+                        <span>该班级暂无学生数据</span>
+                        <span className="text-caption-1-regular">{selectedClass.name}</span>
+                      </div>
+                    )
+                  ) : visibleClassSummary.length > 0 ? (
+                    /* 班级概览改为表格：数值统一中性色，横向对齐便于逐班比较 */
+                    <div className="max-h-[560px] overflow-auto">
+                      <table className="w-full min-w-[720px]">
+                        <thead className="sticky top-0 z-10 bg-surface-primary">
+                          <tr className="border-b border-line-separator">
+                            <th className="pb-2 pr-4 text-left text-caption-2-medium font-medium text-ink-tertiary">
+                              班级
+                            </th>
+                            <th className="w-16 px-2 pb-2 text-right text-caption-2-medium font-medium text-ink-tertiary">
+                              人数
+                            </th>
+                            <th className="w-16 px-2 pb-2 text-right text-caption-2-medium font-medium text-ink-tertiary">
+                              课程
+                            </th>
+                            <th className="w-16 px-2 pb-2 text-right text-caption-2-medium font-medium text-ink-tertiary">
+                              在线
+                            </th>
+                            <th className="w-24 px-2 pb-2 text-right text-caption-2-medium font-medium text-ink-tertiary">
+                              人均时长
+                            </th>
+                            <th className="w-20 px-2 pb-2 text-right text-caption-2-medium font-medium text-ink-tertiary">
+                              正确率
+                            </th>
+                            <th className="w-20 px-2 pb-2 text-right text-caption-2-medium font-medium text-ink-tertiary">
+                              完成率
+                            </th>
+                            <th className="w-20 pl-2 pb-2 text-right text-caption-2-medium font-medium text-ink-tertiary">
+                              考试均分
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {visibleClassSummary.map((c) => (
+                            <tr
+                              key={c.classId}
+                              onClick={() => setClassFilter(String(c.classId))}
+                              title={`查看 ${c.name} 的学生`}
+                              className="group cursor-pointer border-b border-line-separator transition-colors last:border-b-0 hover:bg-neutral-50"
+                            >
+                              <td className="py-3 pr-4">
+                                <div className="min-w-0">
+                                  <div className="truncate text-body-2-medium text-ink-primary group-hover:underline">
+                                    {c.name}
+                                  </div>
+                                  <div className="truncate text-caption-1-regular text-ink-tertiary">
+                                    {[c.grade, c.major].filter(Boolean).join(' · ') ||
+                                      '专业年级未设置'}
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-2 py-3 text-right text-body-2-regular text-ink-primary tnum">
+                                {c.studentCount}
+                              </td>
+                              <td className="px-2 py-3 text-right text-body-2-regular text-ink-secondary tnum">
+                                {c.courseCount}
+                              </td>
+                              <td className="px-2 py-3 text-right text-body-2-regular text-ink-primary tnum">
+                                {c.onlineCount > 0 ? (
+                                  <span className="inline-flex items-center gap-1.5">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                                    {c.onlineCount}
+                                  </span>
+                                ) : (
+                                  <span className="text-ink-tertiary">0</span>
+                                )}
+                              </td>
+                              <td className="px-2 py-3 text-right text-body-2-regular text-ink-primary tnum">
+                                {c.avgMinutes}
+                                <span className="ml-0.5 text-caption-1-regular text-ink-tertiary">
+                                  分钟
+                                </span>
+                              </td>
+                              <td className="px-2 py-3 text-right text-body-2-regular text-ink-primary tnum">
+                                {c.accuracy}%
+                              </td>
+                              <td className="px-2 py-3 text-right text-body-2-regular text-ink-primary tnum">
+                                {c.completionRate}%
+                              </td>
+                              <td className="pl-2 py-3 text-right text-body-2-regular text-ink-primary tnum">
+                                {c.examAvgScore}
+                                <span className="ml-0.5 text-caption-1-regular text-ink-tertiary">
+                                  分
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   ) : (
-                    <div className="h-[300px] flex items-center justify-center text-neutral-400 text-sm border border-dashed border-neutral-200 rounded-lg">
-                      暂无班级数据
+                    <div className="h-[300px] flex items-center justify-center text-ink-tertiary text-body-2-regular border border-dashed border-line-separator rounded-lg">
+                      {classSummary.length === 0 ? '暂无班级数据' : '没有匹配的班级'}
                     </div>
                   )
                 ) : studentLoading ? (
-                  <div className="h-[500px] flex items-center justify-center text-neutral-400">
+                  <div className="h-[500px] flex items-center justify-center text-ink-tertiary">
                     加载中...
                   </div>
                 ) : studentError ? (
@@ -532,68 +759,67 @@ export function StatsPage() {
                         {/* 学生基础信息 */}
                         <div className="flex items-center justify-between p-4 bg-neutral-50 rounded-lg flex-wrap gap-4">
                           <div>
-                            <div className="font-semibold text-neutral-900">
+                            <div className="text-body-2-medium text-ink-primary">
                               {studentStats?.info.realName}
                             </div>
-                            <div className="text-xs text-neutral-500 mt-1">
+                            <div className="text-caption-1-regular text-ink-tertiary mt-0.5">
                               {studentStats?.info.studentNo} · {studentStats?.info.className}
                             </div>
                           </div>
-                          <div className="flex gap-6 text-sm">
-                            <div className="text-center">
-                              <div className="text-xl font-bold text-primary-600">
+                          <div className="flex gap-8 text-sm">
+                            <div>
+                              <div className="text-title-2-semibold text-ink-primary tnum">
                                 {studentStats?.totalFocusMinutes}
                               </div>
-                              <div className="text-xs text-neutral-500">累计专注(分钟)</div>
+                              <div className="text-caption-1-regular text-ink-tertiary">
+                                累计专注(分钟)
+                              </div>
                             </div>
-                            <div className="text-center">
-                              <div className="text-xl font-bold text-green-600">
+                            <div>
+                              <div className="text-title-2-semibold text-ink-primary tnum">
                                 {studentStats?.loginDays}
                               </div>
-                              <div className="text-xs text-neutral-500">登录天数</div>
+                              <div className="text-caption-1-regular text-ink-tertiary">登录天数</div>
                             </div>
-                            <div className="text-center">
-                              <div className="text-xl font-bold text-orange-600">
+                            <div>
+                              <div className="text-title-2-semibold text-ink-primary tnum">
                                 {studentStats?.classAvgMinutes}
                               </div>
-                              <div className="text-xs text-neutral-500">班级平均(分钟)</div>
+                              <div className="text-caption-1-regular text-ink-tertiary">
+                                班级平均(分钟)
+                              </div>
                             </div>
                           </div>
                         </div>
 
                         {/* 六维能力雷达图 */}
                         <div>
-                          <h4 className="text-sm font-semibold text-neutral-900 mb-3">
-                            六维能力雷达图
-                          </h4>
+                          <h4 className="text-body-medium text-ink-primary mb-3">六维能力雷达图</h4>
                           <div className="h-72">
                             {studentStats?.scores && studentStats.scores.length > 0 ? (
                               <ResponsiveContainer width="100%" height="100%">
                                 <RadarChart data={studentStats.scores}>
-                                  <PolarGrid stroke="#e6e9ef" />
-                                  <PolarAngleAxis dataKey="name" stroke="#7f8798" fontSize={12} />
-                                  <PolarRadiusAxis angle={30} domain={[0, 10]} stroke="#d1d7e2" fontSize={10} />
+                                  <PolarGrid stroke={GRID_COLOR} />
+                                  <PolarAngleAxis dataKey="name" tick={{ fontSize: 12, fill: AXIS_COLOR }} />
+                                  <PolarRadiusAxis
+                                    angle={30}
+                                    domain={[0, 10]}
+                                    tick={{ fontSize: 10, fill: AXIS_COLOR }}
+                                    axisLine={false}
+                                  />
                                   <Radar
                                     name="能力值"
                                     dataKey="value"
-                                    stroke="#5b58ff"
-                                    fill="#5b58ff"
-                                    fillOpacity={0.3}
+                                    stroke="#3b82f6"
+                                    fill="#3b82f6"
+                                    fillOpacity={0.12}
                                     strokeWidth={2}
                                   />
-                                  <Legend />
-                                  <Tooltip
-                                    contentStyle={{
-                                      backgroundColor: '#fff',
-                                      border: '1px solid #e6e9ef',
-                                      borderRadius: '12px',
-                                      boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
-                                    }}
-                                  />
+                                  <Tooltip contentStyle={TOOLTIP_STYLE} />
                                 </RadarChart>
                               </ResponsiveContainer>
                             ) : (
-                              <div className="h-full flex items-center justify-center text-neutral-400">
+                              <div className="h-full flex items-center justify-center text-ink-tertiary">
                                 暂无能力数据
                               </div>
                             )}
@@ -602,45 +828,31 @@ export function StatsPage() {
 
                         {/* 专注时长趋势 */}
                         <div>
-                          <h4 className="text-sm font-semibold text-neutral-900 mb-3">
-                            专注时长趋势
-                          </h4>
+                          <h4 className="text-body-medium text-ink-primary mb-3">专注时长趋势</h4>
                           <div className="h-64">
                             {studentStats?.focusTrend && studentStats.focusTrend.length > 0 ? (
                               <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart data={studentStats.focusTrend}>
+                                <AreaChart data={studentStats.focusTrend} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
                                   <defs>
                                     <linearGradient id="colorFocus" x1="0" y1="0" x2="0" y2="1">
-                                      <stop offset="5%" stopColor="#5b58ff" stopOpacity={0.3} />
-                                      <stop offset="95%" stopColor="#5b58ff" stopOpacity={0} />
+                                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.16} />
+                                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
                                     </linearGradient>
                                   </defs>
-                                  <CartesianGrid strokeDasharray="3 3" stroke="#e6e9ef" vertical={false} />
+                                  <CartesianGrid strokeDasharray="4 8" stroke={GRID_COLOR} vertical={false} />
                                   <XAxis
                                     dataKey="date"
-                                    stroke="#7f8798"
-                                    fontSize={12}
+                                    tick={TICK}
                                     axisLine={false}
                                     tickLine={false}
+                                    minTickGap={16}
                                   />
-                                  <YAxis
-                                    stroke="#7f8798"
-                                    fontSize={12}
-                                    axisLine={false}
-                                    tickLine={false}
-                                  />
-                                  <Tooltip
-                                    contentStyle={{
-                                      backgroundColor: '#fff',
-                                      border: '1px solid #e6e9ef',
-                                      borderRadius: '12px',
-                                      boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
-                                    }}
-                                  />
+                                  <YAxis tick={TICK} axisLine={false} tickLine={false} width={32} />
+                                  <Tooltip contentStyle={TOOLTIP_STYLE} />
                                   <Area
                                     type="monotone"
                                     dataKey="minutes"
-                                    stroke="#5b58ff"
+                                    stroke="#3b82f6"
                                     strokeWidth={2}
                                     fill="url(#colorFocus)"
                                     name="专注时长(分钟)"
@@ -648,7 +860,7 @@ export function StatsPage() {
                                 </AreaChart>
                               </ResponsiveContainer>
                             ) : (
-                              <div className="h-full flex items-center justify-center text-neutral-400">
+                              <div className="h-full flex items-center justify-center text-ink-tertiary">
                                 暂无趋势数据
                               </div>
                             )}
@@ -658,37 +870,31 @@ export function StatsPage() {
                         {/* 课程提问统计 */}
                         {studentStats?.questions && studentStats.questions.length > 0 && (
                           <div>
-                            <h4 className="text-sm font-semibold text-neutral-900 mb-3">
-                              课程提问统计
-                            </h4>
+                            <h4 className="text-body-medium text-ink-primary mb-3">课程提问统计</h4>
                             <div className="h-56">
                               <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={studentStats.questions}>
-                                  <CartesianGrid strokeDasharray="3 3" stroke="#e6e9ef" vertical={false} />
+                                <BarChart data={studentStats.questions} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                                  <CartesianGrid strokeDasharray="4 8" stroke={GRID_COLOR} vertical={false} />
                                   <XAxis
                                     dataKey="name"
-                                    stroke="#7f8798"
-                                    fontSize={12}
+                                    tick={TICK}
                                     axisLine={false}
                                     tickLine={false}
+                                    minTickGap={8}
                                   />
-                                  <YAxis
-                                    stroke="#7f8798"
-                                    fontSize={12}
-                                    axisLine={false}
-                                    tickLine={false}
-                                  />
-                                  <Tooltip
-                                    contentStyle={{
-                                      backgroundColor: '#fff',
-                                      border: '1px solid #e6e9ef',
-                                      borderRadius: '12px',
-                                      boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
-                                    }}
-                                  />
-                                  <Bar dataKey="count" name="提问次数" radius={[6, 6, 0, 0]} maxBarSize={60}>
+                                  <YAxis tick={TICK} axisLine={false} tickLine={false} width={32} />
+                                  <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: '#f7f7f7' }} />
+                                  <Bar dataKey="count" name="提问次数" radius={[6, 6, 0, 0]} maxBarSize={40}>
                                     {studentStats.questions.map((_, i) => (
-                                      <Cell key={i} fill={chartColors[i % chartColors.length]} />
+                                      <Cell
+                                        key={i}
+                                        fill="#3b82f6"
+                                        fillOpacity={
+                                          0.4 +
+                                          (0.6 * (studentStats.questions.length - i)) /
+                                            studentStats.questions.length
+                                        }
+                                      />
                                     ))}
                                   </Bar>
                                 </BarChart>
@@ -704,46 +910,43 @@ export function StatsPage() {
                       <div className="space-y-6 max-h-[560px] overflow-y-auto pr-1">
                         {/* 专注记录：折叠为一行汇总，不常看 */}
                         <div>
-                          <h4 className="text-sm font-semibold text-neutral-900 mb-3 flex items-center gap-2">
-                            <Clock className="w-4 h-4 text-primary-550" />
-                            专注记录
-                          </h4>
+                          <h4 className="text-body-medium text-ink-primary mb-3">专注记录</h4>
                           {focusQuiz?.focusSessions && focusQuiz.focusSessions.length > 0 ? (
                             <div
                               data-testid="focus-summary"
-                              className="rounded-lg border border-neutral-100 bg-white cursor-pointer select-none"
+                              className="rounded-xl border border-line-separator bg-surface-primary cursor-pointer select-none"
                               onClick={() => setFocusExpanded((v) => !v)}
                             >
                               <div className="p-3 flex items-center justify-between">
-                                <div className="text-sm text-neutral-600">
+                                <div className="text-body-2-regular text-ink-secondary">
                                   累计专注{' '}
-                                  <span className="font-semibold text-neutral-900">
+                                  <span className="font-medium text-ink-primary tnum">
                                     {totalFocusMinutes}
                                   </span>{' '}
                                   分钟 · 共{' '}
-                                  <span className="font-semibold text-neutral-900">
+                                  <span className="font-medium text-ink-primary tnum">
                                     {focusQuiz.focusSessions.length}
                                   </span>{' '}
                                   次专注学习
                                 </div>
                                 {focusExpanded ? (
-                                  <ChevronDown className="w-4 h-4 text-neutral-400 shrink-0" />
+                                  <ChevronDown className="w-4 h-4 text-ink-tertiary shrink-0" />
                                 ) : (
-                                  <ChevronRight className="w-4 h-4 text-neutral-400 shrink-0" />
+                                  <ChevronRight className="w-4 h-4 text-ink-tertiary shrink-0" />
                                 )}
                               </div>
                               {focusExpanded && (
-                                <div className="space-y-2 px-3 pb-3 border-t border-neutral-100 pt-3">
+                                <div className="space-y-2 px-3 pb-3 border-t border-line-separator pt-3">
                                   {focusQuiz.focusSessions.map((fs) => (
                                     <div
                                       key={fs.id}
                                       className="p-3 rounded-lg bg-neutral-50 flex items-center justify-between"
                                     >
                                       <div>
-                                        <div className="text-sm font-medium text-neutral-900">
+                                        <div className="text-body-2-medium text-ink-primary tnum">
                                           {fs.durationMinutes} 分钟
                                         </div>
-                                        <div className="text-xs text-neutral-500 mt-1">
+                                        <div className="text-caption-1-regular text-ink-tertiary mt-0.5 tnum">
                                           {formatDateTime(fs.startedAt)} ~{' '}
                                           {formatDateTime(fs.finishedAt)}
                                         </div>
@@ -755,7 +958,7 @@ export function StatsPage() {
                               )}
                             </div>
                           ) : (
-                            <div className="h-[80px] flex items-center justify-center text-neutral-400 text-sm border border-dashed border-neutral-200 rounded-lg">
+                            <div className="h-[80px] flex items-center justify-center text-ink-tertiary text-body-2-regular border border-dashed border-line-separator rounded-lg">
                               暂无专注记录
                             </div>
                           )}
@@ -763,66 +966,61 @@ export function StatsPage() {
 
                         {/* 刷题记录：重点展示 */}
                         <div>
-                          <h4 className="text-sm font-semibold text-neutral-900 mb-3 flex items-center gap-2">
-                            <Brain className="w-4 h-4 text-primary-550" />
-                            刷题记录
+                          <div className="mb-3 flex items-center gap-2">
+                            <h4 className="text-body-medium text-ink-primary">刷题记录</h4>
                             {quizSessions.length > 0 && (
-                              <span className="text-xs font-normal text-neutral-400">
+                              <span className="text-caption-1-regular text-ink-tertiary tnum">
                                 共 {quizSessions.length} 次测评
                               </span>
                             )}
-                          </h4>
+                          </div>
                           {quizSessions.length > 0 ? (
                             <>
                               {/* 正确率趋势折线图 */}
-                              <div className="rounded-xl border border-neutral-100 bg-white p-4 mb-3">
-                                <div className="text-xs text-neutral-500 mb-2">正确率趋势</div>
+                              <div className="rounded-xl border border-line-separator bg-surface-primary p-4 mb-3">
+                                <div className="text-caption-1-regular text-ink-tertiary mb-2">
+                                  正确率趋势
+                                </div>
                                 <div className="h-40">
                                   {accuracyTrend.length >= 2 ? (
                                     <ResponsiveContainer width="100%" height="100%">
-                                      <LineChart data={accuracyTrend}>
+                                      <LineChart data={accuracyTrend} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
                                         <CartesianGrid
-                                          strokeDasharray="3 3"
-                                          stroke="#e6e9ef"
+                                          strokeDasharray="4 8"
+                                          stroke={GRID_COLOR}
                                           vertical={false}
                                         />
                                         <XAxis
                                           dataKey="date"
-                                          stroke="#7f8798"
-                                          fontSize={11}
+                                          tick={{ fontSize: 11, fill: AXIS_COLOR }}
                                           axisLine={false}
                                           tickLine={false}
+                                          minTickGap={16}
                                         />
                                         <YAxis
                                           domain={[0, 100]}
                                           unit="%"
-                                          stroke="#7f8798"
-                                          fontSize={11}
+                                          tick={{ fontSize: 11, fill: AXIS_COLOR }}
                                           axisLine={false}
                                           tickLine={false}
                                           width={40}
                                         />
                                         <Tooltip
-                                          contentStyle={{
-                                            backgroundColor: '#fff',
-                                            border: '1px solid #e6e9ef',
-                                            borderRadius: '12px',
-                                            boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
-                                          }}
+                                          contentStyle={TOOLTIP_STYLE}
                                           formatter={(value: number) => [`${value}%`, '正确率']}
                                         />
                                         <Line
                                           type="monotone"
                                           dataKey="accuracy"
-                                          stroke="#5b58ff"
+                                          stroke="#3b82f6"
                                           strokeWidth={2}
-                                          dot={{ r: 3, fill: '#5b58ff' }}
+                                          dot={{ r: 3, fill: '#3b82f6' }}
                                           activeDot={{ r: 5 }}
                                         />
                                       </LineChart>
                                     </ResponsiveContainer>
                                   ) : (
-                                    <div className="h-full flex items-center justify-center text-xs text-neutral-400">
+                                    <div className="h-full flex items-center justify-center text-caption-1-regular text-ink-tertiary">
                                       至少 2 次测评后展示趋势
                                     </div>
                                   )}
@@ -831,10 +1029,10 @@ export function StatsPage() {
 
                               {/* 筛选器：学科 + 时间范围 */}
                               <div className="flex items-center gap-2 mb-3">
-                                <select
+                                <Select
                                   value={quizSubjectFilter}
                                   onChange={(e) => setQuizSubjectFilter(e.target.value)}
-                                  className="h-8 rounded-md border border-neutral-200 bg-white px-2 text-xs text-neutral-700 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                                  className="h-8 rounded-lg border border-line-separator bg-surface-primary px-2 text-caption-1-regular text-ink-primary focus:outline-hidden focus:shadow-[0_0_0_1px_#86efac,0_0_0_4px_rgb(134_239_172/0.18)]"
                                 >
                                   <option value="all">全部学科</option>
                                   {quizSubjects.map((s) => (
@@ -842,17 +1040,17 @@ export function StatsPage() {
                                       {s}
                                     </option>
                                   ))}
-                                </select>
-                                <select
+                                </Select>
+                                <Select
                                   value={quizTimeFilter}
                                   onChange={(e) => setQuizTimeFilter(e.target.value)}
-                                  className="h-8 rounded-md border border-neutral-200 bg-white px-2 text-xs text-neutral-700 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                                  className="h-8 rounded-lg border border-line-separator bg-surface-primary px-2 text-caption-1-regular text-ink-primary focus:outline-hidden focus:shadow-[0_0_0_1px_#86efac,0_0_0_4px_rgb(134_239_172/0.18)]"
                                 >
                                   <option value="all">全部时间</option>
                                   <option value="7">近 7 天</option>
                                   <option value="30">近 30 天</option>
-                                </select>
-                                <span className="text-xs text-neutral-400">
+                                </Select>
+                                <span className="text-caption-1-regular text-ink-tertiary tnum">
                                   {filteredQuizSessions.length} 条记录
                                 </span>
                               </div>
@@ -863,13 +1061,13 @@ export function StatsPage() {
                                   filteredQuizSessions.map((qs) => (
                                     <div
                                       key={qs.id}
-                                      className="p-3 rounded-lg border border-neutral-100 bg-white"
+                                      className="p-3 rounded-xl border border-line-separator bg-surface-primary transition-colors hover:bg-neutral-50"
                                     >
-                                      <div className="flex items-center justify-between">
-                                        <div className="text-sm font-medium text-neutral-900">
+                                      <div className="flex items-center justify-between gap-3">
+                                        <div className="truncate text-body-2-medium text-ink-primary">
                                           {qs.subject || '综合刷题'}
                                         </div>
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex shrink-0 items-center gap-2">
                                           <Badge
                                             variant={
                                               parseInt(qs.accuracy || '0', 10) >= 60
@@ -889,7 +1087,7 @@ export function StatsPage() {
                                           </Button>
                                         </div>
                                       </div>
-                                      <div className="text-xs text-neutral-500 mt-2 flex flex-wrap gap-x-4 gap-y-1">
+                                      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-caption-1-regular text-ink-secondary tnum">
                                         <span>第 {qs.sessionNo ?? '-'} 次</span>
                                         <span>难度 {difficultyLabelOf(qs.difficulty)}</span>
                                         <span>总题 {qs.totalQuestions}</span>
@@ -897,20 +1095,20 @@ export function StatsPage() {
                                         <span>跳过 {qs.skipCount}</span>
                                         <span>用时 {formatDuration(qs.totalDurationSec)}</span>
                                       </div>
-                                      <div className="text-xs text-neutral-400 mt-1">
+                                      <div className="mt-1 text-caption-1-regular text-ink-tertiary tnum">
                                         {formatDateTime(qs.createdAt)}
                                       </div>
                                     </div>
                                   ))
                                 ) : (
-                                  <div className="h-[100px] flex items-center justify-center text-neutral-400 text-sm border border-dashed border-neutral-200 rounded-lg">
+                                  <div className="h-[100px] flex items-center justify-center text-ink-tertiary text-body-2-regular border border-dashed border-line-separator rounded-lg">
                                     暂无符合条件的刷题记录
                                   </div>
                                 )}
                               </div>
                             </>
                           ) : (
-                            <div className="h-[120px] flex items-center justify-center text-neutral-400 text-sm border border-dashed border-neutral-200 rounded-lg">
+                            <div className="h-[120px] flex items-center justify-center text-ink-tertiary text-body-2-regular border border-dashed border-line-separator rounded-lg">
                               暂无刷题记录
                             </div>
                           )}
@@ -925,21 +1123,18 @@ export function StatsPage() {
                           chapterProgress.map((course) => (
                             <div
                               key={course.courseId}
-                              className="p-4 rounded-xl border border-neutral-100 bg-white"
+                              className="p-4 rounded-xl border border-line-separator bg-surface-primary"
                             >
                               <div className="flex items-center justify-between mb-3">
-                                <div className="flex items-center gap-2">
-                                  <BookOpen className="w-4 h-4 text-primary-550" />
-                                  <span className="text-sm font-semibold text-neutral-900">
-                                    {course.courseName}
-                                  </span>
-                                </div>
+                                <span className="truncate text-body-2-medium text-ink-primary">
+                                  {course.courseName}
+                                </span>
                                 <Badge variant={course.completionRate === 100 ? 'success' : 'secondary'}>
                                   {course.completedChapters}/{course.totalChapters}
                                 </Badge>
                               </div>
                               <div className="mb-3">
-                                <div className="flex items-center justify-between text-xs text-neutral-500 mb-1">
+                                <div className="flex items-center justify-between text-caption-1-regular text-ink-tertiary mb-1.5 tnum">
                                   <span>完成度</span>
                                   <span>{course.completionRate}%</span>
                                 </div>
@@ -953,20 +1148,23 @@ export function StatsPage() {
                                   >
                                     <div className="flex items-center gap-2 min-w-0">
                                       <ListChecks
-                                        className={`w-4 h-4 shrink-0 ${
-                                          ch.completed ? 'text-green-500' : 'text-neutral-300'
-                                        }`}
+                                        className={cn(
+                                          'w-4 h-4 shrink-0',
+                                          ch.completed ? 'text-emerald-500' : 'text-neutral-300'
+                                        )}
                                       />
-                                      <span className="text-xs text-neutral-700 truncate">
+                                      <span className="text-caption-1-regular text-ink-primary truncate">
                                         第{ch.chapterNo}章 {ch.chapterName}
                                       </span>
                                     </div>
                                     {ch.completed ? (
-                                      <span className="text-xs text-green-600 shrink-0">
+                                      <span className="text-caption-1-regular text-emerald-600 shrink-0 tnum">
                                         {formatDateTime(ch.completedAt)?.split(' ')[0] || '已完成'}
                                       </span>
                                     ) : (
-                                      <span className="text-xs text-neutral-400 shrink-0">未学习</span>
+                                      <span className="text-caption-1-regular text-ink-tertiary shrink-0">
+                                        未学习
+                                      </span>
                                     )}
                                   </div>
                                 ))}
@@ -974,7 +1172,7 @@ export function StatsPage() {
                             </div>
                           ))
                         ) : (
-                          <div className="h-[300px] flex items-center justify-center text-neutral-400 text-sm border border-dashed border-neutral-200 rounded-lg">
+                          <div className="h-[300px] flex items-center justify-center text-ink-tertiary text-body-2-regular border border-dashed border-line-separator rounded-lg">
                             暂无章节进度数据
                           </div>
                         )}
@@ -988,17 +1186,17 @@ export function StatsPage() {
                           examRecords.map((record) => (
                             <div
                               key={record.examId}
-                              className="p-4 rounded-xl border border-neutral-100 bg-white"
+                              className="p-4 rounded-xl border border-line-separator bg-surface-primary"
                             >
                               <div className="flex items-start justify-between gap-4">
                                 <div className="min-w-0">
                                   <div className="flex items-center gap-2">
-                                    <FileText className="w-4 h-4 text-primary-550 shrink-0" />
-                                    <span className="text-sm font-semibold text-neutral-900 truncate">
+                                    <FileText className="w-4 h-4 text-ink-tertiary shrink-0" />
+                                    <span className="text-body-2-medium text-ink-primary truncate">
                                       {record.title}
                                     </span>
                                   </div>
-                                  <div className="text-xs text-neutral-500 mt-1">
+                                  <div className="text-caption-1-regular text-ink-tertiary mt-1">
                                     {record.courseName} · {record.className}
                                   </div>
                                 </div>
@@ -1012,7 +1210,7 @@ export function StatsPage() {
                                   )}
                                 </div>
                               </div>
-                              <div className="text-xs text-neutral-500 mt-3 flex flex-wrap gap-x-4 gap-y-1">
+                              <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-caption-1-regular text-ink-secondary tnum">
                                 <span>类型 {record.type === 'exam' ? '考试' : '作业'}</span>
                                 <span>总分 {record.totalScore}</span>
                                 <span>及格 {record.passScore}</span>
@@ -1037,7 +1235,7 @@ export function StatsPage() {
                             </div>
                           ))
                         ) : (
-                          <div className="h-[300px] flex items-center justify-center text-neutral-400 text-sm border border-dashed border-neutral-200 rounded-lg">
+                          <div className="h-[300px] flex items-center justify-center text-ink-tertiary text-body-2-regular border border-dashed border-line-separator rounded-lg">
                             暂无考试/作业记录
                           </div>
                         )}
@@ -1054,20 +1252,21 @@ export function StatsPage() {
         <TabsContent value="classRanking" className="mt-6">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Award className="w-4 h-4 text-primary-550" />
-                各班级平均学习时长排行
-              </CardTitle>
+              <CardTitle>各班级平均学习时长排行</CardTitle>
             </CardHeader>
             <CardContent>
               {classRankingData.length > 0 ? (
                 <div className="h-96">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={classRankingData} layout="vertical">
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e6e9ef" />
+                    <BarChart
+                      data={classRankingData}
+                      layout="vertical"
+                      margin={{ top: 8, right: 16, left: 0, bottom: 0 }}
+                    >
+                      <CartesianGrid strokeDasharray="4 8" stroke={GRID_COLOR} horizontal={false} />
                       <XAxis
                         type="number"
-                        tick={{ fontSize: 12, fill: '#7f8798' }}
+                        tick={TICK}
                         unit="分"
                         axisLine={false}
                         tickLine={false}
@@ -1075,7 +1274,7 @@ export function StatsPage() {
                       <YAxis
                         type="category"
                         dataKey="name"
-                        tick={{ fontSize: 12, fill: '#7f8798' }}
+                        tick={TICK}
                         width={140}
                         axisLine={false}
                         tickLine={false}
@@ -1085,24 +1284,25 @@ export function StatsPage() {
                           `${value} 分钟（${props.payload.studentCount}人）`,
                           '人均时长',
                         ]}
-                        contentStyle={{
-                          backgroundColor: '#fff',
-                          border: '1px solid #e6e9ef',
-                          borderRadius: '12px',
-                          boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
-                        }}
+                        contentStyle={TOOLTIP_STYLE}
+                        cursor={{ fill: '#f7f7f7' }}
                       />
-                      <Legend />
-                      <Bar dataKey="avgMinutes" name="人均学习时长（分钟）" radius={[0, 6, 6, 0]} maxBarSize={80}>
-                        {classRankingData.map((_, i) => (
-                          <Cell key={i} fill={chartColors[i % chartColors.length]} />
+                      <Bar dataKey="avgMinutes" name="人均学习时长（分钟）" radius={[0, 6, 6, 0]} maxBarSize={28} fill="#3b82f6">
+                        {classRankingData.map((_item: any, i: number) => (
+                          <Cell
+                            key={i}
+                            fillOpacity={
+                              0.45 +
+                              (0.55 * (classRankingData.length - i)) / classRankingData.length
+                            }
+                          />
                         ))}
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
               ) : (
-                <div className="h-[300px] flex items-center justify-center text-neutral-400">
+                <div className="h-[300px] flex items-center justify-center text-ink-tertiary text-body-2-regular">
                   暂无班级数据
                 </div>
               )}
@@ -1114,48 +1314,33 @@ export function StatsPage() {
         <TabsContent value="trend" className="mt-6">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-primary-550" />
-                近 7 天学习时长趋势
-              </CardTitle>
+              <CardTitle>近 7 天学习时长趋势</CardTitle>
             </CardHeader>
             <CardContent>
               {trend.length > 0 ? (
                 <div className="h-96">
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={trend}>
+                    <AreaChart data={trendSeries} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
                       <defs>
                         <linearGradient id="colorTrend" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#5b58ff" stopOpacity={0.3} />
-                          <stop offset="95%" stopColor="#5b58ff" stopOpacity={0} />
+                          <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.16} />
+                          <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
                         </linearGradient>
                       </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e6e9ef" vertical={false} />
+                      <CartesianGrid strokeDasharray="4 8" stroke={GRID_COLOR} vertical={false} />
                       <XAxis
                         dataKey="date"
-                        stroke="#7f8798"
-                        fontSize={12}
+                        tick={TICK}
                         axisLine={false}
                         tickLine={false}
+                        minTickGap={16}
                       />
-                      <YAxis
-                        stroke="#7f8798"
-                        fontSize={12}
-                        axisLine={false}
-                        tickLine={false}
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: '#fff',
-                          border: '1px solid #e6e9ef',
-                          borderRadius: '12px',
-                          boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
-                        }}
-                      />
+                      <YAxis tick={TICK} axisLine={false} tickLine={false} width={40} />
+                      <Tooltip contentStyle={TOOLTIP_STYLE} />
                       <Area
                         type="monotone"
                         dataKey="minutes"
-                        stroke="#5b58ff"
+                        stroke="#3b82f6"
                         strokeWidth={2}
                         fill="url(#colorTrend)"
                         name="学习时长(分钟)"
@@ -1164,7 +1349,7 @@ export function StatsPage() {
                   </ResponsiveContainer>
                 </div>
               ) : (
-                <div className="h-[300px] flex items-center justify-center text-neutral-400">
+                <div className="h-[300px] flex items-center justify-center text-ink-tertiary text-body-2-regular">
                   暂无趋势数据
                 </div>
               )}
@@ -1190,7 +1375,7 @@ export function StatsPage() {
           </DialogHeader>
 
           {examDetailLoading ? (
-            <div className="py-12 text-center text-neutral-400">加载作答明细...</div>
+            <div className="py-12 text-center text-ink-tertiary">加载作答明细...</div>
           ) : examDetailError ? (
             <div className="py-12 text-center text-danger">{examDetailError}</div>
           ) : examDetail ? (
@@ -1202,12 +1387,12 @@ export function StatsPage() {
                 return (
                   <div
                     key={idx}
-                    className="p-4 rounded-xl border border-neutral-100 bg-white"
+                    className="p-4 rounded-xl border border-line-separator bg-surface-primary"
                   >
                     <div className="flex items-start justify-between gap-3">
-                      <div className="text-sm font-medium text-neutral-900">
-                        <span className="text-neutral-500 mr-2">第{answer.questionIndex}题</span>
-                        <span className="text-xs text-neutral-500 border border-neutral-200 rounded px-1.5 py-0.5">
+                      <div className="text-body-2-medium text-ink-primary">
+                        <span className="text-ink-tertiary mr-2">第{answer.questionIndex}题</span>
+                        <span className="text-caption-1-regular text-ink-secondary border border-line-separator rounded px-1.5 py-0.5">
                           {questionTypeLabel(answer.questionType)}
                         </span>
                       </div>
@@ -1220,36 +1405,38 @@ export function StatsPage() {
                     </div>
 
                     <HtmlMath
-                      className="text-sm text-neutral-700 mt-3 leading-relaxed"
+                      className="text-body-2-regular text-ink-primary mt-3 leading-relaxed"
                       html={answer.question || ''}
                     />
 
                     {options.length > 0 && (
                       <div className="mt-2 space-y-1">
                         {options.map((opt, i) => (
-                          <div key={i} className="text-xs text-neutral-600 pl-2">
+                          <div key={i} className="text-caption-1-regular text-ink-secondary pl-2">
                             {opt}
                           </div>
                         ))}
                       </div>
                     )}
 
-                    <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 text-caption-1-regular">
                       <div className="p-2 rounded-lg bg-neutral-50">
-                        <span className="text-neutral-500">学生答案：</span>
-                        <span className="text-neutral-900 break-all">
-                          {answer.userAnswer || '未作答'}
-                        </span>
+                        <span className="text-ink-tertiary">学生答案：</span>
+                        <MathText
+                          className="text-ink-primary break-all"
+                          text={answer.userAnswer || '未作答'}
+                        />
                       </div>
                       <div className="p-2 rounded-lg bg-neutral-50">
-                        <span className="text-neutral-500">正确答案：</span>
-                        <span className="text-neutral-900 break-all">
-                          {answer.correctAnswer || '-'}
-                        </span>
+                        <span className="text-ink-tertiary">正确答案：</span>
+                        <MathText
+                          className="text-ink-primary break-all"
+                          text={answer.correctAnswer || '-'}
+                        />
                       </div>
                     </div>
 
-                    <div className="mt-2 text-xs text-neutral-500">
+                    <div className="mt-2 text-caption-1-regular text-ink-secondary tnum">
                       得分 {answer.userScore ?? '-'}/{answer.maxScore ?? '-'}
                       {answer.aiScore != null && (
                         <span className="ml-3">AI评分 {answer.aiScore}</span>
@@ -1257,7 +1444,7 @@ export function StatsPage() {
                     </div>
 
                     {(answer.aiComment || answer.teacherComment) && (
-                      <div className="mt-2 text-xs text-neutral-500 bg-neutral-50 p-2 rounded-lg">
+                      <div className="mt-2 text-caption-1-regular text-ink-secondary bg-neutral-50 p-2 rounded-lg">
                         {answer.aiComment && <div>AI评语：{answer.aiComment}</div>}
                         {answer.teacherComment && <div>教师评语：{answer.teacherComment}</div>}
                       </div>

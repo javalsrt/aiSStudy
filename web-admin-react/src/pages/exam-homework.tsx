@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Select } from '@/components/ui/select'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { MathText } from '@/components/rich-text'
 import { SpotlightCard } from '@/components/SpotlightCard'
@@ -9,16 +10,14 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Progress } from '@/components/ui/progress'
+import { Skeleton } from '@/components/ui/skeleton'
+import { useDialog } from '@/hooks/use-dialog'
 import {
   Plus,
   Search,
   FileText,
-  Clock,
   Users,
-  Calendar,
   Trash2,
-  Eye,
-  Edit3,
   ChevronRight,
   ChevronLeft,
   CheckCircle2,
@@ -65,6 +64,7 @@ const difficultyOptions = [
 const steps = ['基础信息', '出题方式', '题目预览', '发布确认']
 
 export function ExamHomeworkPage() {
+  const { alert, confirm, DialogComponent } = useDialog()
   // 列表数据
   const [list, setList] = useState<ExamHomeworkItem[]>([])
   const [loading, setLoading] = useState(false)
@@ -256,7 +256,7 @@ export function ExamHomeworkPage() {
       setPublishOpen(true)
     } catch (e: any) {
       console.error('[openPublish] error:', e)
-      alert('打开发布窗口失败：' + (e?.message || String(e)))
+      alert({ description: '打开发布窗口失败：' + (e?.message || String(e)) })
     }
   }
 
@@ -405,12 +405,18 @@ export function ExamHomeworkPage() {
 
   // 删除
   const handleDelete = async (id: number) => {
-    if (!confirm('确定删除该考试/作业吗？')) return
+    const confirmed = await confirm({
+      title: '删除考试/作业',
+      description: '确定删除该考试/作业吗？删除后不可恢复。',
+      confirmText: '删除',
+      variant: 'danger',
+    })
+    if (!confirmed) return
     try {
       await deleteExamHomework(id)
       loadList()
     } catch (err: any) {
-      alert(err.response?.data?.message || '删除失败')
+      alert({ description: err.response?.data?.message || '删除失败' })
     }
   }
 
@@ -421,7 +427,7 @@ export function ExamHomeworkPage() {
       await toggleExamHomeworkStatus(item.id, newStatus)
       loadList()
     } catch (err: any) {
-      alert(err.response?.data?.message || '操作失败')
+      alert({ description: err.response?.data?.message || '操作失败' })
     }
   }
 
@@ -436,7 +442,7 @@ export function ExamHomeworkPage() {
       const data = await getExamSubmissions(item.id)
       setSubmissions(data || [])
     } catch (err: any) {
-      alert(err?.response?.data?.message || '加载提交列表失败')
+      alert({ description: err?.response?.data?.message || '加载提交列表失败' })
     } finally {
       setSubmissionsLoading(false)
     }
@@ -458,13 +464,13 @@ export function ExamHomeworkPage() {
         finalScore: Number(adjustForm.score),
         teacherComment: adjustForm.comment,
       })
-      alert(`调整成功！新分数：${res.newScore}分，剩余可调整次数：${res.remainingAdjust}`)
+      alert({ description: `调整成功！新分数：${res.newScore}分，剩余可调整次数：${res.remainingAdjust}` })
       // 刷新该提交
       setAdjustingAnswerId(null)
       const data = await getExamSubmissions(submissionsExam!.id)
       setSubmissions(data || [])
     } catch (err: any) {
-      alert(err?.response?.data?.message || '调整失败')
+      alert({ description: err?.response?.data?.message || '调整失败' })
     }
   }
 
@@ -498,11 +504,12 @@ export function ExamHomeworkPage() {
 
   return (
     <div className="space-y-6">
+      {DialogComponent}
       {/* 页面标题 */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-neutral-900">考试作业</h1>
-          <p className="text-neutral-500 mt-1 text-sm">发布和管理考试、作业，支持 AI 出题与文档识别</p>
+          {/* 副标题（不展示）：发布和管理考试、作业，支持 AI 出题与文档识别 */}
+          <h1 className="text-display-4-medium text-ink-primary">考试作业</h1>
         </div>
         <Button
           className="gap-1"
@@ -515,7 +522,7 @@ export function ExamHomeworkPage() {
               console.log('[ExamHomework] openPublish 执行完成')
             } catch (err: any) {
               console.error('[ExamHomework] openPublish 异常:', err)
-              alert('打开发布窗口失败：' + (err?.message || String(err)))
+              alert({ description: '打开发布窗口失败：' + (err?.message || String(err)) })
             }
           }}
         >
@@ -525,13 +532,13 @@ export function ExamHomeworkPage() {
       </div>
 
       {/* 筛选区 */}
-      <Card>
+      <Card className="rounded-3xl">
         <CardContent className="p-4">
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center gap-2">
               <span className="text-sm text-neutral-500">班级</span>
-              <select
-                className="h-9 rounded-md border border-neutral-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-200"
+              <Select
+                className="h-9 rounded-md border border-neutral-200 bg-surface-primary px-3 text-sm focus:outline-hidden focus:ring-2 focus:ring-emerald-200"
                 value={filterClassId}
                 onChange={(e) => setFilterClassId(e.target.value ? Number(e.target.value) : '')}
               >
@@ -539,26 +546,26 @@ export function ExamHomeworkPage() {
                 {classes.map((c) => (
                   <option key={c.id} value={c.id}>{c.className}</option>
                 ))}
-              </select>
+              </Select>
             </div>
 
             <div className="flex items-center gap-2">
               <span className="text-sm text-neutral-500">类型</span>
-              <select
-                className="h-9 rounded-md border border-neutral-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-200"
+              <Select
+                className="h-9 rounded-md border border-neutral-200 bg-surface-primary px-3 text-sm focus:outline-hidden focus:ring-2 focus:ring-emerald-200"
                 value={filterType}
                 onChange={(e) => setFilterType(e.target.value as any)}
               >
                 <option value="all">全部</option>
                 <option value="exam">考试</option>
                 <option value="homework">作业</option>
-              </select>
+              </Select>
             </div>
 
             <div className="flex items-center gap-2">
               <span className="text-sm text-neutral-500">状态</span>
-              <select
-                className="h-9 rounded-md border border-neutral-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-200"
+              <Select
+                className="h-9 rounded-md border border-neutral-200 bg-surface-primary px-3 text-sm focus:outline-hidden focus:ring-2 focus:ring-emerald-200"
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value as any)}
               >
@@ -566,7 +573,7 @@ export function ExamHomeworkPage() {
                 <option value="published">进行中</option>
                 <option value="draft">未发布</option>
                 <option value="ended">已结束</option>
-              </select>
+              </Select>
             </div>
 
             <div className="flex-1 min-w-[200px]">
@@ -589,16 +596,29 @@ export function ExamHomeworkPage() {
         </CardContent>
       </Card>
 
-      {/* 列表区 */}
-      <Card>
-        <CardHeader>
+      {/* 列表区：外层 24px 圆角 + 12px 内边距，内层 8px 圆角形成同心圆 */}
+      <Card className="rounded-3xl">
+        <CardHeader className="p-3 pb-2">
           <CardTitle className="text-base">考试作业列表</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-3 pt-0">
           {loading ? (
-            <div className="h-[300px] flex items-center justify-center text-neutral-400">
-              <Loader2 className="w-5 h-5 animate-spin mr-2" />
-              加载中...
+            <div className="space-y-2">
+              {Array.from({ length: 3 }).map((_, index) => (
+                <div key={index} className="flex items-center gap-3 rounded-lg bg-neutral-100 p-3">
+                  <Skeleton className="h-10 w-10 shrink-0 rounded-[12px]" />
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <Skeleton className="h-4 w-40 max-w-full" />
+                    <Skeleton className="h-3 w-2/3" />
+                    <Skeleton className="h-3 w-1/2" />
+                  </div>
+                  <div className="hidden shrink-0 items-center gap-2 sm:flex">
+                    <Skeleton className="h-8 w-16 rounded-lg" />
+                    <Skeleton className="h-8 w-16 rounded-lg" />
+                    <Skeleton className="h-8 w-8 rounded-lg" />
+                  </div>
+                </div>
+              ))}
             </div>
           ) : error ? (
             <div className="h-[300px] flex items-center justify-center text-danger">{error}</div>
@@ -619,73 +639,95 @@ export function ExamHomeworkPage() {
               </Button>
             </div>
           ) : (
-            <div className="space-y-3">
-              {filteredList.map((item) => (
+            <div className="space-y-2">
+              {filteredList.map((item) => {
+                // 元信息按实际存在的字段拼接，避免出现“总分 分”“题目 道”这类空标签
+                const meta = [
+                  item.className,
+                  item.startTime && item.endTime ? `${item.startTime} ~ ${item.endTime}` : null,
+                  item.timeLimit ? `限时 ${item.timeLimit} 分钟` : null,
+                  item.totalScore ? `总分 ${item.totalScore}` : null,
+                  item.questionCount ? `${item.questionCount} 道题` : null,
+                ].filter(Boolean) as string[]
+                return (
                 <SpotlightCard
                   key={item.id}
-                  className="flex items-center justify-between p-4"
-                  border
+                  className="rounded-lg border-0 bg-neutral-100 p-3 shadow-none transition-colors hover:bg-neutral-150"
+                  spotlightColor="rgba(59, 130, 246, 0.07)"
+                  border={false}
                 >
-                  <div className="flex items-start gap-4">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                      item.type === 'exam' ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'
-                    }`}>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                    <div
+                      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] squircle ${
+                        item.type === 'exam'
+                          ? 'bg-orange-100 text-orange-600'
+                          : 'bg-blue-100 text-blue-600'
+                      }`}
+                    >
                       <FileText className="w-5 h-5" />
                     </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-semibold text-neutral-900">{item.title}</h3>
+
+                    <div className="min-w-0 flex-1 basis-[280px]">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <h3 className="min-w-0 truncate text-body-medium font-semibold text-ink-primary">
+                          {item.title}
+                        </h3>
                         {getTypeBadge(item.type)}
                         {getStatusBadge(item.status)}
                       </div>
-                      <p className="text-sm text-neutral-500 mt-1 line-clamp-1">{item.description || '暂无描述'}</p>
-                      <div className="flex items-center gap-4 mt-2 text-xs text-neutral-500">
-                        <span className="flex items-center gap-1">
-                          <Users className="w-3.5 h-3.5" />
-                          {item.className}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Calendar className="w-3.5 h-3.5" />
-                          {item.startTime} ~ {item.endTime}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Clock className="w-3.5 h-3.5" />
-                          限时 {item.timeLimit} 分钟
-                        </span>
-                        <span>总分 {item.totalScore} 分</span>
-                        <span>题目 {item.questionCount} 道</span>
+                      {item.description ? (
+                        <p className="mt-0.5 truncate text-caption-1-regular text-ink-tertiary">
+                          {item.description}
+                        </p>
+                      ) : null}
+                      <div className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-caption-1-regular text-ink-tertiary tnum">
+                        {meta.map((text, index) => (
+                          <span key={text} className="flex items-center gap-1.5">
+                            {index > 0 && (
+                              <span aria-hidden="true" className="text-neutral-300">·</span>
+                            )}
+                            <span className={index === 0 ? 'text-ink-secondary' : undefined}>
+                              {text}
+                            </span>
+                          </span>
+                        ))}
                       </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Button variant="ghost" size="sm" onClick={() => openSubmissions(item)} title="查看提交">
-                      <Users className="w-4 h-4 mr-1" />
-                      提交
-                    </Button>
-                    <Button variant="ghost" size="icon" className="w-8 h-8" title="查看">
-                      <Eye className="w-4 h-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="w-8 h-8" title="编辑">
-                      <Edit3 className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleToggleStatus(item)}
-                    >
-                      {item.status === 1 ? '下架' : '发布'}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="w-8 h-8 text-danger hover:text-danger"
-                      onClick={() => handleDelete(item.id)}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+
+                    <div className="ml-auto flex shrink-0 items-center gap-0.5">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="px-2 text-ink-secondary"
+                        onClick={() => openSubmissions(item)}
+                        title="查看提交"
+                      >
+                        <Users className="w-4 h-4" />
+                        提交
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="px-2 text-ink-secondary"
+                        onClick={() => handleToggleStatus(item)}
+                      >
+                        {item.status === 1 ? '下架' : '发布'}
+                      </Button>
+                      <span aria-hidden="true" className="mx-1 h-4 w-px bg-line-separator" />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-ink-tertiary hover:text-danger"
+                        onClick={() => handleDelete(item.id)}
+                        title="删除"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </div>
                 </SpotlightCard>
-              ))}
+                )
+              })}
             </div>
           )}
         </CardContent>
@@ -694,7 +736,7 @@ export function ExamHomeworkPage() {
       {/* 发布弹窗 */}
       <Dialog open={publishOpen} onOpenChange={setPublishOpen}>
         <DialogContent
-          className="max-w-3xl max-h-[90vh] overflow-y-auto bg-white"
+          className="max-w-3xl max-h-[90vh] overflow-y-auto bg-surface-primary"
           style={{ pointerEvents: 'auto', zIndex: 9999 }}
         >
           <DialogHeader>
@@ -726,7 +768,7 @@ export function ExamHomeworkPage() {
 
           {generationError && (
             <div className="mb-4 p-3 rounded-lg bg-red-50 text-red-600 text-sm flex items-start gap-2">
-              <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
               {generationError}
             </div>
           )}
@@ -746,8 +788,8 @@ export function ExamHomeworkPage() {
                       onClick={() => updateForm('type', t.value as any)}
                       className={`flex-1 p-4 rounded-xl border cursor-pointer transition-all ${
                         form.type === t.value
-                          ? 'border-primary-550 bg-primary-50'
-                          : 'border-neutral-200 hover:border-primary-200'
+                          ? 'border-emerald-300 bg-emerald-50'
+                          : 'border-neutral-200 hover:border-emerald-200'
                       }`}
                     >
                       <div className="font-semibold">{t.label}</div>
@@ -759,9 +801,9 @@ export function ExamHomeworkPage() {
 
               <div>
                 <Label htmlFor="classId">选择班级</Label>
-                <select
+                <Select
                   id="classId"
-                  className="mt-1.5 w-full h-10 rounded-md border border-neutral-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-200"
+                  className="mt-1.5 w-full h-10 rounded-md border border-neutral-200 bg-surface-primary px-3 text-sm focus:outline-hidden focus:ring-2 focus:ring-emerald-200"
                   value={form.classId}
                   onChange={(e) => updateForm('classId', e.target.value ? Number(e.target.value) : '')}
                 >
@@ -769,7 +811,7 @@ export function ExamHomeworkPage() {
                   {classes.map((c) => (
                     <option key={c.id} value={c.id}>{c.className}</option>
                   ))}
-                </select>
+                </Select>
               </div>
 
               <div>
@@ -788,7 +830,7 @@ export function ExamHomeworkPage() {
                 <textarea
                   id="description"
                   rows={3}
-                  className="mt-1.5 w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-200 resize-none"
+                  className="mt-1.5 w-full rounded-md border border-neutral-200 bg-surface-primary px-3 py-2 text-sm focus:outline-hidden focus:ring-2 focus:ring-emerald-200 resize-none"
                   placeholder="请输入考试/作业说明"
                   value={form.description}
                   onChange={(e) => updateForm('description', e.target.value)}
@@ -903,8 +945,8 @@ export function ExamHomeworkPage() {
                       onClick={() => updateForm('questionMode', m.value as any)}
                       className={`p-4 rounded-xl border cursor-pointer transition-all ${
                         form.questionMode === m.value
-                          ? 'border-primary-550 bg-primary-50'
-                          : 'border-neutral-200 hover:border-primary-200'
+                          ? 'border-emerald-300 bg-emerald-50'
+                          : 'border-neutral-200 hover:border-emerald-200'
                       }`}
                     >
                       <div className="font-semibold">{m.label}</div>
@@ -918,9 +960,9 @@ export function ExamHomeworkPage() {
                 <>
                   <div>
                     <Label htmlFor="courseId">选择课程</Label>
-                    <select
+                    <Select
                       id="courseId"
-                      className="mt-1.5 w-full h-10 rounded-md border border-neutral-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-200"
+                      className="mt-1.5 w-full h-10 rounded-md border border-neutral-200 bg-surface-primary px-3 text-sm focus:outline-hidden focus:ring-2 focus:ring-emerald-200"
                       value={form.courseId}
                       onChange={(e) => updateForm('courseId', e.target.value ? Number(e.target.value) : '')}
                     >
@@ -928,7 +970,7 @@ export function ExamHomeworkPage() {
                       {courses.map((c) => (
                         <option key={c.courseId} value={c.courseId}>{c.courseName}</option>
                       ))}
-                    </select>
+                    </Select>
                   </div>
 
                   <div>
@@ -965,7 +1007,7 @@ export function ExamHomeworkPage() {
                   <Label>上传文档</Label>
                   <div
                     onClick={() => fileInputRef.current?.click()}
-                    className="mt-1.5 border-2 border-dashed border-neutral-200 rounded-xl p-8 text-center cursor-pointer hover:border-primary-300 hover:bg-primary-50/30 transition-colors"
+                    className="mt-1.5 border-2 border-dashed border-neutral-200 rounded-xl p-8 text-center cursor-pointer hover:border-emerald-300 hover:bg-emerald-50/60/30 transition-colors"
                   >
                     <Upload className="w-8 h-8 mx-auto text-neutral-400 mb-2" />
                     <p className="text-sm text-neutral-600">
@@ -991,8 +1033,8 @@ export function ExamHomeworkPage() {
                       key={qt.value}
                       className={`px-3 py-1.5 rounded-full text-sm border cursor-pointer transition-colors ${
                         form.questionTypes.includes(qt.value)
-                          ? 'bg-primary-50 border-primary-300 text-primary-700'
-                          : 'bg-white border-neutral-200 text-neutral-600 hover:border-primary-200'
+                          ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                          : 'bg-surface-primary border-neutral-200 text-neutral-600 hover:border-emerald-200'
                       }`}
                     >
                       <input
@@ -1019,16 +1061,16 @@ export function ExamHomeworkPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="difficulty">难度</Label>
-                  <select
+                  <Select
                     id="difficulty"
-                    className="mt-1.5 w-full h-10 rounded-md border border-neutral-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-200"
+                    className="mt-1.5 w-full h-10 rounded-md border border-neutral-200 bg-surface-primary px-3 text-sm focus:outline-hidden focus:ring-2 focus:ring-emerald-200"
                     value={form.difficulty}
                     onChange={(e) => updateForm('difficulty', e.target.value)}
                   >
                     {difficultyOptions.map((d) => (
                       <option key={d.value} value={d.value}>{d.label}</option>
                     ))}
-                  </select>
+                  </Select>
                 </div>
                 <div>
                   <Label htmlFor="questionCount">题目数量</Label>
@@ -1176,7 +1218,7 @@ export function ExamHomeworkPage() {
 
           {/* 生成题目全屏遮罩，阻止误点击导致弹窗关闭或步骤跳转 */}
           {generating && (
-            <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm rounded-lg">
+            <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-surface-primary/80 backdrop-blur-xs rounded-lg">
               <Loader2 className="w-10 h-10 animate-spin text-primary-550 mb-4" />
               <p className="text-sm font-medium text-neutral-700">AI 正在分批生成题目</p>
               <p className="text-xs text-neutral-500 mt-1">请勿关闭窗口或点击其他区域</p>
@@ -1187,7 +1229,7 @@ export function ExamHomeworkPage() {
 
       {/* 提交列表弹窗 */}
       <Dialog open={submissionsOpen} onOpenChange={(o) => !o && setSubmissionsOpen(false)}>
-        <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col bg-white">
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col bg-surface-primary">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Users className="w-5 h-5 text-primary-550" />
@@ -1223,7 +1265,7 @@ export function ExamHomeworkPage() {
                       <div
                         role="button"
                         tabIndex={0}
-                        className="flex items-center justify-between p-4 cursor-pointer hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-300"
+                        className="flex items-center justify-between p-4 cursor-pointer hover:bg-neutral-50 focus:outline-hidden focus:ring-2 focus:ring-emerald-300"
                         onClick={() => setExpandedSubmissionId(expanded ? null : s.id)}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' || e.key === ' ') {
@@ -1269,9 +1311,9 @@ export function ExamHomeworkPage() {
                             const isShort = a.questionType === 'short_answer'
                             const adjusting = adjustingAnswerId === a.id
                             return (
-                              <div key={a.id} className="p-4 rounded-xl border border-neutral-100 bg-white">
+                              <div key={a.id} className="p-4 rounded-xl border border-neutral-100 bg-surface-primary">
                                 <div className="flex items-start gap-3 mb-2">
-                                  <Badge variant="outline" className="flex-shrink-0 mt-0.5">
+                                  <Badge variant="outline" className="shrink-0 mt-0.5">
                                     {TYPE_LABEL[a.questionType] || a.questionType}
                                   </Badge>
                                   <div className="flex-1">
@@ -1348,7 +1390,7 @@ export function ExamHomeworkPage() {
                                       )}
                                     </div>
                                     {adjusting && isShort ? (
-                                      <div className="space-y-2 p-2 border border-primary-200 rounded bg-primary-50/50">
+                                      <div className="space-y-2 p-2 border border-emerald-200 rounded bg-emerald-50/50">
                                         <div className="flex items-center gap-2">
                                           <Label className="text-xs whitespace-nowrap">分数 (0-{a.maxScore})</Label>
                                           <Input

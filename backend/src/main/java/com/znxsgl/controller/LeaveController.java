@@ -402,6 +402,12 @@ public class LeaveController {
             m.put("endText", fmt(r.get("end_time")));
             m.put("createdText", fmt(r.get("created_at")));
             m.put("teacherReviewerRole", r.get("teacher_reviewer_role"));
+            // 家长告知/短信/电话与审批意见：前端按驼峰字段读取，这里统一补齐
+            m.put("parentNotified", toInt(r.get("parent_notified")));
+            m.put("smsSent", toInt(r.get("sms_sent")));
+            m.put("parentPhone", r.get("parent_phone"));
+            m.put("teacherComment", r.get("teacher_comment"));
+            m.put("leaderComment", r.get("leader_comment"));
             m.put("leaderReviewerRole", r.get("leader_reviewer_role"));
             m.put("headTeacherName", r.get("headTeacherName"));
             m.put("teacherName", r.get("teacherName"));
@@ -485,6 +491,13 @@ public class LeaveController {
 
     private String str(Object o) {
         return o == null ? "" : String.valueOf(o);
+    }
+
+    /** tinyint(1) 可能被驱动映射为 Boolean，统一转成 0/1 供前端比较 */
+    private int toInt(Object o) {
+        if (o instanceof Boolean b) return b ? 1 : 0;
+        if (o instanceof Number n) return n.intValue();
+        return 0;
     }
 
     private boolean isTrue(Object o) {

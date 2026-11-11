@@ -16,7 +16,7 @@ const SheetOverlay = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Overlay
     className={cn(
-      'fixed inset-0 z-50 bg-black/40 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
+      'fixed inset-0 z-50 bg-black/20 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
       className
     )}
     {...props}
@@ -36,13 +36,13 @@ const SheetContent = React.forwardRef<
 >(({ side = 'right', className, children, ...props }, ref) => {
   const sideClasses = {
     right:
-      'right-0 top-0 h-full w-full sm:w-[540px] border-l data-[state=open]:animate-slide-in-right data-[state=closed]:animate-slide-out-right',
+      'right-3 top-3 h-[calc(100vh-24px)] w-[calc(100vw-24px)] rounded-3xl border border-line-separator sm:w-[400px] data-[state=open]:animate-slide-in-right data-[state=closed]:animate-slide-out-right',
     left:
-      'left-0 top-0 h-full w-full sm:w-[540px] border-r',
+      'left-3 top-3 h-[calc(100vh-24px)] w-[calc(100vw-24px)] rounded-3xl border border-line-separator sm:w-[400px]',
     top:
-      'top-0 left-0 w-full h-auto border-b',
+      'left-3 right-3 top-3 h-auto max-h-[85vh] rounded-3xl border border-line-separator',
     bottom:
-      'bottom-0 left-0 w-full h-auto border-t',
+      'left-3 right-3 bottom-3 h-auto max-h-[85vh] rounded-3xl border border-line-separator',
   }
 
   return (
@@ -51,14 +51,14 @@ const SheetContent = React.forwardRef<
       <DialogPrimitive.Content
         ref={ref}
         className={cn(
-          'fixed z-50 gap-4 bg-white p-6 shadow-lg transition ease-in-out overflow-y-auto data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:duration-500',
+          'fixed z-50 flex flex-col overflow-hidden bg-surface-primary shadow-card transition-transform ease-in-out data-[state=closed]:animate-out data-[state=closed]:duration-200 data-[state=open]:animate-in data-[state=open]:duration-300',
           sideClasses[side],
           className
         )}
         {...props}
       >
         {children}
-        <DialogPrimitive.Close className="absolute right-4 top-4 rounded-full p-1 opacity-50 transition-opacity hover:opacity-100 hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:pointer-events-none">
+        <DialogPrimitive.Close className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full text-ink-tertiary transition-colors hover:bg-neutral-100 hover:text-ink-primary focus:outline-hidden focus:shadow-focus-double disabled:pointer-events-none">
           <X className="h-4 w-4" />
           <span className="sr-only">Close</span>
         </DialogPrimitive.Close>
@@ -74,7 +74,7 @@ const SheetHeader = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      'flex flex-col space-y-2 text-left pb-4 border-b border-neutral-200',
+      'flex shrink-0 flex-col space-y-1 px-6 pb-3 pr-12 pt-6 text-left',
       className
     )}
     {...props}
@@ -88,7 +88,7 @@ const SheetFooter = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      'sticky bottom-0 z-10 bg-white flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2 pt-4 border-t border-neutral-200',
+      'flex shrink-0 flex-col-reverse gap-2 border-t border-line-separator bg-surface-primary px-6 py-4 sm:flex-row sm:justify-end',
       className
     )}
     {...props}
@@ -102,7 +102,7 @@ const SheetTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Title
     ref={ref}
-    className={cn('text-lg font-semibold text-neutral-900', className)}
+    className={cn('text-[18px] font-semibold leading-6 text-ink-primary', className)}
     {...props}
   />
 ))
@@ -114,7 +114,7 @@ const SheetDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Description
     ref={ref}
-    className={cn('text-sm text-neutral-500', className)}
+    className={cn('text-caption-1-regular text-ink-secondary', className)}
     {...props}
   />
 ))

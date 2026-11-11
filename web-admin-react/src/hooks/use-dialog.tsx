@@ -130,7 +130,7 @@ export function useDialog() {
                   state.resolve(option.value)
                   close()
                 }}
-                className="w-full text-left px-4 py-3 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 hover:border-neutral-300 transition-colors text-sm text-neutral-800"
+                className="w-full text-left px-4 py-3 rounded-lg border border-neutral-200 bg-surface-primary hover:bg-neutral-50 hover:border-neutral-300 transition-colors text-sm text-neutral-800"
               >
                 {option.label}
               </button>

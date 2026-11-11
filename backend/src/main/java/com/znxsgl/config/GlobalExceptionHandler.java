@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -113,6 +114,16 @@ public class GlobalExceptionHandler {
         Map<String, Object> body = baseBody(HttpStatus.NOT_FOUND, request, "文件不存在或已被清理");
         log.warn("静态资源不存在：path={}", request.getRequestURI());
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
+    }
+
+    /** 请求方法不支持（如对只支持 POST 的接口发 GET） */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<Map<String, Object>> handleMethodNotSupported(
+            HttpRequestMethodNotSupportedException ex, HttpServletRequest request) {
+        Map<String, Object> body = baseBody(HttpStatus.METHOD_NOT_ALLOWED, request, "请求方法不支持");
+        log.warn("请求方法不支持：path={}, method={}, supported={}",
+                request.getRequestURI(), request.getMethod(), ex.getSupportedMethods());
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).body(body);
     }
 
     /** 兜底异常 */

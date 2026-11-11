@@ -13,6 +13,8 @@ import com.znxsgl.mapper.TeacherMapper;
 import com.znxsgl.mapper.UserMapper;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -39,6 +41,8 @@ import java.util.stream.Collectors;
 @RequestMapping("/api/admin/user")
 @PreAuthorize("hasRole('ADMIN')")
 public class AdminUserController {
+
+    private static final Logger log = LoggerFactory.getLogger(AdminUserController.class);
 
     private final UserMapper userMapper;
     private final TeacherMapper teacherMapper;
@@ -333,6 +337,18 @@ public class AdminUserController {
         if (role == null) {
             return ResponseEntity.badRequest().body(Map.of("error", "请选择角色"));
         }
+        if (role == 1 && classId == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "请选择班级"));
+        }
+
+        // 学生学号唯一，提前给出可读提示，避免直接撞库返回 SQL 错误
+        if (role == 1 && studentNo != null && !studentNo.trim().isEmpty()) {
+            Long studentNoCount = userMapper.selectCount(
+                    new LambdaQueryWrapper<User>().eq(User::getStudentNo, studentNo.trim()));
+            if (studentNoCount != null && studentNoCount > 0) {
+                return ResponseEntity.badRequest().body(Map.of("error", "学号已存在"));
+            }
+        }
 
         // 学生选择班级后，专业和年级以班级信息为准，避免手工填写不一致
         if (role == 1 && classId != null) {
@@ -362,7 +378,12 @@ public class AdminUserController {
         user.setMajor(major);
         user.setGrade(grade);
         user.setStatus(1);
-        userMapper.insert(user);
+        try {
+            userMapper.insert(user);
+        } catch (org.springframework.dao.DuplicateKeyException e) {
+            log.warn("新增用户命中唯一约束：username={}, studentNo={}", username, studentNo);
+            return ResponseEntity.badRequest().body(Map.of("error", "账号或学号已存在，请检查后重试"));
+        }
         assignSysRole(user.getId(), role);
 
         // 如果是教师，同步到 teacher 表
@@ -590,12 +611,13 @@ public class AdminUserController {
             classNameToId.put(c.getClassName(), c.getId());
         }
 
-        // 预加载已有用户名（避免重复插入）
+        // 预加载已有用户名/学号（避免重复插入）
         Set<String> existingUsernames = new HashSet<>();
-        List<User> allUsers = userMapper.selectList(
-                new LambdaQueryWrapper<User>().select(User::getUsername));
-        for (User u : allUsers) {
-            existingUsernames.add(u.getUsername());
+        Set<String> existingStudentNos = new HashSet<>();
+        for (User u : userMapper.selectList(
+                new LambdaQueryWrapper<User>().select(User::getUsername, User::getStudentNo))) {
+            if (u.getUsername() != null) existingUsernames.add(u.getUsername());
+            if (u.getStudentNo() != null) existingStudentNos.add(u.getStudentNo());
         }
 
         try (InputStream is = file.getInputStream();
@@ -669,9 +691,11 @@ public class AdminUserController {
                 }
                 if (username.isEmpty()) rowErrors.add("用户名为空");
 
-                // 班级名称不为空时需匹配
+                // 班级名称必填，避免导入出无班级学生
                 Long classId = null;
-                if (!className.isEmpty()) {
+                if (className.isEmpty()) {
+                    rowErrors.add("班级不能为空");
+                } else {
                     classId = classNameToId.get(className);
                     if (classId == null) {
                         rowErrors.add("班级「" + className + "」不存在");
@@ -681,6 +705,10 @@ public class AdminUserController {
                 // 用户名重复检查
                 if (!username.isEmpty() && existingUsernames.contains(username)) {
                     rowErrors.add("用户名「" + username + "」已存在");
+                }
+                // 学号重复检查
+                if (!studentNo.isEmpty() && existingStudentNos.contains(studentNo)) {
+                    rowErrors.add("学号「" + studentNo + "」已存在");
                 }
 
                 // 手机号格式校验
@@ -717,10 +745,24 @@ public class AdminUserController {
                 user.setMajor(major.isEmpty() ? null : major);
                 user.setGrade(grade.isEmpty() ? null : grade);
                 user.setStatus(1);
-                userMapper.insert(user);
+                try {
+                    userMapper.insert(user);
+                } catch (Exception ex) {
+                    // 单行失败不中断整批，返回该行可读原因而不是 SQL 细节
+                    log.warn("导入学生第{}行失败：username={}, studentNo={}", r + 1, username, studentNo);
+                    skipped++;
+                    Map<String, Object> errItem = new LinkedHashMap<>();
+                    errItem.put("row", r + 1);
+                    errItem.put("studentNo", studentNo);
+                    errItem.put("realName", realName);
+                    errItem.put("errors", List.of("账号或学号重复，或字段长度超出限制"));
+                    errors.add(errItem);
+                    continue;
+                }
                 assignSysRole(user.getId(), 1);
 
                 existingUsernames.add(username);
+                if (!studentNo.isEmpty()) existingStudentNos.add(studentNo);
                 imported++;
             }
 
@@ -729,8 +771,9 @@ public class AdminUserController {
             }
 
         } catch (Exception e) {
+            log.error("学生名单导入失败", e);
             return ResponseEntity.badRequest().body(Map.of(
-                    "error", "解析Excel失败：" + e.getMessage()));
+                    "error", "解析Excel失败，请检查文件格式与数据是否重复"));
         }
 
         Map<String, Object> result = new LinkedHashMap<>();
@@ -846,7 +889,19 @@ public class AdminUserController {
                 user.setEmail(email.isEmpty() ? null : email);
                 user.setPhone(phone.isEmpty() ? null : phone);
                 user.setStatus(1);
-                userMapper.insert(user);
+                try {
+                    userMapper.insert(user);
+                } catch (Exception ex) {
+                    log.warn("导入教师第{}行失败：username={}", r + 1, username);
+                    skipped++;
+                    Map<String, Object> err = new LinkedHashMap<>();
+                    err.put("row", r + 1);
+                    err.put("studentNo", username);
+                    err.put("realName", realName);
+                    err.put("errors", List.of("账号重复，或字段长度超出限制"));
+                    errors.add(err);
+                    continue;
+                }
 
                 Teacher teacher = new Teacher();
                 teacher.setTeacherNo(username);
@@ -875,7 +930,8 @@ public class AdminUserController {
                 return ResponseEntity.badRequest().body(Map.of("error", "未检测到有效数据行，请检查文件内容"));
             }
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("error", "解析Excel失败：" + e.getMessage()));
+            log.error("教师名单导入失败", e);
+            return ResponseEntity.badRequest().body(Map.of("error", "解析Excel失败，请检查文件格式与数据是否重复"));
         }
 
         Map<String, Object> result = new LinkedHashMap<>();

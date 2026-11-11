@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Select } from '@/components/ui/select'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -146,8 +147,8 @@ export function MyClassPage() {
               className={
                 'rounded-lg px-3 py-2 text-left text-xs transition ' +
                 (c.id === classId
-                  ? 'bg-primary-500 text-white shadow-sm'
-                  : 'bg-white text-neutral-600 ring-1 ring-neutral-200 hover:bg-neutral-50')
+                  ? 'bg-primary-500 text-white shadow-xs'
+                  : 'bg-surface-primary text-neutral-600 ring-1 ring-neutral-200 hover:bg-neutral-50')
               }
             >
               <div className="text-[13px] font-medium">{c.className}</div>
@@ -171,17 +172,15 @@ export function MyClassPage() {
             </span>
           </CardHeader>
           <CardContent>
+            {/* 减少文字背景：职务与姓名用纯文本展示，不再使用胶囊底色 */}
             {cadreBoard.length === 0 ? (
               <div className="text-sm text-neutral-400">本班暂未设置班干部，可在下方名单中为学生指定职务。</div>
             ) : (
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
                 {cadreBoard.map((s) => (
-                  <span
-                    key={s.id}
-                    className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs text-emerald-700"
-                  >
-                    <span className="font-medium">{s.position}</span>
-                    <span className="text-emerald-600">{s.name}</span>
+                  <span key={s.id} className="inline-flex items-center gap-1.5">
+                    <span className="text-ink-tertiary">{s.position}</span>
+                    <span className="font-medium text-ink-primary">{s.name}</span>
                   </span>
                 ))}
               </div>
@@ -207,22 +206,25 @@ export function MyClassPage() {
           <CardContent className="p-0">
             <div className="max-h-[520px] overflow-auto">
               <table className="w-full text-sm">
-                <thead className="sticky top-0 bg-neutral-50 text-xs text-neutral-500">
+                <thead className="sticky top-0 z-10 bg-neutral-50 text-caption-1-medium text-ink-tertiary">
                   <tr>
-                    <th className="px-4 py-2 text-left font-normal">姓名</th>
-                    <th className="px-4 py-2 text-left font-normal">学号</th>
-                    <th className="px-4 py-2 text-left font-normal">职务</th>
-                    <th className="px-4 py-2 text-right font-normal">操作</th>
+                    <th className="h-10 px-4 text-left font-medium">姓名</th>
+                    <th className="h-10 px-4 text-left font-medium">学号</th>
+                    <th className="h-10 px-4 text-left font-medium">职务</th>
+                    <th className="h-10 px-4 text-right font-medium">操作</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.map((s) => (
-                    <tr key={s.id} className="border-t border-neutral-100">
-                      <td className="px-4 py-2 text-neutral-900">{s.name}</td>
-                      <td className="px-4 py-2 text-neutral-500">{s.studentNo || '-'}</td>
-                      <td className="px-4 py-2">
-                        <select
-                          className="h-8 min-w-[110px] rounded-md border border-neutral-200 bg-white px-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    <tr
+                      key={s.id}
+                      className="border-t border-line-separator transition-colors last:border-0 hover:bg-neutral-50/60"
+                    >
+                      <td className="px-4 py-3 text-ink-primary">{s.name}</td>
+                      <td className="px-4 py-3 text-ink-secondary tabular-nums">{s.studentNo || '-'}</td>
+                      <td className="px-4 py-3">
+                        <Select
+                          className="h-8 min-w-[110px] rounded-lg border border-line-separator bg-surface-primary px-2 text-xs text-ink-primary transition-colors focus:border-emerald-300 focus:outline-hidden focus:ring-2 focus:ring-emerald-200"
                           value={s.position || ''}
                           disabled={saving === s.id}
                           onChange={(e) => changePosition(s, e.target.value)}
@@ -233,9 +235,9 @@ export function MyClassPage() {
                               {c}
                             </option>
                           ))}
-                        </select>
+                        </Select>
                       </td>
-                      <td className="px-4 py-2 text-right">
+                      <td className="px-4 py-3 text-right">
                         {s.position ? (
                           <Button
                             variant="outline"

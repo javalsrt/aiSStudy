@@ -3,10 +3,10 @@ package com.znxsgl.controller;
 import com.znxsgl.dto.TeachingTaskSaveRequest;
 import com.znxsgl.entity.*;
 import com.znxsgl.mapper.*;
+import com.znxsgl.service.AutoScheduleJobService;
 import com.znxsgl.service.AutoScheduleService;
 import com.znxsgl.service.SemesterService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -36,6 +36,7 @@ public class AdminScheduleController {
     private final TeacherMapper teacherMapper;
     private final ClassInfoMapper classInfoMapper;
     private final AutoScheduleService autoScheduleService;
+    private final AutoScheduleJobService autoScheduleJobService;
     private final SemesterService semesterService;
 
     public AdminScheduleController(ClassroomMapper classroomMapper,
@@ -44,6 +45,7 @@ public class AdminScheduleController {
                                     TeacherMapper teacherMapper,
                                     ClassInfoMapper classInfoMapper,
                                     AutoScheduleService autoScheduleService,
+                                    AutoScheduleJobService autoScheduleJobService,
                                     SemesterService semesterService) {
         this.classroomMapper = classroomMapper;
         this.teachingTaskMapper = teachingTaskMapper;
@@ -51,6 +53,7 @@ public class AdminScheduleController {
         this.teacherMapper = teacherMapper;
         this.classInfoMapper = classInfoMapper;
         this.autoScheduleService = autoScheduleService;
+        this.autoScheduleJobService = autoScheduleJobService;
         this.semesterService = semesterService;
     }
 
@@ -58,15 +61,18 @@ public class AdminScheduleController {
     //  教室资源管理
     // ============================================================
 
-    /** 教室列表 */
+    /** 教室列表；管理端传 includeInactive=true 时同时返回已停用教室 */
     @GetMapping("/classrooms")
     public ResponseEntity<List<Classroom>> listClassrooms(
-            @RequestParam(required = false) String type) {
+            @RequestParam(required = false) String type,
+            @RequestParam(required = false) Boolean includeInactive) {
         LambdaQueryWrapper<Classroom> qw = new LambdaQueryWrapper<Classroom>()
-                .eq(Classroom::getIsActive, 1)
                 .orderByAsc(Classroom::getBuilding)
                 .orderByAsc(Classroom::getFloor)
                 .orderByAsc(Classroom::getName);
+        if (!Boolean.TRUE.equals(includeInactive)) {
+            qw.eq(Classroom::getIsActive, 1);
+        }
         if (type != null && !type.isEmpty()) {
             qw.eq(Classroom::getType, type);
         }
@@ -90,13 +96,10 @@ public class AdminScheduleController {
         return ResponseEntity.ok(Map.of("message", "教室更新成功"));
     }
 
-    /** 删除教室（软删除：is_active=0） */
+    /** 删除教室（物理删除；课表只记录教室名称，不影响历史排课） */
     @DeleteMapping("/classroom/{id}")
     public ResponseEntity<Map<String, String>> deleteClassroom(@PathVariable Long id) {
-        classroomMapper.update(null,
-                new LambdaUpdateWrapper<Classroom>()
-                        .eq(Classroom::getId, id)
-                        .set(Classroom::getIsActive, 0));
+        classroomMapper.deleteById(id);
         return ResponseEntity.ok(Map.of("message", "教室已删除"));
     }
 
@@ -245,6 +248,65 @@ public class AdminScheduleController {
 
         AutoScheduleService.ScheduleResult result = autoScheduleService.autoSchedule(sem, clearExisting);
         return ResponseEntity.ok(result);
+    }
+
+    /**
+     * 异步执行自动排课：立即返回 jobId，前端轮询进度。
+     * 全量排课需要写入数万行课表，同步请求会让页面长时间等待，因此新增该接口。
+     */
+    @PostMapping("/auto-generate/jobs")
+    public ResponseEntity<Map<String, Object>> startAutoGenerateJob(
+            @RequestParam(required = false) String semester,
+            @RequestParam(defaultValue = "true") boolean clearExisting) {
+        String sem = semester != null ? semester : semesterService.getCurrentSemesterName();
+        if (sem == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "当前学期未配置，请先设置当前学期"));
+        }
+
+        AutoScheduleJobService.Job job = autoScheduleJobService.start(sem, clearExisting);
+        if (job == null) {
+            return ResponseEntity.status(409).body(Map.of("error", "已有排课任务正在执行，请等待完成或刷新查看进度"));
+        }
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("jobId", job.jobId);
+        body.put("status", job.status);
+        body.put("message", "排课任务已开始，进度将自动刷新");
+        return ResponseEntity.accepted().body(body);
+    }
+
+    /** 查询排课任务进度/结果 */
+    @GetMapping("/auto-generate/jobs/{jobId}")
+    public ResponseEntity<Map<String, Object>> getAutoGenerateJob(@PathVariable String jobId) {
+        AutoScheduleJobService.Job job = autoScheduleJobService.get(jobId);
+        if (job == null) {
+            return ResponseEntity.status(404).body(Map.of("error", "排课任务不存在或已过期"));
+        }
+        return ResponseEntity.ok(jobView(job));
+    }
+
+    /** 查询当前正在执行的排课任务（页面刷新后可重新接上进度） */
+    @GetMapping("/auto-generate/jobs/running")
+    public ResponseEntity<Map<String, Object>> getRunningAutoGenerateJob() {
+        AutoScheduleJobService.Job job = autoScheduleJobService.running();
+        if (job == null) {
+            return ResponseEntity.ok(Map.of("status", "idle"));
+        }
+        return ResponseEntity.ok(jobView(job));
+    }
+
+    private Map<String, Object> jobView(AutoScheduleJobService.Job job) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("jobId", job.jobId);
+        body.put("semester", job.semester);
+        body.put("status", job.status);
+        body.put("total", job.total);
+        body.put("processed", job.processed);
+        long end = job.finishedAt != null ? job.finishedAt : System.currentTimeMillis();
+        body.put("elapsedMs", end - job.startedAt);
+        if (job.result != null) body.put("result", job.result);
+        if (job.error != null) body.put("error", job.error);
+        return body;
     }
 
     /**

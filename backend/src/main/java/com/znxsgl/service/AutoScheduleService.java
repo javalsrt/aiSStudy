@@ -47,7 +47,6 @@ public class AutoScheduleService {
 
     private final TeachingTaskMapper teachingTaskMapper;
     private final ClassroomMapper classroomMapper;
-    private final ScheduleMapper scheduleMapper;
     private final ScheduleLockMapper scheduleLockMapper;
     private final UserMapper userMapper;
     private final SemesterMapper semesterMapper;
@@ -98,7 +97,6 @@ public class AutoScheduleService {
 
     public AutoScheduleService(TeachingTaskMapper teachingTaskMapper,
                                 ClassroomMapper classroomMapper,
-                                ScheduleMapper scheduleMapper,
                                 ScheduleLockMapper scheduleLockMapper,
                                 UserMapper userMapper,
                                 SemesterMapper semesterMapper,
@@ -107,7 +105,6 @@ public class AutoScheduleService {
                                 BellTimeService bellTimeService) {
         this.teachingTaskMapper = teachingTaskMapper;
         this.classroomMapper = classroomMapper;
-        this.scheduleMapper = scheduleMapper;
         this.scheduleLockMapper = scheduleLockMapper;
         this.userMapper = userMapper;
         this.semesterMapper = semesterMapper;
@@ -125,21 +122,37 @@ public class AutoScheduleService {
      */
     @Transactional
     public ScheduleResult autoSchedule(String semester, boolean clearExisting) {
+        return autoSchedule(semester, clearExisting, null);
+    }
+
+    /**
+     * 带进度回调的排课入口，供异步任务轮询进度使用。
+     */
+    @Transactional
+    public ScheduleResult autoSchedule(String semester, boolean clearExisting, ProgressListener listener) {
         ScheduleResult result = new ScheduleResult();
         long t0 = System.currentTimeMillis();
 
-        // 1. 加载教学任务（待排 + 失败的）
-        List<TeachingTask> tasks = teachingTaskMapper.selectList(
-                new LambdaQueryWrapper<TeachingTask>()
-                        .eq(TeachingTask::getSemester, semester)
-                        .in(TeachingTask::getStatus, "pending", "failed")
-                        .orderByAsc(TeachingTask::getPriority));
+        // 1. 加载教学任务：
+        //    - 全量重排（clearExisting=true）必须包含已排任务，否则旧课表被清空后这些任务不会重新写入，
+        //      会出现「任务状态 scheduled 但 schedule 表无记录」的数据不一致
+        //    - 增量排课只处理待排 + 失败
+        LambdaQueryWrapper<TeachingTask> taskQuery = new LambdaQueryWrapper<TeachingTask>()
+                .eq(TeachingTask::getSemester, semester)
+                .orderByAsc(TeachingTask::getPriority);
+        if (clearExisting) {
+            taskQuery.in(TeachingTask::getStatus, "pending", "failed", "scheduled");
+        } else {
+            taskQuery.in(TeachingTask::getStatus, "pending", "failed");
+        }
+        List<TeachingTask> tasks = teachingTaskMapper.selectList(taskQuery);
 
         // 1.5 过滤已有锁定记录的教学任务（教师调课后已被锁定，不应被自动排课覆盖）
         Set<String> lockedTaskKeys = getLockedTaskKeys(semester);
         tasks.removeIf(t -> lockedTaskKeys.contains(t.getCourseId() + ":" + t.getClassId()));
 
         result.totalTasks = tasks.size();
+        if (listener != null) listener.onStart(result.totalTasks);
         if (tasks.isEmpty()) {
             result.message = "没有需要排课的教学任务";
             return result;
@@ -173,6 +186,7 @@ public class AutoScheduleService {
         Map<Integer, Integer> dayLoad = new HashMap<>();
 
         // 10. 贪心分配
+        int processed = 0;
         for (TeachingTask task : tasks) {
             boolean success = scheduleOneTask(task, ctx, roomsByType, studentsByClass, totalWeeks, roomUsage, dayLoad, result);
             if (success) {
@@ -194,11 +208,13 @@ public class AutoScheduleService {
                                         result.failures.isEmpty() ? "未知原因" :
                                                 result.failures.get(result.failures.size() - 1).reason));
             }
+            processed++;
+            if (listener != null) listener.onProgress(processed);
         }
 
         result.elapsedMs = System.currentTimeMillis() - t0;
-        result.message = String.format("排课完成：共 %d 个任务，成功 %d，失败 %d，耗时 %dms",
-                result.totalTasks, result.scheduled, result.failed, result.elapsedMs);
+        result.message = String.format("排课完成：共 %d 个任务，成功 %d，失败 %d，部分排 %d，耗时 %dms",
+                result.totalTasks, result.scheduled, result.failed, result.partialScheduled, result.elapsedMs);
         return result;
     }
 
@@ -411,35 +427,47 @@ public class AutoScheduleService {
     /**
      * 把一个排课块写入 schedule 表（按周拆分为每条记录只对应一周）。
      * 为班级每个学生在每周各写一条记录。
+     * <p>
+     * 逐条 insert 在「20 周 × 全班学生」时会放大成数万次数据库往返，是排课接口长时间阻塞的主因，
+     * 因此这里按块批量写入。
      */
     private void writeScheduleBlock(TeachingTask task, TimeSlot slot, Classroom room,
                                      Map<Long, List<Long>> studentsByClass, int totalWeeks) {
         List<Long> studentIds = studentsByClass.getOrDefault(task.getClassId(), Collections.emptyList());
+        if (studentIds.isEmpty() || totalWeeks <= 0) return;
+
         // 自动适配作息：按班级年级 + 当日单双周解析节次时间，无配置时回退内置默认表
         LocalTime[] range = blockTimes(task.getClassId(), slot.startNode, slot.step);
         LocalTime startTime = range[0];
         LocalTime endTime = range[1];
 
+        List<Object[]> rows = new ArrayList<>(studentIds.size() * totalWeeks);
         for (int week = 1; week <= totalWeeks; week++) {
             String weekJson = "[" + week + "]";
             for (Long sid : studentIds) {
-                Schedule s = new Schedule();
-                s.setUserId(sid);
-                s.setCourseId(task.getCourseId());
-                s.setCourseName(task.getCourseName());
-                s.setDayOfWeek(slot.dayOfWeek);
-                s.setStartTime(startTime);
-                s.setEndTime(endTime);
-                s.setStartNode(slot.startNode);
-                s.setStep(slot.step);
-                s.setClassroom(room.getName());
-                s.setSemester(task.getSemester());
-                s.setWeeks(weekJson);
-                s.setStatus(1);
-                scheduleMapper.insert(s);
+                rows.add(new Object[]{
+                        sid,
+                        task.getCourseId(),
+                        task.getCourseName(),
+                        slot.dayOfWeek,
+                        startTime,
+                        endTime,
+                        slot.startNode,
+                        slot.step,
+                        room.getName(),
+                        task.getSemester(),
+                        weekJson,
+                        1
+                });
             }
         }
+        jdbc.batchUpdate(INSERT_SCHEDULE_SQL, rows);
     }
+
+    /** 批量写入 schedule 的 SQL（列顺序与 writeScheduleBlock 中的 Object[] 一致） */
+    private static final String INSERT_SCHEDULE_SQL =
+            "INSERT INTO schedule (user_id, course_id, course_name, day_of_week, start_time, end_time, " +
+            "start_node, step, classroom, semester, weeks, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)";
 
     /**
      * 根据学期名称查询教学周数，查不到默认 20 周。
@@ -578,6 +606,15 @@ public class AutoScheduleService {
             this.step = step;
             this.priority = priority;
         }
+    }
+
+    /** 排课进度回调（异步任务用） */
+    public interface ProgressListener {
+        /** 任务加载完成后回调总任务数 */
+        void onStart(int total);
+
+        /** 每处理完一个教学任务回调已完成数 */
+        void onProgress(int processed);
     }
 
     /** 排课结果 */

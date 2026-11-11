@@ -14,6 +14,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Select } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Dialog,
@@ -30,6 +31,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { previewImport, confirmImport, getImportRecords } from '@/api/course-import'
+import { getTeacherClasses } from '@/api/teacher-class'
 import { useDialog } from '@/hooks/use-dialog'
 import type { ImportPreviewResult, ImportConfirmResult, CourseImportRecord } from '@/types'
 import { useEffect } from 'react'
@@ -38,19 +40,29 @@ const ACCEPTED_FORMATS = '.xlsx,.docx,.pdf,.jpg,.png'
 const ALLOWED_EXTS = ['xlsx', 'docx', 'pdf', 'jpg', 'jpeg', 'png']
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
 
+/** 连续周次数组压缩成区间显示，避免「[1,2,3,...21]」把预览表格撑开 */
+function formatWeeks(weeks?: string | null) {
+  if (!weeks) return '-'
+  const nums = Array.from(new Set((weeks.match(/\d+/g) || []).map(Number))).sort((a, b) => a - b)
+  if (nums.length === 0) return '-'
+  const continuous = nums.every((n, i) => i === 0 || n === nums[i - 1] + 1)
+  if (nums.length > 6 && continuous) return `${nums[0]}-${nums[nums.length - 1]}`
+  return weeks
+}
+
 function getFileIcon(fileName: string) {
   const ext = fileName.split('.').pop()?.toLowerCase()
   if (ext === 'xlsx' || ext === 'xls') return <FileSpreadsheet className="w-6 h-6 text-emerald-500" />
   if (ext === 'docx' || ext === 'doc') return <FileText className="w-6 h-6 text-blue-500" />
   if (ext === 'pdf') return <FileText className="w-6 h-6 text-red-500" />
-  if (ext === 'jpg' || ext === 'jpeg' || ext === 'png') return <ImageIcon className="w-6 h-6 text-purple-500" />
+  if (ext === 'jpg' || ext === 'jpeg' || ext === 'png') return <ImageIcon className="w-6 h-6 text-green-500" />
   return <FileText className="w-6 h-6 text-neutral-500" />
 }
 
 export function CourseImportPage() {
   const { alert, DialogComponent } = useDialog()
   const [isDragging, setIsDragging] = useState(false)
-  const [file, setFile] = useState<File | null>(null)
+  const [files, setFiles] = useState<File[]>([])
   const [uploading, setUploading] = useState(false)
   const [preview, setPreview] = useState<ImportPreviewResult | null>(null)
   const [confirming, setConfirming] = useState(false)
@@ -59,6 +71,10 @@ export function CourseImportPage() {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  // 默认班级：仅当文件/照片里识别不到班级时兜底，可留空
+  const [classes, setClasses] = useState<{ id: number; className: string }[]>([])
+  const [importClass, setImportClass] = useState('')
+
   // 导入记录
   const [records, setRecords] = useState<CourseImportRecord[]>([])
   const [recordsLoading, setRecordsLoading] = useState(false)
@@ -66,7 +82,7 @@ export function CourseImportPage() {
   const [expandedRecords, setExpandedRecords] = useState<Set<number>>(new Set())
 
   const resetState = () => {
-    setFile(null)
+    setFiles([])
     setPreview(null)
     setConfirmResult(null)
     setError(null)
@@ -104,42 +120,70 @@ export function CourseImportPage() {
     fetchRecords()
   }, [])
 
-  const handleFile = async (selectedFile: File | undefined) => {
-    if (!selectedFile) return
+  // 加载可选班级（管理员为全校班级，教师为任教班级）
+  useEffect(() => {
+    getTeacherClasses()
+      .then((data) => setClasses(data || []))
+      .catch(() => setClasses([]))
+  }, [])
 
-    const ext = selectedFile.name.split('.').pop()?.toLowerCase()
-    if (!ext || !ALLOWED_EXTS.includes(ext)) {
-      setError(`不支持的文件格式：.${ext || '未知'}，仅支持 .xlsx、.docx、.pdf、.jpg、.png`)
-      return
+  /**
+   * 批量上传：一次可选择多张课表照片/多个文件，逐个解析后合并预览。
+   * 班级由文件内容（班级列/文件名/图片标题）自动识别，页面上的默认班级仅在识别不到时兜底。
+   */
+  const handleFiles = async (selectedFiles: File[]) => {
+    if (!selectedFiles.length) return
+
+    const validFiles: File[] = []
+    const invalidMessages: string[] = []
+    for (const f of selectedFiles) {
+      const ext = f.name.split('.').pop()?.toLowerCase()
+      if (!ext || !ALLOWED_EXTS.includes(ext)) {
+        invalidMessages.push(`${f.name}：不支持 .${ext || '未知'} 格式`)
+      } else if (f.size > MAX_FILE_SIZE) {
+        invalidMessages.push(`${f.name}：超过 10MB`)
+      } else {
+        validFiles.push(f)
+      }
     }
+    setError(invalidMessages.length ? invalidMessages.join('；') : null)
+    if (!validFiles.length) return
 
-    if (selectedFile.size > MAX_FILE_SIZE) {
-      setError('文件大小超过 10MB 限制')
-      return
-    }
-
-    setError(null)
     setConfirmResult(null)
     setPreview(null)
-    setFile(selectedFile)
+    setFiles(validFiles)
     setUploading(true)
 
-    try {
-      const result = await previewImport(selectedFile)
-      setPreview(result)
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '文件解析失败，请稍后重试'
-      setError(msg)
-    } finally {
-      setUploading(false)
+    const merged: ImportPreviewResult = { total: 0, success: 0, errors: [], preview: [] }
+    const fileErrors: string[] = []
+    for (const f of validFiles) {
+      try {
+        const result = await previewImport(f, importClass || undefined)
+        merged.total += result.total || 0
+        merged.success += result.success || 0
+        merged.errors = [...merged.errors, ...(result.errors || [])]
+        merged.preview = [...merged.preview, ...(result.preview || [])]
+      } catch (err: unknown) {
+        // 优先展示后端返回的中文原因，避免只显示 “Request failed with status code 400”
+        const backendMsg = (err as any)?.response?.data?.error
+        const msg = backendMsg || (err instanceof Error ? err.message : '文件解析失败，请稍后重试')
+        fileErrors.push(`${f.name}：${msg}`)
+      }
     }
+
+    if (fileErrors.length) setError(fileErrors.join('；'))
+    if (merged.total > 0) {
+      setPreview(merged)
+    } else if (!fileErrors.length) {
+      setError('未能从所选文件中解析出课程，请检查文件内容')
+    }
+    setUploading(false)
   }
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault()
     setIsDragging(false)
-    const droppedFile = e.dataTransfer.files?.[0]
-    handleFile(droppedFile)
+    handleFiles(Array.from(e.dataTransfer.files || []))
   }
 
   const handleFileSelect = () => {
@@ -147,8 +191,7 @@ export function CourseImportPage() {
   }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0]
-    handleFile(selectedFile)
+    handleFiles(Array.from(e.target.files || []))
     e.target.value = ''
   }
 
@@ -157,13 +200,14 @@ export function CourseImportPage() {
     setConfirming(true)
     setError(null)
     try {
-      const result = await confirmImport(preview.preview, file?.name)
+      const result = await confirmImport(preview.preview, files.map((f) => f.name).join('、'))
       setConfirmResult(result)
       setConfirmOpen(false)
       // 导入成功后刷新导入记录
       fetchRecords()
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '导入失败，请稍后重试'
+      const backendMsg = (err as any)?.response?.data?.error
+      const msg = backendMsg || (err instanceof Error ? err.message : '导入失败，请稍后重试')
       setError(msg)
     } finally {
       setConfirming(false)
@@ -189,10 +233,8 @@ export function CourseImportPage() {
       {DialogComponent}
       {/* Page header */}
       <div>
-        <h1 className="text-2xl font-bold text-neutral-900">课程导入</h1>
-        <p className="text-neutral-500 mt-1 text-sm">
-          通过文件批量导入课程和排课信息，AI 自动识别解析
-        </p>
+        {/* 副标题（不展示）：通过文件批量导入课程和排课信息，AI 自动识别解析 */}
+        <h1 className="text-display-4-medium text-ink-primary">课程导入</h1>
       </div>
 
       <Tabs defaultValue="upload">
@@ -206,7 +248,7 @@ export function CourseImportPage() {
           {error && (
             <Card className="border-danger/30 bg-danger/5">
               <CardContent className="p-4 flex items-start gap-3">
-                <AlertCircle className="w-5 h-5 text-danger flex-shrink-0 mt-0.5" />
+                <AlertCircle className="w-5 h-5 text-danger shrink-0 mt-0.5" />
                 <div className="flex-1">
                   <div className="text-sm font-medium text-danger">操作失败</div>
                   <div className="text-sm text-danger/80 mt-0.5">{error}</div>
@@ -223,7 +265,7 @@ export function CourseImportPage() {
             <Card className="border-success/30 bg-success/5">
               <CardContent className="p-6">
                 <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 rounded-xl bg-success/15 flex items-center justify-center flex-shrink-0">
+                  <div className="w-12 h-12 rounded-xl bg-success/15 flex items-center justify-center shrink-0">
                     <Check className="w-6 h-6 text-success" />
                   </div>
                   <div className="flex-1">
@@ -239,7 +281,7 @@ export function CourseImportPage() {
                         成功导入 {confirmResult.imported} 条
                       </Badge>
                       {(confirmResult.autoFilled ?? 0) > 0 && (
-                        <Badge variant="primary" className="text-xs">
+                        <Badge variant="success" className="text-xs">
                           自动补充 {confirmResult.autoFilled} 条
                         </Badge>
                       )}
@@ -253,7 +295,7 @@ export function CourseImportPage() {
                       <div className="mt-3 space-y-1.5">
                         {confirmResult.messages.map((msg, idx) => (
                           <div key={idx} className="text-sm text-neutral-600 flex items-start gap-2">
-                            <span className="w-1.5 h-1.5 rounded-full bg-neutral-400 mt-1.5 flex-shrink-0"></span>
+                            <span className="w-1.5 h-1.5 rounded-full bg-neutral-400 mt-1.5 shrink-0"></span>
                             <span>{msg}</span>
                           </div>
                         ))}
@@ -265,14 +307,36 @@ export function CourseImportPage() {
             </Card>
           )}
 
-          {!file ? (
+          {files.length === 0 ? (
             <Card>
               <CardContent className="p-8">
+                {/* 班级由文件内容自动识别；默认班级仅在识别不到时兜底，可留空 */}
+                <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <span className="shrink-0 text-sm text-neutral-600">默认班级</span>
+                  <div className="w-full sm:w-[260px]">
+                    <Select
+                      value={importClass}
+                      onChange={(e) => setImportClass(e.target.value)}
+                      aria-label="选择默认班级"
+                      className="w-full"
+                    >
+                      <option value="">自动识别（可选）</option>
+                      {classes.map((c) => (
+                        <option key={c.id} value={c.className}>
+                          {c.className}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                  <span className="text-xs text-neutral-500">
+                    文件/照片里识别不到班级时使用
+                  </span>
+                </div>
                 <div
                   className={`border-2 border-dashed rounded-2xl p-12 text-center transition-all cursor-pointer ${
                     isDragging
-                      ? 'border-primary-500 bg-primary-50'
-                      : 'border-neutral-200 hover:border-primary-300 hover:bg-neutral-50'
+                      ? 'border-emerald-300 bg-emerald-50'
+                      : 'border-neutral-200 hover:border-emerald-300 hover:bg-neutral-50'
                   }`}
                   onDragOver={(e) => {
                     e.preventDefault()
@@ -286,17 +350,18 @@ export function CourseImportPage() {
                     ref={fileInputRef}
                     type="file"
                     accept={ACCEPTED_FORMATS}
+                    multiple
                     className="hidden"
                     onChange={handleInputChange}
                   />
-                  <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-primary-100 to-primary-200 flex items-center justify-center">
-                    <Upload className="w-10 h-10 text-primary-550" />
+                  <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-emerald-50 flex items-center justify-center">
+                    <Upload className="w-10 h-10 text-emerald-600" />
                   </div>
                   <h3 className="text-lg font-semibold text-neutral-900 mb-2">
-                    拖拽文件到此处，或点击上传
+                    拖拽文件到此处，或点击上传（支持多选）
                   </h3>
                   <p className="text-neutral-500 text-sm mb-4">
-                    支持 .xlsx、.docx、.pdf、.jpg、.png 格式，单文件不超过 10MB
+                    支持 .xlsx、.docx、.pdf 文件，以及 .jpg / .png 课表照片，单文件不超过 10MB
                   </p>
                   <Button variant="default" className="gap-2">
                     <FileSpreadsheet className="w-4 h-4" />
@@ -311,19 +376,23 @@ export function CourseImportPage() {
                   </div>
                   <ul className="text-sm text-neutral-600 space-y-2">
                     <li className="flex items-start gap-2">
-                      <span className="w-1.5 h-1.5 rounded-full bg-neutral-400 mt-1.5 flex-shrink-0"></span>
+                      <span className="w-1.5 h-1.5 rounded-full bg-neutral-400 mt-1.5 shrink-0"></span>
                       文件需包含：课程名称、授课教师、班级、星期、节次、教室、周次等字段
                     </li>
                     <li className="flex items-start gap-2">
-                      <span className="w-1.5 h-1.5 rounded-full bg-neutral-400 mt-1.5 flex-shrink-0"></span>
-                      AI 将自动识别文件内容并匹配系统中的教师和班级
+                      <span className="w-1.5 h-1.5 rounded-full bg-neutral-400 mt-1.5 shrink-0"></span>
+                      AI 将自动识别文件内容并匹配系统中的教师和班级，照片可从文件名或图片标题识别班级
                     </li>
                     <li className="flex items-start gap-2">
-                      <span className="w-1.5 h-1.5 rounded-full bg-neutral-400 mt-1.5 flex-shrink-0"></span>
+                      <span className="w-1.5 h-1.5 rounded-full bg-neutral-400 mt-1.5 shrink-0"></span>
+                      支持一次上传多张课表照片或多个文件，自动按班级分别导入
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-neutral-400 mt-1.5 shrink-0"></span>
                       导入前可预览数据，确认无误后再提交
                     </li>
                     <li className="flex items-start gap-2">
-                      <span className="w-1.5 h-1.5 rounded-full bg-primary-400 mt-1.5 flex-shrink-0"></span>
+                      <span className="w-1.5 h-1.5 rounded-full bg-primary-400 mt-1.5 shrink-0"></span>
                       导入后会按课程总课时自动补充剩余课时，确保「要求上多少课时就排多少课时」
                     </li>
                   </ul>
@@ -331,7 +400,7 @@ export function CourseImportPage() {
                     <a
                       href="/template/schedule-import-template.xlsx"
                       download
-                      className="inline-flex items-center gap-2 h-8 px-4 text-xs rounded-full border border-neutral-200 bg-white text-neutral-900 hover:bg-neutral-100 hover:border-neutral-300 transition-all"
+                      className="inline-flex items-center gap-2 h-8 px-4 text-xs rounded-full border border-neutral-200 bg-surface-primary text-neutral-900 hover:bg-neutral-100 hover:border-neutral-300 transition-all"
                     >
                       <Download className="w-4 h-4" />
                       下载空白模板
@@ -346,22 +415,26 @@ export function CourseImportPage() {
               <Card>
                 <CardContent className="p-6">
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center flex-shrink-0">
-                      {getFileIcon(file.name)}
+                    <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0">
+                      {getFileIcon(files[0]?.name || '')}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-1">
-                        <span className="font-medium text-neutral-900 truncate">{file.name}</span>
+                        <span className="font-medium text-neutral-900 truncate">
+                          {files.length === 1
+                            ? files[0].name
+                            : `${files[0].name} 等 ${files.length} 个文件`}
+                        </span>
                         <Badge
                           variant={uploading ? 'warning' : preview ? 'success' : 'danger'}
-                          className="text-xs ml-2 flex-shrink-0"
+                          className="text-xs ml-2 shrink-0"
                         >
                           {uploading ? 'AI 解析中...' : preview ? '解析完成' : '解析失败'}
                         </Badge>
                       </div>
                       <div className="text-sm text-neutral-500">
                         {uploading
-                          ? '正在上传并由 AI 智能识别文件内容...'
+                          ? `正在解析 ${files.length} 个文件，AI 会按班级自动整理课程...`
                           : preview
                           ? `共识别 ${preview.total} 条课程数据，${preview.success} 条成功，${errorCount} 条异常`
                           : '请重新选择文件'}
@@ -380,7 +453,7 @@ export function CourseImportPage() {
                     <div className="mt-4">
                       <div className="h-2 bg-neutral-100 rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-gradient-to-r from-primary-400 to-primary-600 rounded-full transition-all animate-pulse"
+                          className="h-full bg-emerald-500 rounded-full transition-all animate-pulse"
                           style={{ width: '60%' }}
                         ></div>
                       </div>
@@ -397,6 +470,9 @@ export function CourseImportPage() {
                       <CardTitle className="text-lg">导入预览</CardTitle>
                       <p className="text-sm text-neutral-500 mt-1">
                         请核对导入数据，异常数据请修正后再确认导入
+                      </p>
+                      <p className="text-xs text-neutral-500 mt-1">
+                        照片导入时，未匹配或未标注教师的课程会自动归属该班班主任
                       </p>
                       <p className="text-xs text-primary-600 mt-1.5 flex items-center gap-1">
                         <Sparkles className="w-3.5 h-3.5" />
@@ -443,6 +519,13 @@ export function CourseImportPage() {
                                   <div className="flex items-center gap-1.5">
                                     <span>{item.matchedTeacherName || item.teacherName || '-'}</span>
                                     <Check className="w-3.5 h-3.5 text-success" />
+                                  </div>
+                                ) : item.teacherMatchStatus === 'fallback' ? (
+                                  <div className="flex items-center gap-1.5" title={item.teacherFallbackReason}>
+                                    <span>{item.matchedTeacherName || '-'}</span>
+                                    <Badge variant="warning" className="text-[10px] px-1.5 py-0">
+                                      班主任
+                                    </Badge>
                                   </div>
                                 ) : item.teacherMatchStatus === 'fuzzy' ? (
                                   <div className="flex items-center gap-1.5">
@@ -492,7 +575,7 @@ export function CourseImportPage() {
                                 {item.classroom || '-'}
                               </td>
                               <td className="px-6 py-3.5 text-sm text-neutral-700">
-                                {item.weeks || '-'}
+                                {formatWeeks(item.weeks)}
                               </td>
                               <td className="px-6 py-3.5 text-sm text-neutral-700">
                                 {item.credit ?? '-'}
@@ -502,6 +585,14 @@ export function CourseImportPage() {
                                   <div className="flex items-center gap-1 text-warning">
                                     <AlertCircle className="w-4 h-4" />
                                     <span className="text-sm">教师待确认</span>
+                                  </div>
+                                ) : item.teacherMatchStatus === 'fallback' ? (
+                                  <div
+                                    className="flex items-center gap-1 text-warning"
+                                    title={item.teacherFallbackReason}
+                                  >
+                                    <AlertCircle className="w-4 h-4" />
+                                    <span className="text-sm">归属班主任</span>
                                   </div>
                                 ) : (
                                   <div className="flex items-center gap-1 text-success">
@@ -528,7 +619,7 @@ export function CourseImportPage() {
                       <ul className="space-y-1.5">
                         {preview.errors.map((err, idx) => (
                           <li key={idx} className="text-sm text-neutral-600 flex items-start gap-2">
-                            <span className="w-1.5 h-1.5 rounded-full bg-warning mt-1.5 flex-shrink-0"></span>
+                            <span className="w-1.5 h-1.5 rounded-full bg-warning mt-1.5 shrink-0"></span>
                             <span>
                               第 {err.row} 行 {err.courseName ? `「${err.courseName}」` : ''}
                               {err.errors.map((e, i) => (
@@ -625,7 +716,7 @@ export function CourseImportPage() {
             <CardContent className="pt-0">
               {recordsError && (
                 <div className="mb-4 p-4 rounded-lg border border-danger/30 bg-danger/5 flex items-start gap-3">
-                  <AlertCircle className="w-5 h-5 text-danger flex-shrink-0 mt-0.5" />
+                  <AlertCircle className="w-5 h-5 text-danger shrink-0 mt-0.5" />
                   <div className="flex-1">
                     <div className="text-sm font-medium text-danger">加载失败</div>
                     <div className="text-sm text-danger/80 mt-0.5">{recordsError}</div>
@@ -723,7 +814,7 @@ export function CourseImportPage() {
                                     <ul className="space-y-1.5 max-h-60 overflow-y-auto">
                                       {messages.map((msg, idx) => (
                                         <li key={idx} className="text-sm text-neutral-600 flex items-start gap-2">
-                                          <span className="w-1.5 h-1.5 rounded-full bg-neutral-400 mt-1.5 flex-shrink-0"></span>
+                                          <span className="w-1.5 h-1.5 rounded-full bg-neutral-400 mt-1.5 shrink-0"></span>
                                           <span>{msg}</span>
                                         </li>
                                       ))}

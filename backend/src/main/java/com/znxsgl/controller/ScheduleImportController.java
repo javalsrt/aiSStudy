@@ -8,6 +8,7 @@ import com.znxsgl.mapper.CourseImportRecordMapper;
 import com.znxsgl.mapper.CourseMapper;
 import com.znxsgl.mapper.ScheduleMapper;
 import com.znxsgl.mapper.UserMapper;
+import com.znxsgl.service.BellOcrClient;
 import com.znxsgl.service.BellTimeService;
 import com.znxsgl.service.LlmService;
 import com.znxsgl.service.ScheduleImportTeacherMatcher;
@@ -50,6 +51,7 @@ public class ScheduleImportController {
     private final ScheduleImportTeacherMatcher teacherMatcher;
     private final TransactionTemplate transactionTemplate;
     private final CourseImportRecordMapper importRecordMapper;
+    private final BellOcrClient ocrClient;
     private final Path uploadDir;
 
     /** Redis 分布式导入锁；为空时使用本地锁降级 */
@@ -82,7 +84,8 @@ public class ScheduleImportController {
                                      ScheduleImportTeacherMatcher teacherMatcher,
                                      TransactionTemplate transactionTemplate,
                                      CourseImportRecordMapper importRecordMapper,
-                                     BellTimeService bellTimeService) {
+                                     BellTimeService bellTimeService,
+                                     BellOcrClient ocrClient) {
         this.bellTimeService = bellTimeService;
         this.llmService = llmService;
         this.jdbc = jdbc;
@@ -94,6 +97,7 @@ public class ScheduleImportController {
         this.teacherMatcher = teacherMatcher;
         this.transactionTemplate = transactionTemplate;
         this.importRecordMapper = importRecordMapper;
+        this.ocrClient = ocrClient;
         for (int i = 0; i < IMPORT_LOCK_BUCKETS; i++) {
             importLocks[i] = new Object();
         }
@@ -144,18 +148,19 @@ public class ScheduleImportController {
     @PostMapping("/preview")
     public ResponseEntity<Map<String, Object>> preview(
             @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "className", required = false) String className,
             Authentication auth) {
         try {
             String fileName = file.getOriginalFilename();
             Path saved = uploadDir.resolve(UUID.randomUUID() + "_" + fileName);
             file.transferTo(saved.toFile());
 
-            // 读取文件内容（不再支持图片识别）
-            String text;
+            // 照片导入：本地 OCR 还原课表网格 → AI 结构化
             if (isImage(fileName)) {
-                return ResponseEntity.badRequest().body(Map.of("error", "暂不支持图片识别导入，请上传 Excel/Word/PDF/TXT 文件"));
+                return previewImage(saved, fileName, className, auth);
             }
 
+            String text;
             String lname = fileName.toLowerCase();
             if (lname.endsWith(".xlsx") || lname.endsWith(".xlsm")) {
                 text = extractXlsxText(saved);
@@ -207,65 +212,293 @@ public class ScheduleImportController {
             } else {
                 Files.deleteIfExists(saved);
             }
-            List<Map<String, Object>> errors = new ArrayList<>();
-            List<Map<String, Object>> preview = new ArrayList<>();
-
-            boolean admin = isAdmin(auth);
-            for (int i = 0; i < items.size(); i++) {
-                Map<String, Object> item = items.get(i);
-                Map<String, Object> result = validateItem(item, i + 1);
-                if (result.containsKey("errors")) {
-                    errors.add(result);
-                } else {
-                    // 管理员导入时标记教师匹配状态，便于前端提示与修正
-                    if (admin) {
-                        String teacherName = (String) result.get("teacherName");
-                        ScheduleImportTeacherMatcher.MatchResult match = teacherMatcher.match(teacherName);
-                        result.put("teacherMatchStatus", match.getStatus());
-                        result.put("teacherId", match.getTeacherId());
-                        result.put("matchedTeacherName", match.getTeacherName());
-                        result.put("teacherSuggestions", match.getSuggestions().stream()
-                                .map(s -> {
-                                    Map<String, Object> m = new LinkedHashMap<>();
-                                    m.put("teacherId", s.getTeacherId());
-                                    m.put("teacherName", s.getTeacherName());
-                                    m.put("distance", s.getDistance());
-                                    return m;
-                                })
-                                .collect(java.util.stream.Collectors.toList()));
-                        // 完全未匹配到的教师视为错误，必须修正后才能导入
-                        if ("unmatched".equals(match.getStatus())) {
-                            List<String> errMsgs = new ArrayList<>();
-                            String base = "未匹配到教师「" + (teacherName != null && !teacherName.isEmpty() ? teacherName : "未知") + "」";
-                            if (!match.getSuggestions().isEmpty()) {
-                                base += "，您是否想输入：" + match.getSuggestions().get(0).getTeacherName();
-                            }
-                            errMsgs.add(base);
-                            Map<String, Object> err = new HashMap<>();
-                            err.put("row", i + 1);
-                            err.put("courseName", result.get("courseName"));
-                            err.put("errors", errMsgs);
-                            errors.add(err);
-                            continue;
-                        }
-                    } else {
-                        result.put("teacherMatchStatus", "matched");
-                    }
-                    preview.add(result);
-                }
-            }
-
-            Map<String, Object> resp = new HashMap<>();
-            resp.put("total", items.size());
-            resp.put("success", preview.size());
-            resp.put("errors", errors);
-            resp.put("preview", preview);
-            resp.put("raw", text.substring(0, Math.min(300, text.length())) + "...");
-            return ResponseEntity.ok(resp);
+            return buildPreviewResponse(items, auth, false, false,
+                    text.substring(0, Math.min(300, text.length())) + "...");
 
         } catch (Exception e) {
             e.printStackTrace();
-            return ResponseEntity.ok(Map.of("error", "处理失败：" + e.getMessage()));
+            return ResponseEntity.badRequest().body(Map.of("error", "处理失败：" + e.getMessage()));
+        }
+    }
+
+    /**
+     * 照片导入：本地 OCR 还原「星期 × 节次」网格 → 大模型解析为课程条目 → 走统一预览校验。
+     * 班级优先从文件名 / 图片文字中识别，识别不到才用页面上的默认班级；周次取学期总周数，时间按节次换算。
+     */
+    private ResponseEntity<Map<String, Object>> previewImage(Path saved, String fileName,
+                                                             String defaultClassName, Authentication auth) {
+        try {
+            String semester = requireCurrentSemester();
+            int weekCount = resolveSemesterWeekCount(semester);
+
+            Map<String, Object> table;
+            try {
+                table = ocrClient.recognizeCourseTable(Files.readAllBytes(saved), fileName);
+            } catch (Exception e) {
+                return ResponseEntity.badRequest().body(Map.of("error",
+                        "课表照片识别失败：" + e.getMessage() + "（请确认本地 OCR 服务已启动）"));
+            } finally {
+                Files.deleteIfExists(saved);
+            }
+
+            // 班级来源优先级：文件名 > 图片中的其它文字 > 页面默认班级
+            String detectedClass = detectClassName(fileName);
+            if (detectedClass == null && table.get("notes") instanceof List<?> notes) {
+                detectedClass = detectClassName(notes.toString());
+            }
+            String fallbackClass = defaultClassName != null && !defaultClassName.isBlank()
+                    ? defaultClassName.trim() : detectedClass;
+            if (fallbackClass == null && detectedClass != null) fallbackClass = detectedClass;
+
+            String matrix = buildCourseTableText(table, fallbackClass, semester, weekCount, fileName);
+            System.out.println("=== 课表照片网格:\n" + matrix);
+
+            String aiText = llmService.chat(buildCourseTablePrompt(), matrix, 8000);
+            if (aiText == null || aiText.isBlank()) {
+                String reason = LlmService.getLastFailure();
+                return ResponseEntity.badRequest().body(Map.of("error",
+                        "AI 解析课表失败：" + (reason == null || reason.isBlank() ? "未返回内容" : reason)));
+            }
+            List<Map<String, Object>> items = parseAIResponse(aiText);
+            if (items.isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("error",
+                        "AI 未能从照片中解析出课程，请换一张更清晰的课表照片"));
+            }
+
+            for (Map<String, Object> item : items) {
+                // 班级：AI 识别结果优先，其次用文件名识别/页面默认班级；都没有则留空，由校验提示
+                String itemClass = item.get("className") == null ? "" : item.get("className").toString().trim();
+                if (itemClass.isEmpty() && fallbackClass != null) {
+                    itemClass = fallbackClass;
+                }
+                if (!itemClass.isEmpty()) {
+                    item.put("className", itemClass);
+                }
+                item.put("semester", semester);
+                Object weeksObj = item.get("weeks");
+                if (weeksObj == null || weeksObj.toString().isBlank() || "[]".equals(weeksObj.toString())) {
+                    item.put("weeks", "1-" + Math.max(weekCount, 1));
+                }
+                // 时间按该条所属班级的作息换算（班级未识别时用默认作息）
+                fillPhotoItemTimes(item, itemClass.isEmpty() ? null : matchClass(itemClass));
+            }
+            return buildPreviewResponse(items, auth, true, true,
+                    matrix.substring(0, Math.min(300, matrix.length())) + "...");
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.badRequest().body(Map.of("error", "照片导入失败：" + e.getMessage()));
+        }
+    }
+
+    /** 从文件名/图片文字中识别班级名：取 class_info 中出现在文本里的最长班级名，避免误匹配短名称 */
+    private String detectClassName(String text) {
+        if (text == null || text.isBlank()) return null;
+        String normalized = text.replaceAll("\\s+", "");
+        try {
+            List<Map<String, Object>> rows = jdbc.queryForList(
+                    "SELECT class_name FROM class_info ORDER BY CHAR_LENGTH(class_name) DESC");
+            for (Map<String, Object> row : rows) {
+                Object nameObj = row.get("class_name");
+                if (nameObj == null) continue;
+                String name = nameObj.toString();
+                if (!name.isBlank() && normalized.contains(name.replaceAll("\\s+", ""))) {
+                    return name;
+                }
+            }
+        } catch (Exception e) {
+            System.out.println("=== 识别班级失败: " + e.getMessage());
+        }
+        return null;
+    }
+
+    /** 按节次补全上下课时间（照片只有节次，没有时刻） */
+    private void fillPhotoItemTimes(Map<String, Object> item, Long classId) {
+        int node;
+        int step;
+        try {
+            node = ((Number) item.get("startNode")).intValue();
+            step = item.get("step") instanceof Number ? ((Number) item.get("step")).intValue() : 1;
+        } catch (Exception e) {
+            return;
+        }
+        if (node <= 0) return;
+        String[] range = getNodeTimeRange(classId, node);
+        if (range != null) {
+            item.put("startTime", range[0]);
+            item.put("endTime", range[1]);
+            return;
+        }
+        int[] minutes = nodeTimes(node, Math.max(step, 1));
+        if (minutes != null) {
+            item.put("startTime", String.format("%02d:%02d", minutes[0] / 60, minutes[0] % 60));
+            item.put("endTime", String.format("%02d:%02d", minutes[1] / 60, minutes[1] % 60));
+        }
+    }
+
+    /** 把 OCR 网格拼成适合大模型阅读的文本表 */
+    @SuppressWarnings("unchecked")
+    private String buildCourseTableText(Map<String, Object> table, String className, String semester,
+                                        int weekCount, String fileName) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("文件名：").append(fileName == null ? "" : fileName).append("\n");
+        sb.append("默认班级：").append(className == null ? "" : className).append("\n");
+        sb.append("学期：").append(semester).append("\n");
+        sb.append("学期总周数：").append(weekCount).append("\n");
+        List<Map<String, Object>> days = (List<Map<String, Object>>) table.get("days");
+        if (days == null || days.isEmpty()) return sb.toString();
+
+        sb.append("节次");
+        for (Map<String, Object> day : days) {
+            sb.append(" | ").append(day.get("name"));
+        }
+        sb.append("\n");
+
+        List<Map<String, Object>> rows = (List<Map<String, Object>>) table.get("rows");
+        if (rows != null) {
+            for (Map<String, Object> row : rows) {
+                Map<String, Object> cells = (Map<String, Object>) row.get("cells");
+                sb.append(row.get("node"));
+                for (Map<String, Object> day : days) {
+                    Object cell = cells == null ? null : cells.get(String.valueOf(day.get("dayOfWeek")));
+                    sb.append(" | ").append(cell == null ? "" : cell);
+                }
+                sb.append("\n");
+            }
+        }
+        Object notes = table.get("notes");
+        if (notes instanceof List && !((List<?>) notes).isEmpty()) {
+            sb.append("表格其它文字：").append(notes).append("\n");
+        }
+        return sb.toString();
+    }
+
+    /** 课表照片解析提示词：只做语义拆分，班级优先自主识别 */
+    private String buildCourseTablePrompt() {
+        return "你是课表数据提取助手。用户提供的是一张课程表照片经 OCR 还原出的二维网格文本：\n" +
+            "行 = 节次（数字），列 = 星期；每个单元格内的文字按从上到下用「 / 」分隔，" +
+            "通常依次是：课程名（可能因换行被拆成两段）、教师姓名、教室。\n\n" +
+            "请把每一格拆成独立的课程记录，返回纯 JSON 数组（不要 markdown、不要解释）。\n" +
+            "每条记录必须包含：\n" +
+            "- courseName：完整课程名（把被换行拆开的两段拼起来，如「电器及PLC控制」+「技术」→「电器及PLC控制技术」）\n" +
+            "- teacherName：教师姓名，没有则空字符串\n" +
+            "- classroom：教室，没有则空字符串\n" +
+            "- dayOfWeek：星期几（数字，1=周一...7=周日，取该列）\n" +
+            "- startNode：该行对应的节次数字\n" +
+            "- step：固定 1\n" +
+            "- weeks：统一填写「学期总周数」对应的区间（如 1-21）\n" +
+            "- className：班级名称\n" +
+            "- semester：固定填写「学期」\n\n" +
+            "班级识别规则（重要）：\n" +
+            "1. 一张照片通常对应一个班级：优先从「文件名」和表格上下方的标题文字中提取班级名，例如文件名「24级计算机应用1班课表.jpg」→ 班级为「24级计算机应用1班」。\n" +
+            "2. 如果照片中明确标注了多个班级（例如标题写明“XX班 / YY班”），按标注填写；没有标注时整张照片使用同一个班级。\n" +
+            "3. 识别不到班级时，使用「默认班级」字段的值。\n" +
+            "4. 文件名/文字/默认班级都没有时，className 返回空字符串，不要编造。\n\n" +
+            "其它规则：\n" +
+            "1. 忽略非课程内容：上午、下午、午休、星期、节次、备注说明、表格其它文字。\n" +
+            "2. 同一格如果有多门课，分别输出多条。\n" +
+            "3. 形如「自习」「班会」「大扫除」的活动也作为记录输出，没有教师/教室就留空字符串。\n" +
+            "4. 不要输出 startTime / endTime，系统会按节次自动换算上下课时间。\n" +
+            "5. 不要编造网格中不存在的课程或教师。\n\n" +
+            "示例：[{\"courseName\":\"电器及PLC控制技术\",\"teacherName\":\"彭秀程\",\"classroom\":\"匠工楼B302\"," +
+            "\"dayOfWeek\":3,\"startNode\":1,\"step\":1,\"weeks\":\"1-21\",\"className\":\"24级计算机应用1班\",\"semester\":\"2026-2027-1\"}]";
+    }
+
+    /**
+     * 统一构建预览响应：数据校验 + 管理员教师匹配。
+     * @param allowEmptyClassroom 照片导入时教室可能为空（自习/班会），允许通过
+     * @param fallbackToHeadTeacher 教师未匹配/未标注时是否自动归属班主任（照片 OCR 可能漏识别教师名，故启用）
+     */
+    private ResponseEntity<Map<String, Object>> buildPreviewResponse(List<Map<String, Object>> items,
+                                                                     Authentication auth,
+                                                                     boolean allowEmptyClassroom,
+                                                                     boolean fallbackToHeadTeacher,
+                                                                     String raw) {
+        List<Map<String, Object>> errors = new ArrayList<>();
+        List<Map<String, Object>> preview = new ArrayList<>();
+
+        boolean admin = isAdmin(auth);
+        for (int i = 0; i < items.size(); i++) {
+            Map<String, Object> item = items.get(i);
+            Map<String, Object> result = validateItem(item, i + 1, allowEmptyClassroom);
+            if (result.containsKey("errors")) {
+                errors.add(result);
+            } else {
+                // 管理员导入时标记教师匹配状态，便于前端提示与修正
+                if (admin) {
+                    String teacherName = (String) result.get("teacherName");
+                    ScheduleImportTeacherMatcher.MatchResult match = teacherMatcher.match(teacherName);
+                    result.put("teacherMatchStatus", match.getStatus());
+                    result.put("teacherId", match.getTeacherId());
+                    result.put("matchedTeacherName", match.getTeacherName());
+                    result.put("teacherSuggestions", match.getSuggestions().stream()
+                            .map(s -> {
+                                Map<String, Object> m = new LinkedHashMap<>();
+                                m.put("teacherId", s.getTeacherId());
+                                m.put("teacherName", s.getTeacherName());
+                                m.put("distance", s.getDistance());
+                                return m;
+                            })
+                            .collect(java.util.stream.Collectors.toList()));
+
+                    // 教师未匹配：优先归属该班班主任（照片识别漏教师/教师名不在系统中很常见）
+                    if ("unmatched".equals(match.getStatus()) && fallbackToHeadTeacher) {
+                        Map<String, Object> head = findHeadTeacher((String) result.get("className"));
+                        if (head != null) {
+                            result.put("teacherMatchStatus", "fallback");
+                            result.put("teacherId", head.get("id"));
+                            result.put("matchedTeacherName", head.get("name"));
+                            result.put("teacherFallbackReason",
+                                    teacherName == null || teacherName.isBlank()
+                                            ? "课程未标注教师，已归属班主任「" + head.get("name") + "」"
+                                            : "教师「" + teacherName + "」不在系统中，已归属班主任「" + head.get("name") + "」");
+                            preview.add(result);
+                            continue;
+                        }
+                    }
+
+                    // 完全未匹配到教师且无班主任兜底，视为错误，必须修正后才能导入
+                    if ("unmatched".equals(match.getStatus())) {
+                        List<String> errMsgs = new ArrayList<>();
+                        String base = "未匹配到教师「" + (teacherName != null && !teacherName.isEmpty() ? teacherName : "未知") + "」";
+                        if (!match.getSuggestions().isEmpty()) {
+                            base += "，您是否想输入：" + match.getSuggestions().get(0).getTeacherName();
+                        }
+                        errMsgs.add(base);
+                        Map<String, Object> err = new HashMap<>();
+                        err.put("row", i + 1);
+                        err.put("courseName", result.get("courseName"));
+                        err.put("errors", errMsgs);
+                        errors.add(err);
+                        continue;
+                    }
+                } else {
+                    result.put("teacherMatchStatus", "matched");
+                }
+                preview.add(result);
+            }
+        }
+
+        Map<String, Object> resp = new HashMap<>();
+        resp.put("total", items.size());
+        resp.put("success", preview.size());
+        resp.put("errors", errors);
+        resp.put("preview", preview);
+        resp.put("raw", raw);
+        return ResponseEntity.ok(resp);
+    }
+
+    /** 查询班级班主任（class_info.head_teacher_id → teacher.real_name） */
+    private Map<String, Object> findHeadTeacher(String className) {
+        if (className == null || className.isBlank()) return null;
+        Long classId = matchClass(className);
+        if (classId == null) return null;
+        try {
+            List<Map<String, Object>> rows = jdbc.queryForList(
+                    "SELECT t.id AS id, t.real_name AS name FROM class_info ci " +
+                    "JOIN teacher t ON t.id = ci.head_teacher_id WHERE ci.id = ?", classId);
+            return rows.isEmpty() ? null : rows.get(0);
+        } catch (Exception e) {
+            return null;
         }
     }
 
@@ -1548,7 +1781,7 @@ public class ScheduleImportController {
         return sb.toString();
     }
 
-    private Map<String, Object> validateItem(Map<String, Object> item, int row) {
+    private Map<String, Object> validateItem(Map<String, Object> item, int row, boolean allowEmptyClassroom) {
         List<String> msgs = new ArrayList<>();
         String courseName = (String) item.get("courseName");
         String teacherName = (String) item.getOrDefault("teacherName", "");
@@ -1562,7 +1795,9 @@ public class ScheduleImportController {
         String className = (String) item.getOrDefault("className", "");
 
         if (courseName == null || courseName.trim().isEmpty()) msgs.add("缺少课程名称");
-        if (className == null || className.trim().isEmpty()) msgs.add("缺少对应班级");
+        if (className == null || className.trim().isEmpty()) {
+            msgs.add("缺少对应班级（可在页面上选择默认班级，或使用带班级名的文件名/表格）");
+        }
         try { 
             int dow = Integer.parseInt(dayOfWeek.replaceAll("[^0-9]", ""));
             if (dow < 1 || dow > 7) msgs.add("星期几范围错误（仅支持周一至周日，1-7）");
@@ -1585,7 +1820,7 @@ public class ScheduleImportController {
         } else if ("[]".equals(normalizeWeeks(weeks))) {
             msgs.add("周次格式无法解析「" + weeks + "」（应为 [1,2,3] 或 1-16 等形式）");
         }
-        if (classroom == null || classroom.trim().isEmpty()) msgs.add("缺少教室信息");
+        if (!allowEmptyClassroom && (classroom == null || classroom.trim().isEmpty())) msgs.add("缺少教室信息");
 
         if (!msgs.isEmpty()) {
             Map<String, Object> err = new HashMap<>();

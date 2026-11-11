@@ -149,11 +149,12 @@ if (techMosaic) {
   const ctx = canvas ? canvas.getContext('2d') : null;
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   // density 为整数采样步长（非整数会让像素索引取到 undefined，导致文字采样为空）
-  const PCFG = { size: 1.65, density: 2, color: '#ffffff', highlight: '#8b5cf6', scatter: 150, gather: 1400, stagger: 380, repel: 38, radius: 110, drift: .7, font: 120, weight: 800 };
+  // 细小粒子 + 更密采样：粒子变小后轮廓更锐利，文字与描述整体更清晰
+  const PCFG = { size: 1.15, density: 1, color: '#ffffff', highlight: '#8b5cf6', scatter: 150, gather: 1400, stagger: 380, repel: 38, radius: 110, drift: .7, font: 120, weight: 800 };
   // 性能·设备自适应：低端核/移动端加大采样步长并压低粒子上限（粒子数 ≈ 文字面积/步长²）
   const LOW_END = (navigator.hardwareConcurrency || 4) <= 4 || /Mobi|Android|iPhone/i.test(navigator.userAgent);
-  if (LOW_END) PCFG.density = 3;
-  const MAX_PARTICLES = LOW_END ? 10000 : 32000;
+  if (LOW_END) PCFG.density = 2;
+  const MAX_PARTICLES = LOW_END ? 26000 : 70000;
 
   const PT = {
     particles: [], raf: null, build: 0,
@@ -503,7 +504,7 @@ if (techMosaic) {
 }
 
 // ===== 管理端页面预览 · Tab 切换 + 自动轮播 =====
-// 每 8 秒自动切到下一页，手动点击 Tab 后重新计时；离屏或减少动效时停止自动轮播。
+// 默认每 2 秒切换；点击某一页后停留 10 秒；鼠标停留在预览窗口或离屏时暂停。
 (function initAdminPreview() {
   const browserEl = document.querySelector('.browser');
   const urlEl = document.getElementById('adminShotUrl');
@@ -511,16 +512,28 @@ if (techMosaic) {
   if (!browserEl || !tabs.length) return;
 
   const pages = tabs.map(tab => document.getElementById(tab.dataset.page));
-  const INTERVAL = 8000;
+  const menuItems = Array.from(browserEl.querySelectorAll('.ad-menu a[data-page]'));
+  const INTERVAL = 2000;         // 默认轮播间隔
+  const HOLD_AFTER_CLICK = 10000; // 点击后停留
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   let current = Math.max(0, tabs.findIndex(t => t.classList.contains('on')));
   let timer = 0;
+  let holdUntil = 0;   // 点击后的停留截止时间
+  let attention = false; // 鼠标是否停留在预览窗口
+  let onScreen = false;
+
+  const syncMenu = () => {
+    menuItems.forEach(item => {
+      item.classList.toggle('on', item.dataset.page === tabs[current].dataset.page);
+    });
+  };
 
   const show = (index) => {
     current = index;
     tabs.forEach((t, i) => t.classList.toggle('on', i === index));
     pages.forEach((page, i) => page.classList.toggle('on', i === index));
     if (urlEl) urlEl.textContent = tabs[index].dataset.url;
+    syncMenu();
   };
 
   const stop = () => {
@@ -531,26 +544,50 @@ if (techMosaic) {
   const start = () => {
     stop();
     if (reduceMotion) return;
-    timer = setInterval(() => show((current + 1) % tabs.length), INTERVAL);
+    // 固定节拍：每 2 秒评估一次，是否推进由「注意力 / 点击停留 / 离屏」决定
+    timer = setInterval(() => {
+      if (document.hidden || attention || !onScreen) return;
+      if (performance.now() < holdUntil) return;
+      show((current + 1) % tabs.length);
+    }, INTERVAL);
   };
 
-  tabs.forEach((tab, index) => {
-    tab.addEventListener('click', () => {
-      show(index);
-      start(); // 手动点击后重新计时
+  // 点击 Tab 或侧栏菜单：立即显示该页，并锁定 10 秒
+  const select = (index) => {
+    if (index < 0) return;
+    show(index);
+    holdUntil = performance.now() + HOLD_AFTER_CLICK;
+  };
+  tabs.forEach((tab, index) => tab.addEventListener('click', () => select(index)));
+  menuItems.forEach(item => {
+    item.addEventListener('click', () => {
+      const pageId = item.dataset.page;
+      select(tabs.findIndex(t => t.dataset.page === pageId));
     });
+  });
+
+  // 仅鼠标悬停视为「注意力停留」；触屏点按后不应长期暂停轮播
+  browserEl.addEventListener('pointerenter', (e) => {
+    if (e.pointerType === 'mouse') attention = true;
+  });
+  browserEl.addEventListener('pointerleave', (e) => {
+    if (e.pointerType === 'mouse') attention = false;
   });
 
   if (!reduceMotion) {
     if ('IntersectionObserver' in window) {
-      // 仅当浏览器样机在视口内时轮播，离屏自动暂停
       new IntersectionObserver((entries) => {
-        entries.forEach((entry) => (entry.isIntersecting ? start() : stop()));
+        entries.forEach((entry) => {
+          onScreen = entry.isIntersecting;
+          if (onScreen) start(); else stop();
+        });
       }, { threshold: 0.2 }).observe(browserEl);
     } else {
+      onScreen = true;
       start();
     }
   }
+  syncMenu();
 })();
 
 // ===== 学生端功能卡片椭圆公转 =====
@@ -1139,4 +1176,31 @@ if (orbitStage) {
   window.addEventListener('scroll', () => {
     if (active) pump();
   }, { passive: true });
+
+  // 兜底检查：IntersectionObserver 只在阈值变化时回调，
+  // 短区块可能在进入时 top 尚未到达 0.84 行高，之后再无回调而一直停在隐藏态。
+  // 滚动 / 缩放 / 锚点跳转 / 页面加载后主动扫描，保证内容最终一定会显示。
+  let checkRaf = 0;
+  const checkSections = () => {
+    checkRaf = 0;
+    sections.forEach(st => {
+      if (!st.done && st.root.getBoundingClientRect().bottom <= 0) finalizeState(st);
+    });
+    const next = sections.find(st => {
+      if (st.done || st.started) return false;
+      const r = st.root.getBoundingClientRect();
+      return r.top < window.innerHeight * .8 && r.bottom > 0;
+    });
+    if (next) startState(next);
+  };
+  const scheduleCheck = () => {
+    if (!checkRaf) checkRaf = requestAnimationFrame(checkSections);
+  };
+  window.addEventListener('scroll', scheduleCheck, { passive: true });
+  window.addEventListener('resize', scheduleCheck);
+  window.addEventListener('hashchange', scheduleCheck);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) scheduleCheck(); });
+  if (document.readyState === 'complete') scheduleCheck();
+  else window.addEventListener('load', scheduleCheck);
+  setTimeout(scheduleCheck, 1200);
 })();

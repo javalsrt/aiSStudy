@@ -15,7 +15,9 @@ import android.widget.ImageView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentTransaction;
@@ -31,6 +33,7 @@ import com.znxsgl.student.network.ApiService;
 import com.znxsgl.student.network.RetrofitClient;
 import com.znxsgl.student.network.WebSocketManager;
 import com.znxsgl.student.widget.AiTabBurstView;
+import com.znxsgl.student.widget.GlassNavBackgroundView;
 
 import java.util.HashMap;
 import java.util.List;
@@ -46,6 +49,12 @@ public class MainActivity extends AppCompatActivity {
     private Fragment currentFragment;
     private FocusFragment focusFragment;
     private BottomNavigationView bottomNav;
+    /** 底部导航的毛玻璃底（随导航一起显示/隐藏） */
+    private GlassNavBackgroundView navGlass;
+    /** 当前页面是否开启沉浸式（内容画到系统栏下方） */
+    private boolean edgeToEdgeLayout;
+    /** 最近一次拿到的系统导航栏高度，切页时按当前模式决定是否让胶囊上移 */
+    private int navigationBarInset;
     /** 中间 AI 星星的点击爆发动效层 */
     private AiTabBurstView aiBurst;
     private ValueAnimator aiIconAnimator;
@@ -71,7 +80,16 @@ public class MainActivity extends AppCompatActivity {
         fragmentManager = getSupportFragmentManager();
 
         bottomNav = findViewById(R.id.bottom_nav);
+        navGlass = findViewById(R.id.nav_glass);
         aiBurst = findViewById(R.id.ai_tab_burst);
+        // 「测试」页开启沉浸式后，Material 会把系统导航栏高度加进 BottomNavigationView 的
+        // paddingBottom，在 72dp 的悬浮胶囊里挤掉 24dp 的菜单高度，图标与文字就会重叠。
+        // 这里接管 inset：把导航栏高度换算成整体上移的外边距，胶囊内部保持完整 72dp。
+        ViewCompat.setOnApplyWindowInsetsListener(bottomNav, (v, insets) -> {
+            navigationBarInset = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom;
+            applyBottomInset(edgeToEdgeLayout ? navigationBarInset : 0);
+            return insets;
+        });
         bottomNav.setOnItemSelectedListener(item -> {
             int id = item.getItemId();
             // 注意：不在切到「我的」时清红点——红点表示真实未读，进入对应课程聊天后才会消除
@@ -311,16 +329,47 @@ public class MainActivity extends AppCompatActivity {
         return Math.round(getResources().getDisplayMetrics().density * v);
     }
 
-    /** 答题时隐藏悬浮导航（全屏答题），结束后恢复 */
+    /**
+     * 底部悬浮胶囊随系统导航栏高度整体上移（保持 16dp 间距），
+     * 毛玻璃底跟着同步，避免沉浸式页面里胶囊压进手势条。
+     */
+    private void applyBottomInset(int bottomInset) {
+        int margin = dp(16) + Math.max(0, bottomInset);
+        setBottomMargin(bottomNav, margin);
+        setBottomMargin(navGlass, margin);
+    }
+
+    private void setBottomMargin(View view, int margin) {
+        if (view == null) return;
+        ViewGroup.LayoutParams params = view.getLayoutParams();
+        if (!(params instanceof ViewGroup.MarginLayoutParams)) return;
+        ViewGroup.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) params;
+        if (lp.bottomMargin == margin) return;
+        lp.bottomMargin = margin;
+        view.setLayoutParams(lp);
+    }
+
+    /** 答题时隐藏悬浮导航（全屏答题），结束后恢复；毛玻璃底与导航同步显隐 */
     public void setBottomNavVisible(boolean visible) {
         if (bottomNav == null) return;
         if (visible) {
             bottomNav.setVisibility(android.view.View.VISIBLE);
             bottomNav.animate().alpha(1f).setDuration(180L).start();
+            if (navGlass != null) {
+                navGlass.setVisibility(android.view.View.VISIBLE);
+                navGlass.animate().alpha(1f).setDuration(180L).start();
+                // 隐藏期间页面可能已滚动，重新截取毛玻璃底图
+                navGlass.refresh();
+            }
         } else {
             bottomNav.animate().alpha(0f).setDuration(180L)
                     .withEndAction(() -> bottomNav.setVisibility(android.view.View.INVISIBLE))
                     .start();
+            if (navGlass != null) {
+                navGlass.animate().alpha(0f).setDuration(180L)
+                        .withEndAction(() -> navGlass.setVisibility(android.view.View.INVISIBLE))
+                        .start();
+            }
         }
     }
 
@@ -489,6 +538,10 @@ public class MainActivity extends AppCompatActivity {
         boolean edgeToEdge = fragment instanceof TestFragment;
         boolean auroraTop = fragment instanceof AiAssistantFragment;
 
+        edgeToEdgeLayout = edgeToEdge;
+        // 沉浸式才让胶囊避开导航栏高度；普通页面立刻退回 16dp，不能等下一次 inset 下发
+        applyBottomInset(edgeToEdge ? navigationBarInset : 0);
+
         WindowCompat.setDecorFitsSystemWindows(getWindow(), !edgeToEdge);
 
         int statusBarColor;
@@ -548,6 +601,8 @@ public class MainActivity extends AppCompatActivity {
         }
         transaction.commit();
         currentFragment = fragment;
+        // 切换动画结束后重新截取导航背后的内容，避免毛玻璃底残留上一页画面
+        if (navGlass != null) navGlass.postDelayed(navGlass::refresh, 320L);
         // 跟踪 FocusFragment
         if (fragment instanceof FocusFragment) focusFragment = (FocusFragment) fragment;
     }

@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Select } from '@/components/ui/select'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import { School, Plus, Save, Trash2, Upload, Info, Search, Power, FileText, LayoutGrid, History } from 'lucide-react'
+import { School, Plus, Save, Trash2, Upload, Search, Power, FileText, LayoutGrid, History } from 'lucide-react'
 import {
   bulkImportSchoolInfo,
   deleteSchoolInfo,
@@ -16,12 +17,14 @@ import {
   type SchoolInfoLog,
   type SchoolInfoOverview,
 } from '@/api/school-info'
+import { useDialog } from '@/hooks/use-dialog'
 
 /**
  * 校园信息设置：管理员维护校规/校内制度，作为 AI 助手的**底层知识**。
  * 学生提问校内问题时，助手优先命中这里的条目作答。
  */
 export function SchoolInfoPage() {
+  const { confirm, DialogComponent } = useDialog()
   const [items, setItems] = useState<SchoolInfoItem[]>([])
   const [categories, setCategories] = useState<string[]>([])
   const [category, setCategory] = useState('')
@@ -50,6 +53,8 @@ export function SchoolInfoPage() {
   const [logs, setLogs] = useState<SchoolInfoLog[]>([])
   /** 最近一次保存结果，显示在按钮旁，避免以为没反应而反复点击 */
   const [lastSaved, setLastSaved] = useState<string | null>(null)
+  // 同步锁：saving 状态要等渲染才生效，连点会重复提交
+  const savingRef = useRef(false)
 
   const loadStats = useCallback(async () => {
     try {
@@ -111,7 +116,8 @@ export function SchoolInfoPage() {
       setMessage({ type: 'err', text: '标题和内容不能为空' })
       return
     }
-    if (saving) return
+    if (savingRef.current) return
+    savingRef.current = true
     setSaving(true)
     setLastSaved(null)
     try {
@@ -123,12 +129,19 @@ export function SchoolInfoPage() {
     } catch (e: any) {
       setMessage({ type: 'err', text: e?.message || '保存失败' })
     } finally {
+      savingRef.current = false
       setSaving(false)
     }
   }
 
   const remove = async (item: SchoolInfoItem) => {
-    if (!window.confirm(`确定删除「${item.title}」？删除后 AI 将不再使用该内容。`)) return
+    const confirmed = await confirm({
+      title: '删除知识条目',
+      description: `确定删除「${item.title}」？删除后 AI 将不再使用该内容。`,
+      confirmText: '删除',
+      variant: 'danger',
+    })
+    if (!confirmed) return
     try {
       await deleteSchoolInfo(item.id)
       if (editingId === item.id) startNew()
@@ -243,19 +256,17 @@ export function SchoolInfoPage() {
             </div>
 
             <textarea
-              className="h-40 w-full rounded-lg border border-neutral-200 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="h-40 w-full rounded-lg border border-neutral-200 p-3 text-sm focus:outline-hidden focus:ring-2 focus:ring-emerald-300"
               placeholder={'可直接粘贴文本，按「## 标题」分段：\n## 学生请假管理办法\n学生请假须提前向班主任提交书面申请……'}
               value={bulkText}
               onChange={(e) => setBulkText(e.target.value)}
             />
 
-            <div className="flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
-              <Info className="mt-0.5 h-4 w-4 flex-shrink-0" />
-              <span>
-                从 WPS 或 Word 导入时，请先将文件「另存为 .docx」（旧版 .doc/.wps 二进制格式无法解析）；
-                文档中的一级标题行会被识别为条目标题，其余正文归入该条目。
-              </span>
-            </div>
+            {/* 从 WPS 或 Word 导入时，请先将文件「另存为 .docx」（旧版 .doc/.wps 二进制格式无法解析）；
+                文档中的一级标题行会被识别为条目标题，其余正文归入该条目。 */}
+            <p className="text-xs text-neutral-400">
+              Word/WPS 请先另存为 .docx；一级标题行识别为条目标题
+            </p>
 
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setBulkOpen(false)}>
@@ -290,8 +301,8 @@ export function SchoolInfoPage() {
                 onClick={() => setCategory(category === c.category ? '' : c.category)}
                 className={`rounded-full border px-3 py-1 text-xs transition-colors ${
                   category === c.category
-                    ? 'border-primary-400 bg-primary-500 text-white'
-                    : 'border-neutral-200 bg-white text-neutral-600 hover:border-primary-300 hover:text-primary-600'
+                    ? 'border-emerald-500 bg-emerald-500 text-white'
+                    : 'border-neutral-200 bg-surface-primary text-neutral-600 hover:border-emerald-300 hover:text-primary-600'
                 }`}
                 title={`最近更新 ${c.updatedAt || '-'}`}
               >
@@ -339,7 +350,7 @@ export function SchoolInfoPage() {
           <CardHeader className="space-y-3">
             <CardTitle className="text-base">知识条目（{filtered.length}）</CardTitle>
             <div className="flex gap-2">
-              <select
+              <Select
                 className="h-9 rounded-md border border-neutral-200 px-2 text-sm"
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
@@ -350,11 +361,11 @@ export function SchoolInfoPage() {
                     {c}
                   </option>
                 ))}
-              </select>
+              </Select>
               <div className="relative flex-1">
                 <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
                 <input
-                  className="h-9 w-full rounded-md border border-neutral-200 pl-8 pr-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="h-9 w-full rounded-md border border-neutral-200 pl-8 pr-2 text-sm focus:outline-hidden focus:ring-2 focus:ring-emerald-300"
                   placeholder="搜索标题/内容"
                   value={keyword}
                   onChange={(e) => setKeyword(e.target.value)}
@@ -372,9 +383,9 @@ export function SchoolInfoPage() {
             {filtered.map((item) => (
               <div
                 key={item.id}
-                className={`cursor-pointer rounded-lg border p-3 transition-colors ${
+                className={`cursor-pointer rounded-xl border p-3 transition-colors ${
                   editingId === item.id
-                    ? 'border-primary-300 bg-primary-50/60'
+                    ? 'border-emerald-300 bg-emerald-50/60'
                     : 'border-neutral-200 hover:border-neutral-300 hover:bg-neutral-50'
                 }`}
                 onClick={() => startEdit(item)}
@@ -432,7 +443,7 @@ export function SchoolInfoPage() {
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
               <div className="space-y-1.5">
                 <Label className="text-xs text-neutral-500">分类</Label>
-                <select
+                <Select
                   className="h-9 w-full rounded-md border border-neutral-200 px-2 text-sm"
                   value={form.category || '校园概况'}
                   onChange={(e) => setForm({ ...form, category: e.target.value })}
@@ -442,12 +453,12 @@ export function SchoolInfoPage() {
                       {c}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
               <div className="space-y-1.5 md:col-span-2">
                 <Label className="text-xs text-neutral-500">标题</Label>
                 <input
-                  className="h-9 w-full rounded-md border border-neutral-200 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="h-9 w-full rounded-md border border-neutral-200 px-2 text-sm focus:outline-hidden focus:ring-2 focus:ring-emerald-300"
                   placeholder="如：学生请假管理办法"
                   value={form.title || ''}
                   onChange={(e) => setForm({ ...form, title: e.target.value })}
@@ -460,7 +471,7 @@ export function SchoolInfoPage() {
                 关键词（逗号分隔，帮助 AI 命中，如：请假,病假,销假）
               </Label>
               <input
-                className="h-9 w-full rounded-md border border-neutral-200 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="h-9 w-full rounded-md border border-neutral-200 px-2 text-sm focus:outline-hidden focus:ring-2 focus:ring-emerald-300"
                 value={form.keywords || ''}
                 onChange={(e) => setForm({ ...form, keywords: e.target.value })}
               />
@@ -469,7 +480,7 @@ export function SchoolInfoPage() {
             <div className="space-y-1.5">
               <Label className="text-xs text-neutral-500">正文</Label>
               <textarea
-                className="h-72 w-full rounded-lg border border-neutral-200 p-3 text-sm leading-6 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="h-72 w-full rounded-lg border border-neutral-200 p-3 text-sm leading-6 focus:outline-hidden focus:ring-2 focus:ring-emerald-300"
                 placeholder="把学校的正式规定粘贴到这里（纯文本，保留换行即可）"
                 value={form.content || ''}
                 onChange={(e) => setForm({ ...form, content: e.target.value })}
@@ -488,24 +499,22 @@ export function SchoolInfoPage() {
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs text-neutral-500">状态</Label>
-                <select
+                <Select
                   className="h-9 w-full rounded-md border border-neutral-200 px-2 text-sm"
                   value={form.status ?? 1}
                   onChange={(e) => setForm({ ...form, status: Number(e.target.value) })}
                 >
                   <option value={1}>启用（参与 AI 回答）</option>
                   <option value={0}>停用</option>
-                </select>
+                </Select>
               </div>
             </div>
 
-            <div className="flex items-start gap-2 rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-700">
-              <Info className="mt-0.5 h-4 w-4 flex-shrink-0" />
-              <span>
-                校园信息是 AI 的**底层知识**：学生问「宿舍几点熄灯」「请假流程」等问题时，助手会优先且仅依据这里的内容回答；
-                未收录时会明确告知「暂未收录，请咨询班主任」，不会编造。
-              </span>
-            </div>
+            {/* 完整说明（界面不展示）：校园信息是 AI 的底层知识，学生问「宿舍几点熄灯」「请假流程」等问题时，
+                助手会优先且仅依据这里的内容回答；未收录时会明确告知「暂未收录，请咨询班主任」，不会编造。 */}
+            <p className="text-xs text-neutral-400">
+              已启用条目将作为 AI 回答依据；未收录的问题会提示咨询班主任
+            </p>
 
             <div className="flex flex-wrap items-center justify-end gap-3">
               {lastSaved && <span className="text-xs font-medium text-emerald-600">{lastSaved}</span>}
@@ -558,7 +567,7 @@ export function SchoolInfoPage() {
                             l.action === 'DELETE'
                               ? 'bg-red-50 text-red-600'
                               : l.action === 'IMPORT'
-                                ? 'bg-primary-50 text-primary-700'
+                                ? 'bg-emerald-50 text-emerald-700'
                                 : l.action === 'STATUS'
                                   ? 'bg-neutral-100 text-neutral-600'
                                   : 'bg-emerald-50 text-emerald-700'
@@ -590,6 +599,7 @@ export function SchoolInfoPage() {
           )}
         </CardContent>
       </Card>
+      {DialogComponent}
     </div>
   )
 }

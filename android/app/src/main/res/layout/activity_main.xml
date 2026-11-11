@@ -18,7 +18,20 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
-    <!-- 悬浮药丸导航
+    <!-- 悬浮药丸导航的毛玻璃底：截取导航正后方的页面内容做缩放模糊，
+         叠加白色薄雾、玻璃高光与描边；自身不接收触摸事件 -->
+    <com.znxsgl.student.widget.GlassNavBackgroundView
+        android:id="@+id/nav_glass"
+        android:layout_width="match_parent"
+        android:layout_height="72dp"
+        android:layout_gravity="bottom"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="16dp"
+        android:elevation="8dp"
+        android:importantForAccessibility="no" />
+
+    <!-- 悬浮药丸导航（背景透明，视觉完全交给上方的毛玻璃底）
          注意：不要给它加 paddingHorizontal。M3 底部导航是按等分槽位排布（每个 tab 占 1/N），
          左右 padding 会把两端挤出大片空白（4 个 tab 时尤其明显）；
          padding = 0 时端到端间隙恰为相邻间隙的一半，分布最平均（同 iOS Tab Bar）。 -->
@@ -30,9 +43,9 @@
         android:layout_marginStart="16dp"
         android:layout_marginEnd="16dp"
         android:layout_marginBottom="16dp"
-        android:background="@drawable/bg_nav_bar"
+        android:background="@android:color/transparent"
         android:elevation="8dp"
-        android:outlineProvider="background"
+        android:translationZ="10dp"
         app:itemActiveIndicatorStyle="@style/NavIndicatorTransparent"
         app:itemIconSize="24dp"
         app:itemTextColor="@color/selector_nav_text"
@@ -51,6 +64,7 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:elevation="12dp"
+        android:translationZ="8dp"
         android:importantForAccessibility="no"
         android:outlineProvider="none" />
 

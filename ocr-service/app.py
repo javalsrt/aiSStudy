@@ -255,6 +255,177 @@ def ocr_base64(payload: Base64Payload):
     return _process(raw)
 
 
+# ===== 课程表照片识别 =====
+# 与作息表不同，课程表是「星期 × 节次」二维网格，这里只做版面还原：
+# 识别表头星期列与左侧节次行，把每格文字按从上到下拼好，交给大模型做语义解析。
+DAY_CN = "一二三四五六日"
+DAY_RE = re.compile(r"^星期([一二三四五六日天])$")
+NODE_RE = re.compile(r"^\d{1,2}$")
+# 合并单元格（上午/下午/午休）与表头文字不属于任何课程格
+LAYOUT_NOISE = {"星期", "节次", "上午", "下午", "晚上", "中午", "午休", "午", "休"}
+
+
+def recognize_course_table(img_bgr: np.ndarray):
+    """
+    还原课程表网格：
+    1. OCR 全图，取每块文字的中心坐标；
+    2. 「星期一~星期日」文字块定义列，左侧数字块定义行（节次）；
+    3. 其余文字块按最近列/最近行归入单元格，格内按 y 排序后用 " / " 拼接。
+    """
+    gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+    h, w = gray.shape
+    # 限制宽度，避免大图 OCR 过慢
+    if w > 1600:
+        scale = 1600 / float(w)
+        gray = cv2.resize(gray, (1600, max(1, int(h * scale))), interpolation=cv2.INTER_AREA)
+        h, w = gray.shape
+
+    result, _ = ocr(gray)
+    if not result:
+        return {"error": "图片中未识别到文字"}
+
+    blocks = []
+    for box, text, score in result:
+        if score is not None and score < 0.35:
+            continue
+        raw_text = str(text).strip()
+        if not raw_text:
+            continue
+        xs = [float(p[0]) for p in box]
+        ys = [float(p[1]) for p in box]
+        blocks.append({
+            "text": raw_text,
+            "plain": re.sub(r"\s+", "", raw_text),
+            "cx": sum(xs) / 4.0,
+            "cy": sum(ys) / 4.0,
+        })
+
+    # 1) 表头：星期列
+    header_map = {}
+    for b in blocks:
+        m = DAY_RE.match(b["plain"])
+        if not m:
+            continue
+        token = m.group(1)
+        dow = 7 if token == "天" else DAY_CN.index(token) + 1
+        b["dayOfWeek"] = dow
+        header_map.setdefault(dow, b)
+    if len(header_map) < 2:
+        return {"error": "未识别到课程表表头（星期一~星期日），请上传清晰的课表照片"}
+    header = sorted(header_map.values(), key=lambda b: b["cx"])
+    col_centers = [b["cx"] for b in header]
+    gap = (col_centers[-1] - col_centers[0]) / max(1, len(col_centers) - 1)
+    # 左边界：表头首列中心往左偏 35% 列宽，既能排除「上午/下午」单元格，又能保留节次数字
+    left_limit = col_centers[0] - gap * 0.35
+    header_cy = sum(b["cy"] for b in header) / len(header)
+
+    # 2) 行：优先用表格横线切带（节次数字可能漏识别，横线更稳定）
+    grid_ys, _ = detect_grid(gray)
+    bands = [(grid_ys[i], grid_ys[i + 1]) for i in range(len(grid_ys) - 1)
+             if grid_ys[i + 1] - grid_ys[i] >= 25]
+    header_band_idx = None
+    for i, (y0, y1) in enumerate(bands):
+        if y0 <= header_cy <= y1:
+            header_band_idx = i
+            break
+
+    rows = []
+    if header_band_idx is not None and len(bands) - 1 - header_band_idx >= 2:
+        node_no = 0
+        for i in range(header_band_idx + 1, len(bands)):
+            y0, y1 = bands[i]
+            band_blocks = [b for b in blocks if y0 <= b["cy"] < y1]
+            left_nums = [int(b["plain"]) for b in band_blocks
+                         if b["cx"] < left_limit and NODE_RE.match(b["plain"]) and 1 <= int(b["plain"]) <= 12]
+            # 午休等合并单元格不是教学节次（带内只有「午/休」等字样）
+            band_plain = "".join(b["plain"] for b in band_blocks)
+            content_blocks = [b for b in band_blocks
+                              if b["cx"] >= left_limit and b["plain"] not in ("午", "休", "午休", "上午", "下午")]
+            if not content_blocks and any(k in band_plain for k in ("午", "休")):
+                continue
+            if left_nums:
+                node_no = left_nums[0]
+            else:
+                node_no += 1
+            rows.append({"node": node_no, "y0": y0, "y1": y1})
+    else:
+        # 回退：无横线时用左侧节次数字定位行
+        node_blocks = []
+        for b in blocks:
+            if b["cx"] >= left_limit or not NODE_RE.match(b["plain"]):
+                continue
+            n = int(b["plain"])
+            if 1 <= n <= 12:
+                b["node"] = n
+                node_blocks.append(b)
+        node_blocks.sort(key=lambda b: b["cy"])
+        seen = set()
+        for b in node_blocks:
+            if b["node"] in seen:
+                continue
+            seen.add(b["node"])
+            rows.append({"node": b["node"], "y0": b["cy"] - 40, "y1": b["cy"] + 40})
+    if not rows:
+        return {"error": "未识别到课程表节次行，请确认照片包含完整表格"}
+
+    # 3) 文字块归格：先按行带，再按最近星期列
+    skip_ids = {id(b) for b in header}
+    cells = [[[] for _ in header] for _ in rows]
+    notes = []
+    for b in blocks:
+        if id(b) in skip_ids or not b["plain"]:
+            continue
+        if b["cx"] < left_limit or b["plain"] in LAYOUT_NOISE:
+            notes.append(b["text"])
+            continue
+        row_idx = next((i for i, r in enumerate(rows) if r["y0"] <= b["cy"] < r["y1"]), None)
+        if row_idx is None:
+            notes.append(b["text"])
+            continue
+        col_idx = min(range(len(col_centers)), key=lambda i: abs(col_centers[i] - b["cx"]))
+        cells[row_idx][col_idx].append(b)
+
+    rows_out = []
+    for i, r in enumerate(rows):
+        row_cells = {}
+        for j, hb in enumerate(header):
+            ordered = sorted(cells[i][j], key=lambda x: (x["cy"], x["cx"]))
+            # 同一格内完全相同的文字（OCR 重复框）只保留一次
+            uniq, seen_text = [], set()
+            for x in ordered:
+                if x["plain"] in seen_text:
+                    continue
+                seen_text.add(x["plain"])
+                uniq.append(x)
+            row_cells[str(hb["dayOfWeek"])] = " / ".join(x["text"] for x in uniq)
+        rows_out.append({"node": r["node"], "cells": row_cells})
+
+    days = [{"dayOfWeek": b["dayOfWeek"], "name": "星期" + DAY_CN[b["dayOfWeek"] - 1]} for b in header]
+    return {
+        "days": days,
+        "rows": rows_out,
+        "notes": notes[:20],
+        "count": len(rows_out),
+    }
+
+
+@app.post("/ocr/course-table")
+def ocr_course_table(payload: Base64Payload):
+    """课程表照片 → 二维网格（供课程导入预览使用）"""
+    try:
+        raw = base64.b64decode(payload.image.split(",")[-1])
+    except Exception:
+        return {"error": "base64 解码失败"}
+    img = cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_COLOR)
+    if img is None:
+        return {"error": "无法解析图片（支持 jpg/png/webp）"}
+    try:
+        return recognize_course_table(img)
+    except Exception as e:  # noqa: BLE001
+        log.exception("课程表识别失败")
+        return {"error": f"识别失败：{e}"}
+
+
 if __name__ == "__main__":
     import os
 

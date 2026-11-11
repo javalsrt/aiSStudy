@@ -65,6 +65,12 @@ export interface TrendItem {
   minutes: number
 }
 
+/** 每日活跃学生（真实学习行为去重） */
+export interface ActivityItem {
+  date: string
+  activeUsers: number
+}
+
 // 课程
 export interface CourseItem {
   courseName: string
@@ -79,6 +85,7 @@ export interface CourseItem {
   classroom?: string
   weeks?: string
   status?: number // 1正常 0下架
+  active?: boolean // 是否已上架（存在启用排课记录）
   credit?: number
   hours?: number
   scheduleId?: number // 课表记录ID（用于调课）
@@ -164,12 +171,14 @@ export interface ImportPreviewItem {
   credit?: number
   status?: string
   errorMsg?: string
-  /** 教师匹配状态：matched 精确匹配 / fuzzy 模糊匹配 / unmatched 未匹配 */
-  teacherMatchStatus?: 'matched' | 'fuzzy' | 'unmatched'
+  /** 教师匹配状态：matched 精确匹配 / fuzzy 模糊匹配 / fallback 归属班主任 / unmatched 未匹配 */
+  teacherMatchStatus?: 'matched' | 'fuzzy' | 'fallback' | 'unmatched'
   /** 当前选中的教师ID（预览阶段可修正） */
   teacherId?: number
   /** 匹配到的教师姓名 */
   matchedTeacherName?: string
+  /** 归属班主任时的说明（未匹配教师/未标注教师） */
+  teacherFallbackReason?: string
   /** 候选教师列表 */
   teacherSuggestions?: TeacherSuggestion[]
 }

@@ -293,12 +293,13 @@ export function TeacherChatPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="flex h-[calc(100vh-84px)] flex-col gap-3 lg:h-[calc(100vh-24px)]">
+      <div className="flex shrink-0 items-center justify-between">
         <h1 className="text-2xl font-bold text-neutral-900">课程聊天</h1>
       </div>
 
-      <div className="grid grid-cols-[280px_1fr] gap-6 h-[calc(100vh-220px)] min-h-[480px]">
+      {/* 固定为一屏高度：间距与页面外边距统一 12px，消息区内部滚动，页面不再上下滚动 */}
+      <div className="grid min-h-0 flex-1 grid-cols-[280px_1fr] gap-3">
         {/* 左侧课程列表 */}
         <Card className="overflow-hidden flex flex-col">
           <div className="px-4 py-3 border-b border-neutral-100 text-sm font-semibold text-neutral-700">
@@ -320,12 +321,12 @@ export function TeacherChatPage() {
                 className={cn(
                   'w-full text-left px-3 py-3 rounded-xl transition-colors',
                   activeCourse?.courseName === c.courseName
-                    ? 'bg-primary-50 text-primary-700'
+                    ? 'bg-blue-50 text-blue-700'
                     : 'hover:bg-neutral-50 text-neutral-700'
                 )}
               >
                 <div className="flex items-center gap-2">
-                  <MessageSquare className="w-4 h-4 flex-shrink-0" />
+                  <MessageSquare className="w-4 h-4 shrink-0" />
                   <span className="font-medium text-sm truncate">{c.courseName}</span>
                 </div>
                 {c.className && (
@@ -340,7 +341,7 @@ export function TeacherChatPage() {
         </Card>
 
         {/* 右侧聊天室 */}
-        <Card className="flex flex-col overflow-hidden">
+        <Card className="flex min-w-0 flex-col overflow-hidden">
           {!activeCourse ? (
             <div className="flex-1 flex items-center justify-center text-neutral-400">
               请先选择课程
@@ -387,14 +388,14 @@ export function TeacherChatPage() {
                           isTeacher
                             ? 'bg-primary-600 text-white rounded-br-md'
                             : isAi
-                            ? 'bg-purple-50 text-neutral-800 border border-purple-100 rounded-bl-md'
-                            : 'bg-white text-neutral-800 border border-neutral-100 rounded-bl-md'
+                            ? 'bg-green-50 text-neutral-800 border border-green-100 rounded-bl-md'
+                            : 'bg-surface-primary text-neutral-800 border border-neutral-100 rounded-bl-md'
                         )}
                       >
                         <div
                           className={cn(
                             'text-xs font-medium mb-1',
-                            isTeacher ? 'text-white/80' : isAi ? 'text-purple-600' : 'text-neutral-400'
+                            isTeacher ? 'text-white/80' : isAi ? 'text-green-600' : 'text-neutral-400'
                           )}
                         >
                           {isTeacher
@@ -431,7 +432,7 @@ export function TeacherChatPage() {
                           >
                             <div
                               className={cn(
-                                'w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0',
+                                'w-11 h-11 rounded-xl flex items-center justify-center shrink-0',
                                 isTeacher ? 'bg-white/25' : 'bg-primary-100'
                               )}
                             >
@@ -472,7 +473,7 @@ export function TeacherChatPage() {
               </div>
 
               {/* 输入区 */}
-              <div className="px-4 py-3 border-t border-neutral-100 bg-white">
+              <div className="px-4 py-3 border-t border-neutral-100 bg-surface-primary">
                 <div className="flex items-center gap-2">
                   <input
                     ref={fileRef}
@@ -515,7 +516,7 @@ export function TeacherChatPage() {
                       onFocus={() => setShowMention(true)}
                       onBlur={() => setTimeout(() => setShowMention(false), 200)}
                       placeholder="输入消息，@AI 提问，@学生名 私发，Enter 发送"
-                      className="w-full h-10 px-3 pr-9 text-sm border border-neutral-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-200"
+                      className="w-full h-10 px-3 pr-9 text-sm border border-neutral-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-emerald-200"
                     />
                     <button
                       type="button"
@@ -526,7 +527,7 @@ export function TeacherChatPage() {
                       <AtSign className="w-4 h-4" />
                     </button>
                     {showMention && students.length > 0 && (
-                      <div className="absolute bottom-11 left-0 right-0 bg-white border border-neutral-200 rounded-xl shadow-lg overflow-hidden z-10 max-h-56 overflow-y-auto">
+                      <div className="absolute bottom-11 left-0 right-0 bg-surface-primary border border-neutral-200 rounded-xl shadow-lg overflow-hidden z-10 max-h-56 overflow-y-auto">
                         <div className="px-3 py-2 text-xs text-neutral-400 border-b border-neutral-100 flex items-center gap-1">
                           <Sparkles className="w-3 h-3" /> 选择学生或 AI
                         </div>
@@ -537,7 +538,7 @@ export function TeacherChatPage() {
                             setShowMention(false)
                           }}
                         >
-                          <Sparkles className="w-4 h-4 text-purple-500" /> AI 智能助教
+                          <Sparkles className="w-4 h-4 text-green-600" /> AI 智能助教
                         </button>
                         {students.map((s) => (
                           <button

@@ -67,7 +67,11 @@ test/loadtest_results/
 test/screenshots/
 # ===== IDE 会话数据与构建产物 =====
 .codebuddy/
+.trae-html-share-packages/
 *.apk
+
+# ===== 测试产物/临时归档(体积大,不入库) =====
+docs/test-artifacts/
 
 *.err
 

@@ -1,58 +1,209 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+@import "tw-animate-css";
 
-/* 全局滚动条：圆角胶囊滑块，替代默认直角样式 */
-*::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-*::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.18);
-  border-radius: 8px;
-}
-*::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.3);
-}
-*::-webkit-scrollbar-track {
-  background: transparent;
-}
-*::-webkit-scrollbar-corner {
-  background: transparent;
+/* 显式声明扫描范围（v4 自动检测在 monorepo/未入库目录下可能漏扫） */
+@source "../../index.html";
+@source "../../src";
+
+/* 深色模式沿用 class 策略 */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ============================================================
+   Tailwind v4 主题令牌（由 v3 的 tailwind.config.js 迁移而来）
+   组件只消费语义层；换肤只改这里
+   ============================================================ */
+@theme {
+  /* --- 语义色板 --- */
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-primary-50: #f5f4ff;
+  --color-primary-100: #ebe9ff;
+  --color-primary-200: #d8d4ff;
+  --color-primary-300: #b8b3ff;
+  --color-primary-400: #8f88ff;
+  --color-primary-500: #6d66ff;
+  --color-primary-550: #5b58ff;
+  --color-primary-600: #4f48f0;
+  --color-primary-700: #403ad4;
+  --color-primary-800: #3530ab;
+  --color-primary-900: #302c87;
+
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+
+  --color-success: #0da740;
+  --color-success-foreground: #ffffff;
+  --color-warning: #ff7931;
+  --color-warning-foreground: #ffffff;
+  --color-danger: #f33939;
+  --color-danger-foreground: #ffffff;
+
+  /* 中性色阶：对齐 BoardUI 的纯中性灰（无蓝调）
+     neutral-100 #f7f7f7 · neutral-200 #ebebeb 为其 Figma 覆盖值 */
+  --color-neutral-50: #fafafa;
+  --color-neutral-100: #f7f7f7;
+  --color-neutral-150: #f2f2f2;
+  --color-neutral-200: #ebebeb;
+  --color-neutral-300: #d4d4d4;
+  --color-neutral-400: #a3a3a3;
+  --color-neutral-500: #737373;
+  --color-neutral-600: #525252;
+  --color-neutral-650: #454545;
+  --color-neutral-700: #404040;
+  --color-neutral-800: #262626;
+  --color-neutral-900: #171717;
+  --color-neutral-950: #0a0a0a;
+
+  /* 语义表面 / 文字 / 线（BoardUI 角色命名） */
+  --color-ink-primary: var(--color-neutral-950);
+  --color-ink-secondary: var(--color-neutral-500);
+  --color-ink-tertiary: var(--color-neutral-400);
+  --color-surface-canvas: var(--color-neutral-100);
+  --color-surface-primary: var(--color-white);
+  --color-surface-secondary: var(--color-neutral-100);
+  --color-surface-hover: var(--color-neutral-100);
+  --color-line-separator: var(--color-neutral-200);
+  --color-line-strong: var(--color-neutral-300);
+
+  /* --- 圆角：BoardUI 原值（lg 8 / xl 12 / 2lg 10 / 2-5xl 20） --- */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-2lg: 10px;
+  --radius-2-5xl: 20px;
+
+  /* --- 阴影：BoardUI theme.css 原值（卡片仅 1px 接触阴影） --- */
+  --shadow-card: 0 1px 1px 0 rgb(0 0 0 / 0.05);
+  --shadow-dropdown: 0 1px 1px 0 rgb(0 0 0 / 0.04), 0 4px 4px 0 rgb(0 0 0 / 0.02);
+  --shadow-sidebar: 0 1px 0 0 rgb(0 0 0 / 0.0196), 0 1px 12px 0 rgb(0 0 0 / 0.0588),
+    0 0 1px 0 rgb(0 0 0 / 0.3216);
+  --shadow-nav-selected: 0 0 0 1px var(--color-primary-550), inset 0 1px 0 0 rgb(255 255 255 / 0.251);
+  --shadow-light: 0 1px 2px 0 rgb(0 0 0 / 0.06), 0 1px 3px 0 rgb(0 0 0 / 0.1);
+  --shadow-raised: 0 2px 4px -1px rgb(0 0 0 / 0.06), 0 4px 6px -1px rgb(0 0 0 / 0.1);
+  --shadow-float: 0 4px 6px -2px rgb(0 0 0 / 0.05), 0 10px 15px -3px rgb(0 0 0 / 0.1);
+  --shadow-focus-double: 0 0 0 1px #86efac, 0 0 0 4px rgb(134 239 172 / 0.18);
+
+  /* --- 字体 --- */
+  --font-sans: Inter, "PingFang SC", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+
+  /* --- 组件动效（Radix 收起/展开等） --- */
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+  --animate-fade-in: fade-in 0.3s ease-out;
+  --animate-slide-in-right: slide-in-right 0.3s ease-out;
+
+  @keyframes accordion-down {
+    from { height: 0; }
+    to { height: var(--radix-accordion-content-height); }
+  }
+  @keyframes accordion-up {
+    from { height: var(--radix-accordion-content-height); }
+    to { height: 0; }
+  }
+  @keyframes fade-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes slide-in-right {
+    from { transform: translateX(100%); }
+    to { transform: translateX(0); }
+  }
 }
 
-
+/* ============================================================
+   设计系统令牌（预览版）
+   核心原则：微对比色阶分层替代描边 / 双环聚焦 / 同心圆角 /
+   等宽数字防抖 / 动效性格化 / 12 栏网格秩序
+   ============================================================ */
 @layer base {
   :root {
-    --background: 220 60% 98%;
-    --foreground: 240 20% 5%;
+    /* --- 中性色阶：1%–3% 明度微对比，构成分层而非描边 --- */
+    --bg-page: 0 0% 97%;         /* 页面底色 #f7f7f7（BoardUI background/full） */
+    --surface-1: 0 0% 100%;      /* 一级面：卡片 */
+    --surface-2: 0 0% 97%;       /* 二级面：内嵌区块 #f7f7f7 */
+    --surface-3: 0 0% 95%;       /* 三级面：悬停/按压 #f2f2f2 */
+    --hairline: 0 0% 92%;        /* 发丝分隔线 #ebebeb */
 
-    --card: 0 0% 100%;
-    --card-foreground: 240 20% 5%;
+    /* --- 文字层级（BoardUI neutral 950/500/400） --- */
+    --text-1: 0 0% 4%;
+    --text-2: 0 0% 45%;
+    --text-3: 0 0% 64%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 240 20% 5%;
+    /* ============================================================
+       语义令牌层（移植 BoardUI：组件只消费语义层，不写原始色值）
+       命名对应 BoardUI 的 text/background/border 角色，便于后续换肤
+       ============================================================ */
+    --ink-primary: 0 0% 4%;          /* text/primary   #0a0a0a */
+    --ink-secondary: 0 0% 45%;       /* text/secondary #737373 */
+    --ink-tertiary: 0 0% 64%;        /* text/tertiary  #a3a3a3 */
 
+    --surface-canvas: 0 0% 97%;      /* background/full      #f7f7f7 */
+    --surface-primary: 0 0% 100%;    /* background/primary   #ffffff */
+    --surface-secondary: 0 0% 97%;   /* background/secondary #f7f7f7 */
+    --surface-hover: 0 0% 97%;       /* background/primary-hover */
+
+    --line-separator: 0 0% 92%;      /* border/separator        #ebebeb */
+    --line-strong: 0 0% 83%;         /* border/separator-strong #d4d4d4 */
+
+    /* --- 品牌色 --- */
     --primary: 241 100% 66%;
+    --ring: 142 69% 73%;
+
+    --border: 0 0% 92%;
+    --input: 0 0% 92%;
+    --background: 0 0% 97%;
+    --foreground: 0 0% 4%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 4%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 4%;
     --primary-foreground: 0 0% 100%;
-
-    --secondary: 220 20% 97%;
-    --secondary-foreground: 240 20% 5%;
-
-    --muted: 220 14% 95%;
-    --muted-foreground: 220 10% 45%;
-
-    --accent: 220 14% 95%;
-    --accent-foreground: 240 20% 5%;
-
+    --secondary: 0 0% 97%;
+    --secondary-foreground: 0 0% 4%;
+    --muted: 0 0% 95%;
+    --muted-foreground: 0 0% 45%;
+    --accent: 0 0% 95%;
+    --accent-foreground: 0 0% 4%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 220 20% 92%;
-    --input: 220 20% 92%;
-    --ring: 241 100% 66%;
+    /* --- 圆角：BoardUI 原值 --- */
+    --radius: 12px;
+    --radius-outer: 12px;
+    --radius-inner: 8px;
+    --radius-control: 10px;
 
-    --radius: 0.75rem;
+    /* --- 动效性格：拖拽类零延迟稳定，反馈类 Q 弹回弹 --- */
+    --ease-stable: cubic-bezier(0.2, 0, 0, 1);
+    --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+    --dur-fast: 120ms;
+    --dur-base: 200ms;
+
+    /* --- 分层阴影：发丝圈 + 极浅投影，替代边框 --- */
+    --shadow-hairline: 0 0 0 1px hsl(220 18% 93.5%);
+    --shadow-card: 0 0 0 1px hsl(220 18% 94%), 0 1px 2px rgba(16, 24, 40, 0.03),
+      0 2px 8px rgba(16, 24, 40, 0.03);
+    --shadow-raised: 0 0 0 1px hsl(220 18% 92%), 0 2px 4px rgba(16, 24, 40, 0.04),
+      0 12px 28px -8px rgba(16, 24, 40, 0.1);
+    --shadow-focus: 0 0 0 1px hsl(241 100% 66%), 0 0 0 4px hsl(241 100% 66% / 0.14);
   }
 
   * {
@@ -64,14 +215,95 @@
   }
 
   body {
-    @apply bg-neutral-100 text-neutral-900 font-sans antialiased;
+    @apply font-sans antialiased;
+    background: hsl(var(--bg-page));
+    color: hsl(var(--text-1));
     font-feature-settings: "cv11", "ss01";
+  }
+
+  /* 数字防抖：所有统计数值默认等宽数字 */
+  .tnum,
+  table,
+  .recharts-wrapper {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
   }
 }
 
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+
+  /* Squircle 超椭圆圆角：支持的浏览器使用 corner-shape，旧浏览器自动回退为普通圆角 */
+  .squircle {
+    corner-shape: squircle;
+  }
+
+  /* ============================================================
+     G2 连续曲率圆角：直线段曲率为 0，转入圆角时曲率连续展开。
+     所有非整圆圆角统一使用 squircle；rounded-full 保持正圆。
+     嵌套曲面遵循同心公式 r = R − d（R 外层圆角，d 转角留白）。
+     ============================================================ */
+  [class*='rounded']:not([class*='rounded-full']):not([class*='rounded-none']) {
+    corner-shape: squircle;
+  }
+
+  /* 兜底：没有显式圆角类的按钮 / 输入控件也统一为 G2 圆角 */
+  button:not([class*='rounded']),
+  [role='button']:not([class*='rounded']),
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([class*='rounded']),
+  textarea:not([class*='rounded']),
+  select:not([class*='rounded']) {
+    border-radius: 8px;
+    corner-shape: squircle;
+  }
+
+  /* Recharts Tooltip 使用内联 borderRadius，没有圆角类，这里补 G2 */
+  .recharts-default-tooltip {
+    corner-shape: squircle;
+  }
+
+  /* 行内图标光学对齐：下移 1/8 字高，补偿字形重心 */
+  .icon-nudge {
+    transform: translateY(0.08em);
+  }
+
+  /* 微对比分层表面（无描边卡片） */
+  .surface-card {
+    background: hsl(var(--surface-1));
+    border-radius: var(--radius-outer);
+    box-shadow: var(--shadow-card);
+    transition: box-shadow var(--dur-base) var(--ease-stable),
+      transform var(--dur-base) var(--ease-stable);
+  }
+
+  .surface-card:hover {
+    box-shadow: var(--shadow-raised);
+  }
+
+  /* 双环聚焦：贴边实环 + 外扩柔环，形成温润咬合感 */
+  .focus-double-ring:focus-visible,
+  .focus-double-ring:focus-within {
+    outline: none;
+    box-shadow: var(--shadow-focus);
+    border-color: transparent;
+  }
+
+  /* 12 栏网格容器（桌面 12 / 平板 8 / 移动 4 由 Tailwind 栅格承担） */
+  .grid-12 {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 1.5rem;
+  }
+
+  /* 反馈类按压：Q 弹回弹 */
+  .press-feedback {
+    transition: transform var(--dur-fast) var(--ease-spring),
+      box-shadow var(--dur-fast) var(--ease-stable);
+  }
+  .press-feedback:active {
+    transform: scale(0.97);
   }
 
   .gradient-border {
@@ -96,31 +328,131 @@
   }
 
   .scrollbar-thin::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 5px;
+    height: 5px;
+  }
+
+  /* 隐藏滚动条但保留滚动能力（侧边栏导航） */
+  .scrollbar-none {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
   }
 
   .scrollbar-thin::-webkit-scrollbar-thumb {
-    background: #d1d7e2;
-    border-radius: 3px;
+    background: hsl(220 12% 88%);
+    border-radius: 999px;
   }
 
   .scrollbar-thin::-webkit-scrollbar-track {
     background: transparent;
   }
+
+  /* ============================================================
+     复合字体类（移植 BoardUI typography）
+     一个类同时锁定字号 / 行高 / 字重 / 字距，避免逐处拼 text-sm font-medium
+     命名：text-{层级}-{字重}；颜色仍由 text-ink-* 单独控制
+     ============================================================ */
+  .text-display-4-medium {
+    font-size: 32px;
+    line-height: 44px;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+  }
+  .text-title-1-semibold {
+    font-size: 24px;
+    line-height: 34px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+  .text-title-2-semibold {
+    font-size: 20px;
+    line-height: 26px;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+  }
+  .text-title-3-medium {
+    font-size: 18px;
+    line-height: 24px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+  }
+  .text-headline-medium {
+    font-size: 16px;
+    line-height: 22px;
+    font-weight: 500;
+  }
+  .text-body-medium {
+    font-size: 14px;
+    line-height: 20px;
+    font-weight: 500;
+  }
+  .text-body-2-regular {
+    font-size: 13px;
+    line-height: 18px;
+    font-weight: 400;
+  }
+  .text-body-2-medium {
+    font-size: 13px;
+    line-height: 18px;
+    font-weight: 500;
+  }
+  .text-caption-1-regular {
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: 400;
+    letter-spacing: 0.15px;
+  }
+  .text-caption-1-medium {
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: 500;
+    letter-spacing: 0.15px;
+  }
+  .text-caption-2-medium {
+    font-size: 11px;
+    line-height: 15px;
+    font-weight: 500;
+    letter-spacing: 0.2px;
+  }
+}
+
+/* 全局滚动条：圆角胶囊滑块 */
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: hsl(220 12% 86%);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: hsl(220 12% 78%);
+  background-clip: content-box;
+  border: 2px solid transparent;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 /* ============================================================
-   登录页动效（登录页专用）
+   登录页动效（登录页专用，保持原样）
    ============================================================ */
 
-/* --- 动态雨点光效背景（适配 uiverse SelfMadeSystem/sweet-dolphin-36，保留蓝色主色） --- */
 @keyframes trae-rain-drift {
   from {
     background-position: 0 0;
   }
   to {
-    background-position: 0 720px; /* 300px*2.4 保证平铺无缝循环 */
+    background-position: 0 720px;
   }
 }
 
@@ -148,7 +480,6 @@
   animation: trae-rain-drift 48s linear infinite;
 }
 
-/* 网点网格层（模拟原始效果的屏幕网格） */
 .trae-rain-mesh {
   position: absolute;
   inset: 0;
@@ -162,7 +493,6 @@
   background-size: 8px 8px;
 }
 
-/* --- Shiny 文字（ReactBits ShinyText） --- */
 @keyframes trae-shine {
   0% {
     background-position: 200% center;
@@ -190,7 +520,6 @@
   animation-play-state: paused;
 }
 
-/* --- 循环文字旋转（ReactBits CircularText） --- */
 @keyframes trae-spin {
   to {
     transform: rotate(360deg);
@@ -207,7 +536,6 @@
   animation-play-state: paused;
 }
 
-/* --- 渐变流动文字（ReactBits GradientText） --- */
 @keyframes trae-gradient {
   0% {
     background-position: 0% 50%;
@@ -229,12 +557,231 @@
   animation: trae-gradient var(--ts-duration, 8s) linear infinite;
 }
 
-/* 用户偏好减少动效时关闭以上动画 */
 @media (prefers-reduced-motion: reduce) {
   .trae-rain,
   .trae-shiny-text,
   .trae-spin,
   .trae-gradient-text {
     animation: none !important;
+  }
+}
+
+/* ============================================================
+   暗色主题（BoardUI Night）
+   做法：反转中性阶 + 重写语义令牌，页面无需逐处写 dark:
+   ============================================================ */
+.dark {
+  /* 中性阶反转：浅色模式的 50/100 变成深色面，900/950 变成浅色字 */
+  --color-neutral-50: #1e1e1e;
+  --color-neutral-100: #232323;
+  --color-neutral-150: #292929;
+  --color-neutral-200: #333333;
+  --color-neutral-300: #4d4d4d;
+  --color-neutral-400: #737373;
+  --color-neutral-500: #9a9a9a;
+  --color-neutral-600: #b8b8b8;
+  --color-neutral-650: #c6c6c6;
+  --color-neutral-700: #d4d4d4;
+  --color-neutral-800: #e5e5e5;
+  --color-neutral-900: #f2f2f2;
+  --color-neutral-950: #fafafa;
+
+  /* 语义表面 / 文字 / 线 */
+  --color-ink-primary: #f5f5f5;
+  --color-ink-secondary: #a3a3a3;
+  --color-ink-tertiary: #737373;
+  --color-surface-canvas: #0f0f0f;
+  --color-surface-primary: #1a1a1a;
+  --color-surface-secondary: #232323;
+  --color-surface-hover: #242424;
+  --color-line-separator: #2e2e2e;
+  --color-line-strong: #3f3f3f;
+
+  /* shadcn 兼容令牌 */
+  --color-background: #0f0f0f;
+  --color-foreground: #f5f5f5;
+  --color-card: #1a1a1a;
+  --color-card-foreground: #f5f5f5;
+  --color-popover: #1a1a1a;
+  --color-popover-foreground: #f5f5f5;
+  --color-border: #2e2e2e;
+  --color-input: #2e2e2e;
+  --color-muted: #242424;
+  --color-muted-foreground: #a3a3a3;
+  --color-accent: #242424;
+  --color-accent-foreground: #f5f5f5;
+
+  /* 旧 HSL 令牌（body / surface-card / gradient-border 使用） */
+  --bg-page: 0 0% 6%;
+  --surface-1: 0 0% 10%;
+  --surface-2: 0 0% 12%;
+  --surface-3: 0 0% 14%;
+  --hairline: 0 0% 18%;
+  --text-1: 0 0% 96%;
+  --text-2: 0 0% 64%;
+  --text-3: 0 0% 45%;
+
+  /* 侧边栏在暗底上改用细边 + 深投影 */
+  --shadow-sidebar: 0 0 0 1px #2e2e2e, 0 12px 32px 0 rgb(0 0 0 / 0.45);
+}
+
+/* 实心深色按钮反转为浅色按钮（文字随之变深） */
+.dark .bg-neutral-950,
+.dark .bg-neutral-900 {
+  background-color: #ededed;
+  color: #171717;
+}
+.dark .bg-neutral-950:hover,
+.dark .bg-neutral-900:hover,
+.dark .hover\:bg-neutral-800:hover {
+  background-color: #dedede;
+}
+
+/* 弹层遮罩保持“变暗”语义 */
+.dark .bg-neutral-900\/25 {
+  background-color: rgb(0 0 0 / 0.55);
+}
+.dark .bg-neutral-900\/40 {
+  background-color: rgb(0 0 0 / 0.65);
+}
+
+/* 淡色徽标：底色降亮、文字提亮，避免暗底上的荧光块 */
+.dark .bg-blue-50 { background-color: rgb(59 130 246 / 0.14); }
+.dark .bg-blue-100 { background-color: rgb(59 130 246 / 0.2); }
+.dark .bg-blue-200 { background-color: rgb(59 130 246 / 0.28); }
+.dark .text-blue-700 { color: #93c5fd; }
+.dark .text-blue-600 { color: #60a5fa; }
+
+.dark .bg-emerald-50 { background-color: rgb(16 185 129 / 0.12); }
+.dark .bg-emerald-50\/50 { background-color: rgb(16 185 129 / 0.1); }
+.dark .bg-emerald-50\/60 { background-color: rgb(16 185 129 / 0.1); }
+.dark .bg-emerald-100 { background-color: rgb(16 185 129 / 0.18); }
+.dark .bg-emerald-200 { background-color: rgb(16 185 129 / 0.26); }
+.dark .text-emerald-700 { color: #6ee7b7; }
+.dark .text-emerald-600 { color: #34d399; }
+
+.dark .bg-amber-50 { background-color: rgb(245 158 11 / 0.12); }
+.dark .bg-amber-50\/40 { background-color: rgb(245 158 11 / 0.1); }
+.dark .bg-amber-100 { background-color: rgb(245 158 11 / 0.18); }
+.dark .bg-amber-200 { background-color: rgb(245 158 11 / 0.26); }
+.dark .text-amber-700 { color: #fcd34d; }
+.dark .text-amber-600 { color: #fbbf24; }
+
+.dark .bg-red-50 { background-color: rgb(239 68 68 / 0.12); }
+.dark .bg-red-50\/60 { background-color: rgb(239 68 68 / 0.1); }
+.dark .bg-red-100 { background-color: rgb(239 68 68 / 0.18); }
+.dark .bg-red-200 { background-color: rgb(239 68 68 / 0.26); }
+.dark .text-red-600 { color: #f87171; }
+
+.dark .bg-rose-50 { background-color: rgb(244 63 94 / 0.12); }
+.dark .bg-rose-100 { background-color: rgb(244 63 94 / 0.18); }
+.dark .bg-rose-200 { background-color: rgb(244 63 94 / 0.26); }
+
+.dark .bg-violet-50,
+.dark .bg-purple-50 { background-color: rgb(139 92 246 / 0.14); }
+.dark .bg-violet-100,
+.dark .bg-purple-100 { background-color: rgb(139 92 246 / 0.2); }
+.dark .text-violet-700,
+.dark .text-purple-700 { color: #c4b5fd; }
+.dark .text-violet-600,
+.dark .text-purple-600 { color: #a78bfa; }
+
+.dark .bg-primary-50 { background-color: rgb(109 102 255 / 0.14); }
+.dark .bg-primary-50\/60 { background-color: rgb(109 102 255 / 0.12); }
+.dark .bg-primary-100 { background-color: rgb(109 102 255 / 0.2); }
+.dark .text-primary-600 { color: #a5a0ff; }
+.dark .text-primary-700 { color: #c3bfff; }
+
+/* 浅色高亮描边在暗底上降低刺眼度 */
+.dark .border-emerald-200,
+.dark .border-emerald-300 { border-color: rgb(16 185 129 / 0.3); }
+.dark .border-blue-200 { border-color: rgb(59 130 246 / 0.3); }
+.dark .border-amber-200 { border-color: rgb(245 158 11 / 0.3); }
+.dark .border-red-200 { border-color: rgb(239 68 68 / 0.3); }
+
+/* 滚动条跟随主题 */
+.dark *::-webkit-scrollbar-thumb {
+  background-color: #3a3a3a;
+}
+.dark *::-webkit-scrollbar-thumb:hover {
+  background-color: #4a4a4a;
+}
+.dark .scrollbar-thin::-webkit-scrollbar-thumb {
+  background: #3a3a3a;
+}
+
+/* ============================================================
+   主题切换：从点击的图标中心做圆形扩散（View Transitions）
+   关闭默认交叉淡入，只保留 clip-path 揭示动画
+   ============================================================ */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+::view-transition-old(root) {
+  z-index: 1;
+}
+
+::view-transition-new(root) {
+  z-index: 2;
+}
+
+/* ============================================================
+   Skeleton（移植 BoardUI）：2.2s 扫光，0% 左移 −100%，
+   60% 处完成扫光并停留到 100%；减弱动态效果时改为脉动。
+   ============================================================ */
+.skeleton {
+  --skeleton-base: rgba(10, 10, 10, 0.08);
+  --skeleton-line: rgba(255, 255, 255, 0.9);
+  --skeleton-glow: rgba(255, 255, 255, 0.55);
+  --skeleton-bloom: rgba(255, 255, 255, 0.35);
+  position: relative;
+  overflow: hidden;
+  background-color: var(--skeleton-base);
+}
+
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, transparent, var(--skeleton-line)) right / 2px 100% no-repeat,
+    linear-gradient(90deg, transparent, var(--skeleton-glow)) right / 72px 100% no-repeat,
+    linear-gradient(90deg, transparent, var(--skeleton-bloom)) right / 240px 100% no-repeat;
+  animation: skeleton-sheen 2.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@keyframes skeleton-sheen {
+  0% {
+    transform: translateX(-100%);
+  }
+  60%,
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.dark .skeleton {
+  --skeleton-base: rgba(255, 255, 255, 0.08);
+  --skeleton-line: rgba(255, 255, 255, 0.2);
+  --skeleton-glow: rgba(255, 255, 255, 0.08);
+  --skeleton-bloom: rgba(255, 255, 255, 0.04);
+}
+
+@keyframes skeleton-pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after {
+    animation: none;
+  }
+  .skeleton {
+    animation: skeleton-pulse 1.6s ease-in-out infinite;
   }
 }

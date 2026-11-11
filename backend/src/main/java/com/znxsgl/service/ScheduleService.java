@@ -85,15 +85,16 @@ public class ScheduleService {
         return buildCourseDTOList(courses);
     }
 
-    // ===== 管理员：查看已上架课程及班级 =====
+    // ===== 管理员：查看当前学期的全部课程及班级（含已下架，用于课程管理/章节管理） =====
     public List<TeacherCourseDTO> getAllCoursesForAdmin() {
-        List<Course> courses = courseMapper.selectList(
-                new LambdaQueryWrapper<Course>().orderByDesc(Course::getId));
-        List<TeacherCourseDTO> result = buildCourseDTOList(courses);
-        // 管理员在章节管理页只显示已上架课程（有 status=1 的活跃排课记录）
-        return result.stream()
-                .filter(TeacherCourseDTO::isActive)
-                .collect(Collectors.toList());
+        LambdaQueryWrapper<Course> qw = new LambdaQueryWrapper<Course>().orderByDesc(Course::getId);
+        String current = semesterService.getCurrentSemesterName();
+        if (current != null) {
+            qw.eq(Course::getSemester, current);
+        }
+        List<Course> courses = courseMapper.selectList(qw);
+        // 返回全部课程（含已下架），管理端「已下架」Tab 依赖该列表；章节管理等需要仅上架的页面在前端过滤
+        return buildCourseDTOList(courses);
     }
 
     // ===== 公共：根据课程列表构建 TeacherCourseDTO =====
@@ -103,10 +104,7 @@ public class ScheduleService {
 
         List<Long> courseIds = courses.stream().map(Course::getId).collect(Collectors.toList());
         String courseIdIn = courseIds.stream().map(String::valueOf).collect(Collectors.joining(","));
-        // 课程名可能重复（不同学期同名课程），不能直接用 course_name 关联，需通过 course_class 的 course_id 精确匹配
-        String courseNameIn = courses.stream().map(Course::getCourseName)
-                .map(n -> "'" + n.replace("'", "''") + "'")
-                .collect(Collectors.joining(","));
+        // 课程名可能重复（不同学期同名课程），统一使用 course_id 精确匹配
 
         // 1. 批量加载教师姓名
         Map<Long, String> teacherNameMap = new HashMap<>();
@@ -131,37 +129,34 @@ public class ScheduleService {
         // 3. 批量加载各班级最大排课记录 ID（用于调课定位，含下架记录，排除占位 day_of_week=0）
         Map<String, Long> scheduleIdByCourseClass = new HashMap<>();
         jdbc.queryForList(
-                "SELECT s.course_name AS courseName, u.class_id AS classId, MAX(s.id) AS maxId " +
+                "SELECT s.course_id AS courseId, u.class_id AS classId, MAX(s.id) AS maxId " +
                 "FROM schedule s JOIN user u ON u.id = s.user_id " +
-                "WHERE s.course_name IN (" + courseNameIn + ") AND s.day_of_week > 0 " +
-                "GROUP BY s.course_name, u.class_id")
+                "WHERE s.course_id IN (" + courseIdIn + ") AND s.day_of_week > 0 " +
+                "GROUP BY s.course_id, u.class_id")
                 .forEach(row -> scheduleIdByCourseClass.put(
-                        row.get("courseName") + "|" + row.get("classId"),
+                        row.get("courseId") + "|" + row.get("classId"),
                         ((Number) row.get("maxId")).longValue()));
 
         // 4. 批量判断每门课程是否活跃（存在 status=1 且用户班级关联本课程的排课记录）
         Map<Long, Long> activeCountByCourse = new HashMap<>();
         jdbc.queryForList(
-                "SELECT c.id AS courseId, COUNT(DISTINCT s.id) AS cnt " +
+                "SELECT s.course_id AS courseId, COUNT(DISTINCT s.id) AS cnt " +
                 "FROM schedule s JOIN user u ON u.id = s.user_id " +
-                "JOIN course_class cc ON cc.class_id = u.class_id " +
-                "JOIN course c ON c.id = cc.course_id " +
-                "WHERE c.id IN (" + courseIdIn + ") AND s.course_name = c.course_name AND s.status = 1 " +
-                "GROUP BY c.id")
+                "JOIN course_class cc ON cc.course_id = s.course_id AND cc.class_id = u.class_id " +
+                "WHERE s.course_id IN (" + courseIdIn + ") AND s.status = 1 " +
+                "GROUP BY s.course_id")
                 .forEach(row -> activeCountByCourse.put(
                         ((Number) row.get("courseId")).longValue(), ((Number) row.get("cnt")).longValue()));
 
         // 5. 批量加载每门课程的排课时间信息（上架且非占位，DISTINCT 去重后按星期/时间排序）
         Map<Long, List<Map<String, Object>>> repRowsByCourse = new HashMap<>();
         jdbc.queryForList(
-                "SELECT DISTINCT c.id AS courseId, s.day_of_week, s.start_node, s.step, " +
+                "SELECT DISTINCT s.course_id AS courseId, s.day_of_week, s.start_node, s.step, " +
                 "s.start_time, s.end_time, s.classroom, s.weeks " +
                 "FROM schedule s JOIN user u ON u.id = s.user_id " +
-                "JOIN course_class cc ON cc.class_id = u.class_id " +
-                "JOIN course c ON c.id = cc.course_id " +
-                "WHERE c.id IN (" + courseIdIn + ") AND s.course_name = c.course_name " +
-                "  AND s.status = 1 AND s.day_of_week > 0 " +
-                "ORDER BY c.id, s.day_of_week, s.start_time")
+                "JOIN course_class cc ON cc.course_id = s.course_id AND cc.class_id = u.class_id " +
+                "WHERE s.course_id IN (" + courseIdIn + ") AND s.status = 1 AND s.day_of_week > 0 " +
+                "ORDER BY s.course_id, s.day_of_week, s.start_time")
                 .forEach(row -> repRowsByCourse.computeIfAbsent(
                         ((Number) row.get("courseId")).longValue(), k -> new ArrayList<>()).add(row));
 
@@ -186,7 +181,7 @@ public class ScheduleService {
                 clazz.setClassId(cid);
                 clazz.setClassName((String) row.get("className"));
                 clazz.setStudentCount(((Number) row.get("studentCount")).intValue());
-                Long scheduleId = scheduleIdByCourseClass.get(course.getCourseName() + "|" + cid);
+                Long scheduleId = scheduleIdByCourseClass.get(course.getId() + "|" + cid);
                 clazz.setScheduled(scheduleId != null);
                 clazz.setScheduleId(scheduleId);
                 clazzList.add(clazz);

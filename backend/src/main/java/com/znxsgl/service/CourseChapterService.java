@@ -19,6 +19,7 @@ import com.znxsgl.mapper.TeachingTaskMapper;
 import com.znxsgl.mapper.UserMapper;
 import com.znxsgl.util.WordChapterParser;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
@@ -161,7 +162,7 @@ public class CourseChapterService {
     @Transactional(rollbackFor = Exception.class)
     public void saveChapter(ChapterSaveRequest request, Long userId, boolean isAdmin) {
         if (!canAccessCourse(request.getCourseId(), userId, isAdmin)) {
-            throw new RuntimeException("无权限操作该课程的章节");
+            throw new AccessDeniedException("无权限操作该课程的章节");
         }
         Course course = courseMapper.selectById(request.getCourseId());
         if (course == null) {
@@ -207,7 +208,7 @@ public class CourseChapterService {
             throw new RuntimeException("章节不存在");
         }
         if (!canAccessCourse(chapter.getCourseId(), userId, isAdmin)) {
-            throw new RuntimeException("无权限删除该章节");
+            throw new AccessDeniedException("无权限删除该章节");
         }
         chapterMapper.deleteById(chapterId);
         // 同步逻辑删除下属课时，保持数据一致性（MyBatis-Plus 会根据 @TableLogic 自动转为 UPDATE deleted=1）
@@ -224,7 +225,7 @@ public class CourseChapterService {
             throw new RuntimeException("章节不存在或已禁用");
         }
         if (!canAccessCourse(chapter.getCourseId(), userId, isAdmin)) {
-            throw new RuntimeException("无权限操作该课时");
+            throw new AccessDeniedException("无权限操作该课时");
         }
 
         CourseLesson lesson = new CourseLesson();
@@ -346,7 +347,7 @@ public class CourseChapterService {
             throw new RuntimeException("章节不存在");
         }
         if (!canAccessCourse(chapter.getCourseId(), userId, isAdmin)) {
-            throw new RuntimeException("无权限删除该课时");
+            throw new AccessDeniedException("无权限删除该课时");
         }
         // 清理该课时的向量数据
         try {
@@ -517,7 +518,7 @@ public class CourseChapterService {
 
     private void checkCourseAccess(Long courseId, Long userId, boolean isAdmin) {
         if (!canAccessCourse(courseId, userId, isAdmin)) {
-            throw new RuntimeException("无权限操作该课程");
+            throw new AccessDeniedException("无权限操作该课程");
         }
         Course course = courseMapper.selectById(courseId);
         if (course == null) {
@@ -742,7 +743,7 @@ public class CourseChapterService {
     public Map<String, Object> generateCourseChapters(Long courseId, Long userId, boolean isAdmin,
                                                       Integer chapterCount, String difficulty, String notes) {
         if (!canAccessCourse(courseId, userId, isAdmin)) {
-            throw new RuntimeException("无权限操作该课程");
+            throw new AccessDeniedException("无权限操作该课程");
         }
         Course course = courseMapper.selectById(courseId);
         if (course == null) {
@@ -767,6 +768,14 @@ public class CourseChapterService {
             if (notes.isEmpty()) notes = null;
         }
         String courseName = course.getCourseName();
+
+        // 已有章节时直接提示，避免白白消耗一次 AI 调用
+        Long existCount = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM course_chapter WHERE course_id = ? AND deleted = 0",
+                Long.class, courseId);
+        if (existCount != null && existCount > 0) {
+            throw new IllegalStateException("该课程已存在 " + existCount + " 个章节，请先删除后再生成");
+        }
 
         // 1. AI 规划章节结构 + 生成课时内容（一次调用返回全部 JSON）
         String plan = generatePlan(courseName, chapterCount, difficulty, notes);
@@ -799,14 +808,7 @@ public class CourseChapterService {
                     + ", chapterName=" + ch.get("chapterName") + ", lessons=" + lessSize);
         }
 
-        // 3. 已存在章节则跳过（课程下已有章节且非空，提示先清空）
-        Long existCount = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM course_chapter WHERE course_id = ? AND deleted = 0",
-                Long.class, courseId);
-        System.out.println("=== AI 生成章节已存在检查: courseId=" + courseId + ", existCount=" + existCount);
-        if (existCount != null && existCount > 0) {
-            throw new RuntimeException("该课程已存在 " + existCount + " 个章节，请先删除后再生成");
-        }
+        // 3. 已存在章节的前置校验已在调用 AI 前完成
 
         // 4. 按章节序遍历，逐章写入
         int writtenChapters = 0;

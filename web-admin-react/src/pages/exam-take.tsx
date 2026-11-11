@@ -194,10 +194,10 @@ export default function ExamTakePage() {
             ? answers[keyId].length > 0
             : answers[keyId] != null && String(answers[keyId]).trim() !== ''
         return (
-          <Card key={keyId} className={answered ? 'border-primary/30' : ''}>
+          <Card key={keyId} className={answered ? 'border-emerald-300/60' : ''}>
             <CardHeader className="py-3 px-5">
               <CardTitle className="flex items-start gap-3 text-base">
-                <Badge variant="outline" className="flex-shrink-0 mt-0.5">
+                <Badge variant="outline" className="shrink-0 mt-0.5">
                   {idx + 1} · {TYPE_LABEL[q.type] || q.type} · {q.score}分
                 </Badge>
                 <span className="font-medium text-neutral-900 whitespace-pre-wrap">

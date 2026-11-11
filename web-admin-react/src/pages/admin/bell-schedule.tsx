@@ -5,7 +5,6 @@ import {
   Clock,
   RotateCcw,
   Save,
-  Info,
   Plus,
   Trash2,
   Globe2,
@@ -281,8 +280,8 @@ export function BellSchedulePage() {
               onClick={() => setScope('default')}
               className={`flex items-start gap-3 rounded-xl border p-4 text-left transition-all ${
                 scope === 'default'
-                  ? 'border-primary-400 bg-primary-50/60 ring-2 ring-primary-200'
-                  : 'border-neutral-200 bg-white hover:border-neutral-300 hover:bg-neutral-50'
+                  ? 'border-emerald-300 bg-emerald-50/60 ring-2 ring-emerald-200'
+                  : 'border-neutral-200 bg-surface-primary hover:border-neutral-300 hover:bg-neutral-50'
               }`}
             >
               <div
@@ -308,8 +307,8 @@ export function BellSchedulePage() {
               onClick={() => setScope('classes')}
               className={`flex items-start gap-3 rounded-xl border p-4 text-left transition-all ${
                 scope === 'classes'
-                  ? 'border-primary-400 bg-primary-50/60 ring-2 ring-primary-200'
-                  : 'border-neutral-200 bg-white hover:border-neutral-300 hover:bg-neutral-50'
+                  ? 'border-emerald-300 bg-emerald-50/60 ring-2 ring-emerald-200'
+                  : 'border-neutral-200 bg-surface-primary hover:border-neutral-300 hover:bg-neutral-50'
               }`}
             >
               <div
@@ -385,8 +384,8 @@ export function BellSchedulePage() {
                               title={`${c.className}${(c as any).major ? ' · ' + (c as any).major : ''}`}
                               className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs transition-all ${
                                 on
-                                  ? 'border-primary-400 bg-primary-500 text-white shadow-sm'
-                                  : 'border-neutral-200 bg-white text-neutral-600 hover:border-primary-300 hover:text-primary-600'
+                                  ? 'border-emerald-500 bg-emerald-500 text-white shadow-xs'
+                                  : 'border-neutral-200 bg-surface-primary text-neutral-600 hover:border-emerald-300 hover:text-primary-600'
                               }`}
                             >
                               {on && <Check className="h-3.5 w-3.5" />}
@@ -402,18 +401,16 @@ export function BellSchedulePage() {
             </div>
           )}
 
-          <div className="flex items-start gap-2 rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-700">
-            <Info className="mt-0.5 h-4 w-4 flex-shrink-0" />
-            <span>
-              当前范围：<span className="font-medium">{scopeText}</span>
-              {scope === 'classes' && previewClassId
-                ? `（表格以 ${classes.find((c) => Number(c.id) === previewClassId)?.className || '首个选中班级'} 的作息为编辑基础，保存后覆盖全部选中班级）`
-                : ''}
-              {scope === 'default' && ownCount > 0
-                ? `，默认作息已有 ${ownCount} 个节次配置`
-                : ''}
-            </span>
-          </div>
+          {/* 当前编辑范围与覆盖后果提示（必要信息，保留但降噪为灰字） */}
+          <p className="text-xs text-neutral-500">
+            当前范围：<span className="font-medium text-neutral-700">{scopeText}</span>
+            {scope === 'classes' && previewClassId
+              ? `（表格以 ${classes.find((c) => Number(c.id) === previewClassId)?.className || '首个选中班级'} 的作息为编辑基础，保存后覆盖全部选中班级）`
+              : ''}
+            {scope === 'default' && ownCount > 0
+              ? `，默认作息已有 ${ownCount} 个节次配置`
+              : ''}
+          </p>
 
           {message && (
             <div
@@ -447,7 +444,7 @@ export function BellSchedulePage() {
               <div className="mb-2 flex flex-wrap items-center gap-2">
                 <span
                   className={`rounded-md px-2 py-0.5 text-xs font-medium ${
-                    g.isDefault ? 'bg-neutral-100 text-neutral-600' : 'bg-primary-50 text-primary-700'
+                    g.isDefault ? 'bg-neutral-100 text-neutral-600' : 'bg-emerald-50 text-emerald-700'
                   }`}
                 >
                   {g.label}
@@ -470,8 +467,8 @@ export function BellSchedulePage() {
                     title="点击编辑该班级作息"
                     className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
                       selected.includes(c.id)
-                        ? 'border-primary-400 bg-primary-500 text-white'
-                        : 'border-neutral-200 bg-white text-neutral-600 hover:border-primary-300 hover:text-primary-600'
+                        ? 'border-emerald-500 bg-emerald-500 text-white'
+                        : 'border-neutral-200 bg-surface-primary text-neutral-600 hover:border-emerald-300 hover:text-primary-600'
                     }`}
                   >
                     {c.name}
@@ -531,7 +528,7 @@ export function BellSchedulePage() {
             {rows.map((row, i) => (
               <div
                 key={row.node}
-                className="flex items-center gap-2 rounded-lg border border-neutral-200 bg-white px-3 py-2"
+                className="flex items-center gap-2 rounded-lg border border-neutral-200 bg-surface-primary px-3 py-2"
               >
                 <span className="w-12 shrink-0 text-xs font-medium text-neutral-500">
                   第{row.node}节
@@ -540,14 +537,14 @@ export function BellSchedulePage() {
                   type="time"
                   value={row.startTime?.slice(0, 5) || ''}
                   onChange={(e) => updateRow(i, 'startTime', e.target.value)}
-                  className="h-8 min-w-0 flex-1 rounded-md border border-neutral-200 px-1.5 text-center text-xs tabular-nums focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="h-8 min-w-0 flex-1 rounded-md border border-neutral-200 px-1.5 text-center text-xs tabular-nums focus:outline-hidden focus:ring-2 focus:ring-emerald-300"
                 />
                 <span className="text-neutral-300">–</span>
                 <input
                   type="time"
                   value={row.endTime?.slice(0, 5) || ''}
                   onChange={(e) => updateRow(i, 'endTime', e.target.value)}
-                  className="h-8 min-w-0 flex-1 rounded-md border border-neutral-200 px-1.5 text-center text-xs tabular-nums focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="h-8 min-w-0 flex-1 rounded-md border border-neutral-200 px-1.5 text-center text-xs tabular-nums focus:outline-hidden focus:ring-2 focus:ring-emerald-300"
                 />
                 <button
                   type="button"
@@ -614,7 +611,7 @@ export function BellSchedulePage() {
                         {l.scopeType === 'DEFAULT' ? (
                           <span className="rounded bg-neutral-100 px-1.5 py-0.5">默认作息</span>
                         ) : (
-                          <span className="rounded bg-primary-50 px-1.5 py-0.5 text-primary-700">
+                          <span className="rounded bg-neutral-100 px-1.5 py-0.5 text-ink-secondary">
                             {l.classNames || `${l.classCount} 个班级`}
                           </span>
                         )}
@@ -643,13 +640,13 @@ export function BellSchedulePage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs tabular-nums">
               {effective.map((p) => (
-                <span
-                  key={p.node}
-                  className="inline-flex items-center rounded-md bg-neutral-100 px-2.5 py-1 text-xs text-neutral-600 tabular-nums"
-                >
-                  第{p.node}节 {p.startTime?.slice(0, 5)}–{p.endTime?.slice(0, 5)}
+                <span key={p.node} className="inline-flex items-center gap-1.5">
+                  <span className="text-ink-tertiary">第{p.node}节</span>
+                  <span className="text-ink-secondary">
+                    {p.startTime?.slice(0, 5)}–{p.endTime?.slice(0, 5)}
+                  </span>
                 </span>
               ))}
             </div>

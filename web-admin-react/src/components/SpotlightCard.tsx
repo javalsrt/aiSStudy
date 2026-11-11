@@ -15,7 +15,7 @@ interface SpotlightCardProps {
 export function SpotlightCard({
   children,
   className,
-  spotlightColor = 'rgba(139, 92, 246, 0.18)',
+  spotlightColor = 'rgba(91, 88, 255, 0.08)',
   spotlightSize = 280,
   border = true,
   as: Component = 'div',
@@ -40,9 +40,8 @@ export function SpotlightCard({
       onMouseMove={handleMouseMove}
       onClick={onClick}
       className={cn(
-        'group relative overflow-hidden rounded-xl bg-white transition-all duration-300',
-        border && 'border border-neutral-100',
-        'hover:border-primary-200 hover:shadow-md',
+        'group relative overflow-hidden rounded-xl squircle border border-line-separator bg-surface-primary shadow-card transition-shadow duration-300',
+        border && 'hover:shadow-raised',
         onClick && 'cursor-pointer',
         className
       )}

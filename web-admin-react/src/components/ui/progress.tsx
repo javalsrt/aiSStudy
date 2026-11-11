@@ -14,7 +14,7 @@ const Progress = React.forwardRef<
     {...props}
   >
     <div
-      className="h-full w-full flex-1 bg-gradient-to-r from-primary-400 to-primary-600 transition-all"
+      className="h-full w-full flex-1 bg-blue-500 transition-all"
       style={{ transform: `translateX(-${100 - (value || 0)}%)` }}
     />
   </div>

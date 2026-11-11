@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Sparkles, Eye, EyeOff, User as UserIcon, Lock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -17,6 +17,9 @@ export function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  // React 的 setLoading 要等一次渲染才生效，双击时第二次点击仍会通过 loading 判断，
+  // 用同步的 ref 做请求锁，保证只发出一次登录请求
+  const submittingRef = useRef(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -26,7 +29,9 @@ export function LoginPage() {
       setError('请输入账号和密码')
       return
     }
+    if (submittingRef.current) return
 
+    submittingRef.current = true
     setLoading(true)
 
     try {
@@ -42,12 +47,15 @@ export function LoginPage() {
         setAuth(token, user)
         navigate('/dashboard')
       } else {
-        setError(res.message || '账号或密码错误')
+        // 后端未重启时仍可能返回旧文案，这里统一成不暴露账号是否存在的提示
+        const msg = res.message || '账号或密码错误'
+        setError(msg === '账号不存在' || msg === '密码错误' ? '账号或密码错误' : msg)
       }
     } catch (err: any) {
       const msg = err.response?.data?.message || err.response?.data?.error || '账号或密码错误'
       setError(msg)
     } finally {
+      submittingRef.current = false
       setLoading(false)
     }
   }
@@ -81,7 +89,7 @@ export function LoginPage() {
                   <Sparkles className="w-7 h-7 text-white" />
                 </div>
                 <GradientText
-                  colors={['#ffffff', '#c4b5fd', '#8b5cf6', '#c4b5fd', '#ffffff']}
+                  colors={['#ffffff', '#86efac', '#22c55e', '#86efac', '#ffffff']}
                   speed={5}
                   className="text-xl font-bold"
                 >
@@ -128,7 +136,7 @@ export function LoginPage() {
           </div>
 
           <SpotlightCard
-            className="bg-white rounded-2xl shadow-card p-8"
+            className="bg-surface-primary rounded-[24px] shadow-card p-8"
             spotlightColor="rgba(91, 88, 255, 0.15)"
             spotlightSize={320}
           >
@@ -154,7 +162,7 @@ export function LoginPage() {
                     placeholder="请输入用户名或学号"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    className="pl-12 h-12"
+                    className="pl-12 h-12 border-sky-200 focus-visible:border-sky-300 focus-visible:shadow-[0_0_0_1px_#7dd3fc,0_0_0_4px_rgb(125_211_252/0.24)]"
                     autoComplete="off"
                     name="account"
                   />
@@ -173,7 +181,7 @@ export function LoginPage() {
                     placeholder="请输入密码"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="pl-12 pr-12 h-12"
+                    className="pl-12 pr-12 h-12 border-sky-200 focus-visible:border-sky-300 focus-visible:shadow-[0_0_0_1px_#7dd3fc,0_0_0_4px_rgb(125_211_252/0.24)]"
                     autoComplete="new-password"
                     name="access-key"
                   />

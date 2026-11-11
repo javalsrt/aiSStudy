@@ -756,7 +756,7 @@ public class ExamHomeworkController {
             List<Map<String, Object>> answers = jdbc.queryForList(
                 "SELECT a.id, a.question_id AS questionId, a.question_type AS questionType, " +
                 "       a.question AS questionContent, a.user_answer AS userAnswer, a.ai_score AS autoScore, " +
-                "       a.score AS finalScore, a.ai_comment AS aiComment, a.max_score AS maxScore, " +
+                "       a.score AS finalScore, a.ai_comment AS aiComment, COALESCE(a.max_score, q.score) AS maxScore, " +
                 "       a.score_adjust_count AS adjustCount, a.teacher_comment AS teacherComment, " +
                 "       a.correct_answer AS referenceAnswer " +
                 "FROM exam_submission_answer a LEFT JOIN exam_question q ON q.id = a.question_id " +
@@ -781,7 +781,8 @@ public class ExamHomeworkController {
             ansRow = jdbc.queryForMap(
                 "SELECT a.id, a.submission_id AS submissionId, a.question_id AS questionId, " +
                 "       a.question_type AS questionType, a.ai_score AS aiScore, a.score AS finalScore, " +
-                "       a.score_adjust_count AS adjustCount, a.max_score AS maxScore, " +
+                "       a.score_adjust_count AS adjustCount, " +
+                "       COALESCE(a.max_score, (SELECT q.score FROM exam_question q WHERE q.id = a.question_id)) AS maxScore, " +
                 "       a.teacher_comment AS teacherComment " +
                 "FROM exam_submission_answer a WHERE a.id = ?", answerId);
         } catch (Exception e) {

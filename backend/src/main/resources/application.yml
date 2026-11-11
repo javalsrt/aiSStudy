@@ -26,7 +26,7 @@ spring:
       max-file-size: 20MB
       max-request-size: 20MB
   datasource:
-    url: jdbc:mysql://localhost:3306/znxsglTest?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    url: jdbc:mysql://localhost:3306/znxsglTest?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&rewriteBatchedStatements=true
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD:123456}
     driver-class-name: com.mysql.cj.jdbc.Driver

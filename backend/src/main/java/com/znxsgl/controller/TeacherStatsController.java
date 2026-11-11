@@ -7,6 +7,8 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Stream;
 
@@ -93,7 +95,7 @@ public class TeacherStatsController {
             ") t", Double.class, params.toArray());
         int avgFocusMinutes = avgSecObj != null ? (int)(avgSecObj / 60) : 0;
 
-        // 5. 活跃学生列表（按今日专注时长排序）
+        // 5. 学生列表（全校 / 教师授课范围，全量返回，前端滚动查看）
         List<Map<String, Object>> students = jdbc.queryForList(
             "SELECT u.id, u.real_name AS realName, u.student_no AS studentNo, " +
             "  ci.class_name AS className, " +
@@ -105,7 +107,7 @@ public class TeacherStatsController {
             "LEFT JOIN focus_session f2 ON f2.user_id = u.id " +
             "WHERE u." + studentCondition + " " +
             "GROUP BY u.id, u.real_name, u.student_no, ci.class_name " +
-            "ORDER BY todaySeconds DESC LIMIT 20",
+            "ORDER BY ci.class_name, u.student_no",
             params.toArray());
 
         // 用 WebSocket 实时在线状态替换数据库 last_login 判断
@@ -318,6 +320,76 @@ public class TeacherStatsController {
         }
 
         return ResponseEntity.ok(summary);
+    }
+
+    /**
+     * 每日活跃学生（今年）：按专注、刷题、考试提交、章节完成、学生聊天行为去重统计。
+     * 管理员看全校，教师看所教班级。
+     */
+    @GetMapping("/activity")
+    public ResponseEntity<List<Map<String, Object>>> getActivity(Authentication auth) {
+        boolean isAdmin = auth.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+
+        String studentScope;
+        List<Object> params = new ArrayList<>();
+        if (isAdmin) {
+            studentScope = "SELECT id FROM user WHERE role = 1";
+        } else {
+            Long teacherUserId = (Long) auth.getPrincipal();
+            Long realTeacherId = getRealTeacherId(teacherUserId);
+            studentScope = "SELECT id FROM user WHERE role = 1 AND class_id IN (" +
+                    "SELECT cc.class_id FROM course_class cc " +
+                    "JOIN course c ON c.id = cc.course_id WHERE c.teacher_id = ?)";
+            params.add(realTeacherId);
+        }
+
+        LocalDate start = LocalDate.now().withDayOfYear(1);
+        String sql =
+                "WITH students AS (" + studentScope + ") " +
+                "SELECT DATE(activity_at) AS d, COUNT(DISTINCT user_id) AS u FROM (" +
+                "SELECT f.finished_at AS activity_at, f.user_id FROM focus_session f " +
+                "WHERE f.finished_at >= ? AND f.user_id IN (SELECT id FROM students) " +
+                "UNION ALL " +
+                "SELECT q.created_at, q.user_id FROM quiz_session q " +
+                "WHERE q.created_at >= ? AND q.user_id IN (SELECT id FROM students) " +
+                "UNION ALL " +
+                "SELECT es.submitted_at, es.user_id FROM exam_submission es " +
+                "WHERE es.submitted_at IS NOT NULL AND es.submitted_at >= ? " +
+                "AND es.user_id IN (SELECT id FROM students) " +
+                "UNION ALL " +
+                "SELECT crp.completed_at, crp.user_id FROM chapter_read_progress crp " +
+                "WHERE crp.completed_at >= ? AND crp.user_id IN (SELECT id FROM students) " +
+                "UNION ALL " +
+                "SELECT cm.created_at, cm.user_id FROM chat_message cm " +
+                "WHERE cm.sender_role = 'student' AND cm.created_at >= ? " +
+                "AND cm.user_id IN (SELECT id FROM students)" +
+                ") t GROUP BY d ORDER BY d";
+
+        for (int i = 0; i < 5; i++) {
+            params.add(start);
+        }
+
+        Map<String, Integer> byDate = new HashMap<>();
+        jdbc.queryForList(sql, params.toArray()).forEach(row -> {
+            Object date = row.get("d");
+            Object count = row.get("u");
+            if (date != null && count instanceof Number) {
+                byDate.put(String.valueOf(date), ((Number) count).intValue());
+            }
+        });
+
+        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+        LocalDate today = LocalDate.now();
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (LocalDate date = start; !date.isAfter(today); date = date.plusDays(1)) {
+            String key = date.format(fmt);
+            Map<String, Object> item = new HashMap<>();
+            item.put("date", key);
+            item.put("activeUsers", byDate.getOrDefault(key, 0));
+            result.add(item);
+        }
+        return ResponseEntity.ok(result);
     }
 
     private static Long toLong(Object v) {
@@ -839,7 +911,21 @@ public class TeacherStatsController {
             "GROUP BY DATE_FORMAT(finished_at,'%Y-%m-%d') ORDER BY date",
             params.toArray());
 
-        return ResponseEntity.ok(trend);
+        // 近 7 天必须连续：无数据的日期补 0，避免趋势图出现缺口
+        Map<String, Object> byDate = new HashMap<>();
+        for (Map<String, Object> row : trend) {
+            byDate.put(String.valueOf(row.get("date")), row.get("minutes"));
+        }
+        List<Map<String, Object>> filled = new ArrayList<>();
+        LocalDate start = LocalDate.now().minusDays(6);
+        for (int i = 0; i < 7; i++) {
+            String d = start.plusDays(i).format(DateTimeFormatter.ISO_LOCAL_DATE);
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("date", d);
+            row.put("minutes", byDate.getOrDefault(d, 0));
+            filled.add(row);
+        }
+        return ResponseEntity.ok(filled);
     }
 
     /** 校验班级是否归属当前教师（通过 course_class + course 关联） */

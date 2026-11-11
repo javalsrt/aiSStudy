@@ -20,7 +20,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 本地作息表 OCR 客户端：调用 ocr-service（RapidOCR + 版式解析，离线零成本）。
+ * 本地 OCR 客户端：调用 ocr-service（RapidOCR + 版式解析，离线零成本）。
+ * 支持两类图片：
+ * 1. 作息时间表 → 节次起止时间（/ocr/base64）；
+ * 2. 课程表照片 → 星期×节次二维网格（/ocr/course-table）。
  * 传输格式为 JSON + base64（比手工拼 multipart 稳定）。
  * 服务不可用时抛异常，由调用方回退到视觉大模型。
  */
@@ -84,5 +87,33 @@ public class BellOcrClient {
 
     public boolean enabled() {
         return baseUrl != null && !baseUrl.isBlank();
+    }
+
+    /**
+     * 识别课程表照片，返回二维网格：
+     * { days:[{dayOfWeek,name}], rows:[{node, cells:{"1":"课程/教师/教室", ...}}], notes:[...] }
+     * 只做版面还原，课程语义由调用方交给大模型解析。
+     */
+    public Map<String, Object> recognizeCourseTable(byte[] bytes, String filename) throws Exception {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("image", Base64.getEncoder().encodeToString(bytes));
+        payload.put("filename", filename == null ? "" : filename);
+
+        String url = baseUrl.endsWith("/") ? baseUrl + "ocr/course-table" : baseUrl + "/ocr/course-table";
+        HttpRequest req = HttpRequest.newBuilder(URI.create(url))
+                .timeout(Duration.ofSeconds(60))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(payload), StandardCharsets.UTF_8))
+                .build();
+
+        HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        if (resp.statusCode() / 100 != 2) {
+            throw new IllegalStateException("OCR 服务返回 HTTP " + resp.statusCode());
+        }
+        JsonNode root = mapper.readTree(resp.body());
+        if (root.hasNonNull("error") && !root.path("error").asText().isBlank()) {
+            throw new IllegalStateException(root.path("error").asText());
+        }
+        return mapper.convertValue(root, Map.class);
     }
 }
