@@ -11,6 +11,7 @@ import android.graphics.LinearGradient;
 import android.graphics.Matrix;
 import android.graphics.Outline;
 import android.graphics.Paint;
+import android.graphics.RadialGradient;
 import android.graphics.RectF;
 import android.graphics.Shader;
 import android.os.Handler;
@@ -43,6 +44,8 @@ public class GlassNavBackgroundView extends View {
     private final Paint sheenPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint edgePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint innerPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint reflectionPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint bottomGlowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint fallbackPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF shapeRect = new RectF();
     private final RectF insetRect = new RectF();
@@ -101,7 +104,7 @@ public class GlassNavBackgroundView extends View {
         fallbackPaint.setColor(0xFAFFFFFF);
         edgePaint.setStyle(Paint.Style.STROKE);
         innerPaint.setStyle(Paint.Style.STROKE);
-        tintPaint.setColor(0x6EF4F8FF); // 43% 冷白薄雾：保留背后的明暗层次，避免玻璃看起来像实心白卡片
+        tintPaint.setColor(0xACF4F8FF); // 68% 冷白薄雾：降低透视感，同时保留背后的明暗层次
     }
 
     @Override
@@ -155,18 +158,29 @@ public class GlassNavBackgroundView extends View {
         // 自上而下的玻璃厚度高光：顶部亮、底部收暗，避免大面积死白
         sheenPaint.setShader(new LinearGradient(
                 0, 0, 0, h,
-                new int[]{0x5CFFFFFF, 0x28FFFFFF, 0x10FFFFFF},
+                new int[]{0x70FFFFFF, 0x2AFFFFFF, 0x0DFFFFFF},
                 new float[]{0f, .55f, 1f},
                 Shader.TileMode.CLAMP));
         edgePaint.setStrokeWidth(dp(1));
-        edgePaint.setColor(0xFFE3E4EA);
-        // 内圈倒角高光：上缘亮、下缘弱，模拟玻璃边缘的厚度与反光
-        innerPaint.setStrokeWidth(dp(3));
+        edgePaint.setColor(0xCCFFFFFF);
+        // 内圈折射高光：白 → 冷蓝 → 白 → 淡绿，模拟液态玻璃边缘的色散反光
+        innerPaint.setStrokeWidth(dp(2.5f));
         innerPaint.setShader(new LinearGradient(
                 0, 0, 0, h,
-                new int[]{0x7AFFFFFF, 0x30FFFFFF, 0x12FFFFFF},
-                new float[]{0f, .5f, 1f},
+                new int[]{0xD9FFFFFF, 0x8AE8F4FF, 0xB3FFFFFF, 0x66E9FFF3},
+                new float[]{0f, .35f, .65f, 1f},
                 Shader.TileMode.CLAMP));
+        // 左上角玻璃反光斑：参照液态玻璃球的高光位置
+        reflectionPaint.setShader(new RadialGradient(
+                w * 0.26f, h * 0.18f, Math.max(w, h) * 0.6f,
+                new int[]{0x80FFFFFF, 0x33FFFFFF, 0x00FFFFFF},
+                new float[]{0f, .45f, 1f},
+                Shader.TileMode.CLAMP));
+        // 底部内反射：下缘一道向上的柔和反光
+        bottomGlowPaint.setShader(new LinearGradient(
+                0, h, 0, h * 0.45f,
+                new int[]{0x47FFFFFF, 0x00FFFFFF},
+                null, Shader.TileMode.CLAMP));
         if (snapshot != null) {
             snapshot.recycle();
             snapshot = null;
@@ -236,22 +250,34 @@ public class GlassNavBackgroundView extends View {
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
         float r = Math.min(cornerRadius, Math.min(getWidth(), getHeight()) / 2f);
+        // G2 连续曲率：外层、发丝外框、内倒角各用一条超椭圆路径
+        android.graphics.Path outerPath = SquirclePath.create(shapeRect, r);
 
         // 磨砂底图：缩小采样 + 双线性放大，天然形成柔和模糊
         if (backdropPaint.getShader() != null) {
-            canvas.drawRoundRect(shapeRect, r, r, backdropPaint);
+            canvas.drawPath(outerPath, backdropPaint);
         } else {
-            canvas.drawRoundRect(shapeRect, r, r, fallbackPaint);
+            canvas.drawPath(outerPath, fallbackPaint);
         }
-        // 白色薄雾 + 玻璃厚度高光
-        canvas.drawRoundRect(shapeRect, r, r, tintPaint);
-        canvas.drawRoundRect(shapeRect, r, r, sheenPaint);
-        // 1dp 发丝外框 + 2dp 内高光，模拟玻璃倒角
-        canvas.drawRoundRect(insetRect, Math.max(0, r - dp(0.5f)), Math.max(0, r - dp(0.5f)), edgePaint);
+
+        // 玻璃质感层：白雾 → 左上反光斑 → 底部内反射 → 顶部厚度高光
+        int glassSave = canvas.save();
+        canvas.clipPath(outerPath);
+        canvas.drawRect(shapeRect, tintPaint);
+        canvas.drawRect(shapeRect, reflectionPaint);
+        canvas.drawRect(shapeRect, bottomGlowPaint);
+        canvas.drawRect(shapeRect, sheenPaint);
+        canvas.restoreToCount(glassSave);
+
+        // 1dp 亮白外缘 + 2.5dp 内圈折射高光，模拟液态玻璃的边缘反光
+        canvas.drawPath(
+                SquirclePath.create(insetRect, Math.max(0, r - dp(0.5f))),
+                edgePaint);
         float innerInset = dp(2);
         innerRect.set(innerInset, innerInset, getWidth() - innerInset, getHeight() - innerInset);
-        canvas.drawRoundRect(innerRect,
-                Math.max(0, r - innerInset), Math.max(0, r - innerInset), innerPaint);
+        canvas.drawPath(
+                SquirclePath.create(innerRect, Math.max(0, r - innerInset)),
+                innerPaint);
     }
 
     private float dp(float value) {

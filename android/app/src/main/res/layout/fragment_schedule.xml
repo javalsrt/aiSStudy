@@ -13,7 +13,7 @@
         android:paddingHorizontal="16dp"
         android:paddingTop="12dp"
         android:paddingBottom="8dp"
-        android:background="@color/surface_1">
+        android:background="@color/canvas">
 
         <!-- 第一行：周数 + 年月日 -->
         <LinearLayout
@@ -136,7 +136,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="36dp"
                 android:orientation="horizontal"
-                android:background="@color/surface_3">
+                android:background="@color/canvas">
             </LinearLayout>
 
             <View

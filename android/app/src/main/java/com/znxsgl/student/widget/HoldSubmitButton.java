@@ -88,17 +88,17 @@ public class HoldSubmitButton extends AppCompatTextView {
         float radius = h / 2f; // 胶囊全圆角（与底部导航一致）
         float progress = Math.min(1f, Math.max(0f, holdProgress));
 
-        // 1. 基底：浅蓝胶囊
+        // 1. 基底：浅蓝胶囊（G2 连续曲率）
         rect.set(0, 0, w, h);
+        android.graphics.Path shape = SquirclePath.create(rect, radius);
         paint.setStyle(Paint.Style.FILL);
         paint.setColor(COLOR_BG);
-        canvas.drawRoundRect(rect, radius, radius, paint);
+        canvas.drawPath(shape, paint);
 
         // 2. 斜切色块从左向右扫过（模拟 CSS ::before translate3d(100%,0,0)）
         if (progress > 0f) {
             canvas.save();
-            clipPath.reset();
-            clipPath.addRoundRect(rect, radius, radius, Path.Direction.CW);
+            clipPath.set(shape);
             canvas.clipPath(clipPath);
 
             float blockWidth = w * 1.2f;

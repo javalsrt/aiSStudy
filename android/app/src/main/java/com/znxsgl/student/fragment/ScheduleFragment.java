@@ -135,27 +135,6 @@ public class ScheduleFragment extends Fragment {
         return slotIndex < slotNodes.length ? slotNodes[slotIndex] : slotIndex + 1;
     }
 
-    private static final int[] COURSE_COLORS = {
-        0xFFE8F0FE, // 浅蓝
-        0xFFE8F8ED, // 浅绿
-        0xFFFFF3E0, // 浅橙
-        0xFFF3E8FF, // 浅紫
-        0xFFFCE4EC, // 浅粉
-        0xFFE0F7FA, // 浅青
-        0xFFF9F0E0, // 浅黄
-        0xFFEDE7F6, // 淡紫
-        0xFFE8EAF6, // 靛蓝
-        0xFFFBE9E7, // 淡红
-        0xFFE0F2F1, // 浅墨绿
-        0xFFFFF8E1, // 奶油黄
-    };
-
-    private static final int[] SLOT_COLORS = {
-        0xFFE8F0FE, 0xFFE8F8ED, 0xFFFFF3E0,
-        0xFFF3E8FF, 0xFFFCE4EC, 0xFFE0F7FA,
-        0xFFF5F5F7,
-    };
-
     @Nullable @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container,
                              @Nullable Bundle savedInstanceState) {
@@ -618,7 +597,7 @@ public class ScheduleFragment extends Fragment {
         int todayIdx = todayDayOfWeek - 1; // 0索引
         // 节次列
         TextView timeHeader = createHeaderCell("节次", 0xFF8E8E93, dp(36));
-        timeHeader.setBackgroundColor(0xFFF5F5F7);
+        timeHeader.setBackgroundColor(0x00000000);
         rowHeader.addView(timeHeader);
 
         // 周一到周日，带日期和高亮
@@ -637,7 +616,16 @@ public class ScheduleFragment extends Fragment {
             cell.setLayoutParams(hlp);
             cell.setOrientation(LinearLayout.VERTICAL);
             cell.setGravity(Gravity.CENTER);
-            cell.setBackgroundColor(isToday ? 0xFFE8F0FE : 0x00000000);
+            // 当日不再整格填充蓝色，改为白色方格 + 加粗浅蓝边框
+            if (isToday) {
+                GradientDrawable todayBg = new GradientDrawable();
+                todayBg.setColor(0xFFFFFFFF);
+                todayBg.setCornerRadius(dp(6));
+                todayBg.setStroke(dp(2), 0xFFDCE9FF);
+                cell.setBackground(todayBg);
+            } else {
+                cell.setBackgroundColor(0x00000000);
+            }
             cell.setPadding(0, dp(2), 0, dp(2));
             
             TextView tvDay = new TextView(getContext());
@@ -645,7 +633,7 @@ public class ScheduleFragment extends Fragment {
             tvDay.setTextSize(11);
             tvDay.setTextColor(isToday ? 0xFF0A84FF : 0xFF1D1D1F);
             tvDay.setGravity(Gravity.CENTER);
-            tvDay.setTypeface(fontMedium());
+            tvDay.setTypeface(isToday ? android.graphics.Typeface.DEFAULT_BOLD : fontMedium());
             cell.addView(tvDay);
             
             TextView tvDate = new TextView(getContext());
@@ -847,14 +835,8 @@ public class ScheduleFragment extends Fragment {
         cell.setGravity(Gravity.CENTER);
         cell.setPadding(dp(2), dp(2), dp(2), dp(2));
 
-        // 只在当前周高亮今天列（今天真实日期落在当前周才高亮）
+        // 当天列只做描边标记，不再整格填充高亮色
         boolean isToday = isTodayInWeek(currentWeek) && (dayOfWeek == todayDayOfWeek);
-        if (isToday) {
-            GradientDrawable todayBg = new GradientDrawable();
-            todayBg.setColor(0xFFF0F4FF);
-            todayBg.setCornerRadius(dp(4));
-            cell.setBackground(todayBg);
-        }
 
         // 查找匹配的课程：优先按节次定位（适配任意作息），节次缺失时按时间交集兜底
         int node = nodeAt(slotIndex);
@@ -872,12 +854,11 @@ public class ScheduleFragment extends Fragment {
         }
 
         if (courseName != null) {
-            int baseColor = COURSE_COLORS[Math.abs(courseName.hashCode()) % COURSE_COLORS.length];
-            // 今天列：不另加蓝条/白卡，直接把课程色加深一档以示强调
-            int bgColor = isToday ? darkenColor(baseColor, 0.85f) : baseColor;
-
+            // 课程统一白色卡片；当天列用加粗浅蓝边框标记
             GradientDrawable bg = new GradientDrawable();
-            bg.setColor(bgColor); bg.setCornerRadius(dp(6));
+            bg.setColor(0xFFFFFFFF);
+            bg.setCornerRadius(dp(6));
+            bg.setStroke(dp(isToday ? 2 : 1), isToday ? 0xFFDCE9FF : 0xFFE8E8ED);
             cell.setBackground(bg);
 
             TextView tvName = new TextView(getContext());
@@ -894,11 +875,8 @@ public class ScheduleFragment extends Fragment {
                 cell.addView(tvRoom);
             }
         } else {
-            // 空格子：淡灰可见但不抢眼；今天列用浅蓝高亮（覆盖前避免丢失）
-            GradientDrawable bg = new GradientDrawable();
-            bg.setColor(isToday ? 0xFFE5F1FF : 0xFFF5F6F8);
-            bg.setCornerRadius(dp(6));
-            cell.setBackground(bg);
+            // 没有课的位置不显示任何底色或边框，保持干净的灰底
+            cell.setBackgroundColor(0x00000000);
         }
         return cell;
     }
@@ -922,17 +900,17 @@ public class ScheduleFragment extends Fragment {
 
         View lineL = new View(getContext());
         lineL.setLayoutParams(new LinearLayout.LayoutParams(dp(20), dp(1)));
-        lineL.setBackgroundColor(0xFFFF9500);
+        lineL.setBackgroundColor(0xFFD9D9DE);
         sep.addView(lineL);
 
         TextView tv = new TextView(getContext());
         tv.setText(text);
-        tv.setTextSize(11); tv.setTextColor(0xFFFF9500); tv.setGravity(Gravity.CENTER);
+        tv.setTextSize(11); tv.setTextColor(0xFF8E8E93); tv.setGravity(Gravity.CENTER);
         sep.addView(tv);
 
         View lineR = new View(getContext());
         lineR.setLayoutParams(new LinearLayout.LayoutParams(0, dp(1), 1));
-        lineR.setBackgroundColor(0xFFFF9500);
+        lineR.setBackgroundColor(0xFFD9D9DE);
         sep.addView(lineR);
 
         row.addView(sep);
@@ -1235,14 +1213,6 @@ public class ScheduleFragment extends Fragment {
         if (hour >= 13 && hour < 18) return "下午好 🌤️";
         if (hour >= 18 && hour < 21) return "半晚好 🌆";
         return "夜晚好 🌙";
-    }
-
-    /** 将颜色按比例加深（用于今天列的课程强调） */
-    private int darkenColor(int color, float factor) {
-        int r = (int) (android.graphics.Color.red(color) * factor);
-        int g = (int) (android.graphics.Color.green(color) * factor);
-        int b = (int) (android.graphics.Color.blue(color) * factor);
-        return android.graphics.Color.rgb(r, g, b);
     }
 
     /** 用给定经纬度请求天气，返回如「33°C」；失败返回 null */

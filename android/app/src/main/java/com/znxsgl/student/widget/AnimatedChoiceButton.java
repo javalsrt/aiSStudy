@@ -35,6 +35,10 @@ public class AnimatedChoiceButton extends AppCompatTextView {
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint clearPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF rect = new RectF();
+    /** G2 连续曲率胶囊路径（尺寸变化时重建） */
+    private android.graphics.Path squirclePath;
+    private int squircleW;
+    private int squircleH;
 
     private float fillProgress = 0f;
     private boolean choiceSelected = false;
@@ -91,18 +95,23 @@ public class AnimatedChoiceButton extends AppCompatTextView {
         }
         float radius = h / 2f; // 胶囊全圆角
         rect.set(0, 0, w, h);
+        if (squirclePath == null || squircleW != w || squircleH != h) {
+            squirclePath = SquirclePath.create(rect, radius);
+            squircleW = (int) w;
+            squircleH = (int) h;
+        }
 
         // 1. 基底：浅灰胶囊
         paint.setStyle(Paint.Style.FILL);
         paint.setColor(COLOR_BG_IDLE);
-        canvas.drawRoundRect(rect, radius, radius, paint);
+        canvas.drawPath(squirclePath, paint);
 
         // 2. 虹膜式填充：离屏层画蓝色胶囊，再用收缩的透明圆孔挖掉中心
         //    progress 0 → 孔最大（全灰）；progress 1 → 孔消失（全蓝）
         if (fillProgress > 0f) {
             int saveCount = canvas.saveLayer(rect, null);
             paint.setColor(COLOR_FILL);
-            canvas.drawRoundRect(rect, radius, radius, paint);
+            canvas.drawPath(squirclePath, paint);
             float holeRadius = (float) Math.hypot(w, h) / 2f * (1f - fillProgress);
             if (holeRadius > 0f) {
                 canvas.drawCircle(w / 2f, h / 2f, holeRadius, clearPaint);

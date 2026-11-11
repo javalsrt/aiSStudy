@@ -54,6 +54,23 @@ public class JwtUtil {
                 .compact();
     }
 
+    /**
+     * 访客只读 token：以管理员视图浏览数据，带 guest 标记，有效期最长 2 小时。
+     * JwtAuthFilter 会拦截该 token 的所有非 GET 请求。
+     */
+    public String generateGuestToken(Long adminId) {
+        long guestExpiration = Math.min(expiration, 2 * 60 * 60 * 1000L);
+        return Jwts.builder()
+                .subject(adminId.toString())
+                .claim("username", "guest")
+                .claim("role", 3)
+                .claim("guest", true)
+                .issuedAt(new Date())
+                .expiration(new Date(System.currentTimeMillis() + guestExpiration))
+                .signWith(key)
+                .compact();
+    }
+
     public Claims parseToken(String token) {
         return Jwts.parser()
                 .verifyWith(key)

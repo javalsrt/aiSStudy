@@ -50,6 +50,40 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             }
             Long userId = jwtUtil.getUserId(token);
 
+            // 访客 token：跳过单设备校验，且除查询外的请求一律拒绝
+            io.jsonwebtoken.Claims claims = jwtUtil.parseToken(token);
+            boolean guest = Boolean.TRUE.equals(claims.get("guest", Boolean.class));
+            if (guest) {
+                String method = request.getMethod();
+                boolean readOnly = "GET".equalsIgnoreCase(method)
+                        || "HEAD".equalsIgnoreCase(method)
+                        || "OPTIONS".equalsIgnoreCase(method);
+                if (!readOnly) {
+                    response.setStatus(403);
+                    response.setContentType("application/json;charset=UTF-8");
+                    response.getWriter().write(
+                            "{\"error\":\"Forbidden\",\"message\":\"访客模式仅支持浏览，不能进行增删改操作\"}");
+                    return;
+                }
+                List<String> guestRoles = sysRoleMapper.selectRoleCodesByUserId(userId);
+                List<String> guestPerms = sysPermissionMapper.selectPermCodesByUserId(userId);
+                List<SimpleGrantedAuthority> guestAuthorities = new ArrayList<>();
+                for (String rc : guestRoles) {
+                    guestAuthorities.add(new SimpleGrantedAuthority("ROLE_" + rc.toUpperCase()));
+                }
+                for (String pc : guestPerms) {
+                    guestAuthorities.add(new SimpleGrantedAuthority(pc));
+                }
+                if (guestAuthorities.isEmpty()) {
+                    guestAuthorities.add(new SimpleGrantedAuthority("ROLE_ADMIN"));
+                }
+                UsernamePasswordAuthenticationToken guestAuth =
+                        new UsernamePasswordAuthenticationToken(userId, 3, guestAuthorities);
+                SecurityContextHolder.getContext().setAuthentication(guestAuth);
+                filterChain.doFilter(request, response);
+                return;
+            }
+
             // 单设备登录校验：token 必须与数据库 current_token 一致
             User user = userMapper.selectById(userId);
             if (user == null || !token.equals(user.getCurrentToken())) {

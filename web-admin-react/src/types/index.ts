@@ -41,6 +41,12 @@ export interface TeacherStats {
     className: string
     todaySeconds: number
     totalSeconds: number
+    /** 近 7 天学习时长（秒），用于「本周优秀学生」排行 */
+    weekSeconds: number
+    /** 近 7 天答题总数 */
+    weekQuizTotal: number
+    /** 近 7 天答对题数 */
+    weekQuizCorrect: number
     online: boolean
   }[]
 }

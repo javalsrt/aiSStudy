@@ -12,6 +12,32 @@ export const login = (data: { username: string; password: string }) => {
   return request.post<any, LoginResponse>('/auth/login', data)
 }
 
+export interface CaptchaData {
+  captchaId: string
+  /** PNG data URL，可直接放入 img src */
+  image: string
+}
+
+/** 管理端图形验证码 */
+export const getCaptcha = () => {
+  return request.get<any, CaptchaData>('/auth/captcha')
+}
+
+/** 管理端登录：账号密码 + 验证码 */
+export const adminLogin = (data: {
+  username: string
+  password: string
+  captchaId: string
+  captchaCode: string
+}) => {
+  return request.post<any, LoginResponse>('/auth/admin-login', data)
+}
+
+/** 访客只读登录：无需账号密码，仅用于浏览演示数据 */
+export const guestLogin = () => {
+  return request.post<any, LoginResponse>('/auth/guest')
+}
+
 // 把后端返回转换成前端 User
 export const parseLoginResponse = (res: LoginResponse) => {
   // 优先使用 RBAC roles 数组中的第一个角色，再回退到旧 role 字段

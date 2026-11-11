@@ -96,17 +96,29 @@ public class TeacherStatsController {
         int avgFocusMinutes = avgSecObj != null ? (int)(avgSecObj / 60) : 0;
 
         // 5. 学生列表（全校 / 教师授课范围，全量返回，前端滚动查看）
+        //    分时段聚合改用子查询：原写法同时 LEFT JOIN 今日/全量 focus_session 会形成笛卡尔积，
+        //    导致今日时长被放大「历史记录数」倍。这里额外给出近 7 天时长与答题量，供「本周优秀学生」排行。
         List<Map<String, Object>> students = jdbc.queryForList(
             "SELECT u.id, u.real_name AS realName, u.student_no AS studentNo, " +
             "  ci.class_name AS className, " +
-            "  COALESCE(SUM(f.duration_seconds), 0) AS todaySeconds, " +
-            "  COALESCE(SUM(f2.duration_seconds), 0) AS totalSeconds " +
+            "  COALESCE(t_today.sec, 0) AS todaySeconds, " +
+            "  COALESCE(t_total.sec, 0) AS totalSeconds, " +
+            "  COALESCE(t_week.sec, 0) AS weekSeconds, " +
+            "  COALESCE(q_week.total, 0) AS weekQuizTotal, " +
+            "  COALESCE(q_week.correct, 0) AS weekQuizCorrect " +
             "FROM user u " +
             "LEFT JOIN class_info ci ON ci.id = u.class_id " +
-            "LEFT JOIN focus_session f ON f.user_id = u.id AND DATE(f.finished_at) = CURDATE() " +
-            "LEFT JOIN focus_session f2 ON f2.user_id = u.id " +
+            "LEFT JOIN (SELECT user_id, SUM(duration_seconds) AS sec FROM focus_session " +
+            "  WHERE DATE(finished_at) = CURDATE() GROUP BY user_id) t_today ON t_today.user_id = u.id " +
+            "LEFT JOIN (SELECT user_id, SUM(duration_seconds) AS sec FROM focus_session " +
+            "  GROUP BY user_id) t_total ON t_total.user_id = u.id " +
+            "LEFT JOIN (SELECT user_id, SUM(duration_seconds) AS sec FROM focus_session " +
+            "  WHERE finished_at >= DATE_SUB(CURDATE(), INTERVAL 6 DAY) GROUP BY user_id) t_week ON t_week.user_id = u.id " +
+            "LEFT JOIN (SELECT qs.user_id, COUNT(*) AS total, " +
+            "  SUM(CASE WHEN qa.user_answer = qa.correct_answer THEN 1 ELSE 0 END) AS correct " +
+            "  FROM quiz_answer qa JOIN quiz_session qs ON qs.id = qa.session_id " +
+            "  WHERE qs.created_at >= DATE_SUB(CURDATE(), INTERVAL 6 DAY) GROUP BY qs.user_id) q_week ON q_week.user_id = u.id " +
             "WHERE u." + studentCondition + " " +
-            "GROUP BY u.id, u.real_name, u.student_no, ci.class_name " +
             "ORDER BY ci.class_name, u.student_no",
             params.toArray());
 
@@ -787,8 +799,11 @@ public class TeacherStatsController {
                         "LEFT JOIN exam_submission es ON es.exam_homework_id = eh.id AND es.user_id = ? " +
                         "LEFT JOIN course c ON c.id = eh.course_id " +
                         "LEFT JOIN class_info ci ON ci.id = eh.class_id " +
-                        "WHERE eh.status = 1 ");
+                        // 学习统计需要展示历史考试记录，已发布(1)与已结束(2)都纳入
+                        "WHERE eh.status IN (1, 2) " +
+                        "AND eh.class_id = (SELECT class_id FROM user WHERE id = ?) ");
         List<Object> params = new ArrayList<>();
+        params.add(studentId);
         params.add(studentId);
         if (!isAdmin) {
             sql.append("AND eh.teacher_id = ? ");

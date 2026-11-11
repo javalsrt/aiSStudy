@@ -43,6 +43,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     localStorage.removeItem(LS_USER)
     localStorage.removeItem(LS_ROLES)
     localStorage.removeItem(LS_PERMISSIONS)
+    // 退出时同时解除访客只读标记
+    localStorage.removeItem('guest-mode')
     set({ token: null, user: null, roles: [], permissions: [], isAuthenticated: false })
   },
 

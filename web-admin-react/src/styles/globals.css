@@ -101,8 +101,9 @@
   --shadow-focus-double: 0 0 0 1px #86efac, 0 0 0 4px rgb(134 239 172 / 0.18);
 
   /* --- 字体 --- */
-  --font-sans: Inter, "PingFang SC", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-    "Helvetica Neue", Arial, sans-serif;
+  /* 苹果字体体系：英文/数字优先 SF Pro，中文回退苹方；非苹果设备回退系统字体 */
+  --font-sans: "SF Pro Display", "SF Pro Text", -apple-system, BlinkMacSystemFont,
+    "PingFang SC", "Helvetica Neue", "Segoe UI", "Microsoft YaHei", Arial, sans-serif;
 
   /* --- 组件动效（Radix 收起/展开等） --- */
   --animate-accordion-down: accordion-down 0.2s ease-out;
@@ -125,6 +126,12 @@
   @keyframes slide-in-right {
     from { transform: translateX(100%); }
     to { transform: translateX(0); }
+  }
+
+  /* 本周优秀学生轮播：卡片逐张淡入上浮 */
+  @keyframes student-carousel-in {
+    from { opacity: 0; transform: translateY(10px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
   }
 }
 
@@ -784,4 +791,87 @@
   .skeleton {
     animation: skeleton-pulse 1.6s ease-in-out infinite;
   }
+}
+
+/* ============================================================
+   登录页复选框（ui-checkbox）
+   原生 input 自绘：方框 + 勾选缩放 + 点击波纹
+   ============================================================ */
+.ui-checkbox {
+  --primary-color: #1677ff;
+  --secondary-color: #fff;
+  --primary-hover-color: #4096ff;
+  --checkbox-diameter: 20px;
+  --checkbox-border-radius: 5px;
+  --checkbox-border-color: #d9d9d9;
+  --checkbox-border-width: 1px;
+  --checkbox-border-style: solid;
+  --checkmark-size: 1.2;
+
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  width: var(--checkbox-diameter);
+  height: var(--checkbox-diameter);
+  border-radius: var(--checkbox-border-radius);
+  background: var(--secondary-color);
+  border: var(--checkbox-border-width) var(--checkbox-border-style) var(--checkbox-border-color);
+  transition: all 0.3s;
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.ui-checkbox,
+.ui-checkbox *,
+.ui-checkbox *::before,
+.ui-checkbox *::after {
+  box-sizing: border-box;
+}
+
+/* 点击时扩散的圆环 */
+.ui-checkbox::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  box-shadow: 0 0 0 calc(var(--checkbox-diameter) / 2.5) var(--primary-color);
+  border-radius: inherit;
+  opacity: 0;
+  transition: all 0.5s cubic-bezier(0.12, 0.4, 0.29, 1.46);
+}
+
+/* 勾选对号 */
+.ui-checkbox::before {
+  top: 40%;
+  left: 50%;
+  content: "";
+  position: absolute;
+  width: 4px;
+  height: 7px;
+  border-right: 2px solid var(--secondary-color);
+  border-bottom: 2px solid var(--secondary-color);
+  transform: translate(-50%, -50%) rotate(45deg) scale(0);
+  opacity: 0;
+  transition: all 0.1s cubic-bezier(0.71, -0.46, 0.88, 0.6), opacity 0.1s;
+}
+
+.ui-checkbox:hover {
+  border-color: var(--primary-color);
+}
+
+.ui-checkbox:checked {
+  background: var(--primary-color);
+  border-color: transparent;
+}
+
+.ui-checkbox:checked::before {
+  opacity: 1;
+  transform: translate(-50%, -50%) rotate(45deg) scale(var(--checkmark-size));
+  transition: all 0.2s cubic-bezier(0.12, 0.4, 0.29, 1.46) 0.1s;
+}
+
+.ui-checkbox:active:not(:checked)::after {
+  transition: none;
+  box-shadow: none;
+  opacity: 1;
 }

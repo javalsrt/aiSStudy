@@ -5,12 +5,22 @@ const request = axios.create({
   timeout: 300000, // 5 分钟：AI 出题 / 文档识别等接口可能需要较长时间
 })
 
-// 请求拦截：附加 token
+// 请求拦截：附加 token；访客模式拦截所有写操作
 request.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token = localStorage.getItem('token')
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
+    }
+    const guestMode = localStorage.getItem('guest-mode') === '1'
+    const method = (config.method || 'get').toLowerCase()
+    if (guestMode && method !== 'get') {
+      return Promise.reject({
+        response: {
+          status: 403,
+          data: { message: '访客模式仅支持浏览，不能进行增删改操作' },
+        },
+      })
     }
     return config
   },

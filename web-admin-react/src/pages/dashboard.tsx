@@ -7,7 +7,6 @@ import {
   Activity,
   ArrowLeft,
   ArrowRight,
-  ChevronDown,
 } from 'lucide-react'
 import {
   ResponsiveContainer,
@@ -71,9 +70,10 @@ export function DashboardPage() {
   const [activity, setActivity] = useState<ActivityItem[]>([])
   const [period, setPeriod] = useState<TrendPeriod>('7d')
   const [studentPage, setStudentPage] = useState(1)
-  // 优秀学生面板：按累计/今日时长排序，每页 4 人
-  const [topMetric, setTopMetric] = useState<'total' | 'today'>('total')
+  // 本周优秀学生：只展示近 7 天表现最好的 Top 20，按周时长或周答题正确率排序
+  const [topMetric, setTopMetric] = useState<'week' | 'accuracy'>('week')
   const [topPage, setTopPage] = useState(1)
+  const [topHover, setTopHover] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -99,6 +99,41 @@ export function DashboardPage() {
     }
     fetchData()
   }, [])
+
+  // 本周优秀学生：只取近 7 天有学习行为的学生，Top 20；正确率榜要求本周至少答 5 题
+  const TOP_LIMIT = 20
+  const topStudents = (stats?.students ?? [])
+    .filter((s) => (topMetric === 'accuracy' ? s.weekQuizTotal >= 5 : s.weekSeconds > 0))
+    .sort((a, b) => {
+      if (topMetric === 'accuracy') {
+        const rateA = a.weekQuizCorrect / Math.max(1, a.weekQuizTotal)
+        const rateB = b.weekQuizCorrect / Math.max(1, b.weekQuizTotal)
+        return rateB - rateA || b.weekQuizTotal - a.weekQuizTotal
+      }
+      return b.weekSeconds - a.weekSeconds
+    })
+    .slice(0, TOP_LIMIT)
+  const topPageSize = 4
+  const topTotalPages = Math.max(1, Math.ceil(topStudents.length / topPageSize))
+  const currentTopPage = Math.min(topPage, topTotalPages)
+  const topRows = topStudents.slice(
+    (currentTopPage - 1) * topPageSize,
+    currentTopPage * topPageSize
+  )
+
+  // 排序方式切换时回到第一页
+  useEffect(() => {
+    setTopPage(1)
+  }, [topMetric])
+
+  // 自动轮播：每 4.5 秒切下一页，鼠标悬停暂停；手动翻页后重新计时
+  useEffect(() => {
+    if (topHover || topTotalPages <= 1) return
+    const timer = window.setInterval(() => {
+      setTopPage((page) => (page >= topTotalPages ? 1 : page + 1))
+    }, 4500)
+    return () => window.clearInterval(timer)
+  }, [topHover, topTotalPages, currentTopPage])
 
   if (loading) {
     return (
@@ -164,17 +199,6 @@ export function DashboardPage() {
     (currentStudentPage - 1) * studentPageSize,
     currentStudentPage * studentPageSize
   )
-  // 优秀学生：按学习时长降序，4 人一页，对应模板的 Recent hires 面板
-  const topStudents = [...(stats?.students ?? [])].sort((a, b) =>
-    topMetric === 'total' ? b.totalSeconds - a.totalSeconds : b.todaySeconds - a.todaySeconds
-  )
-  const topPageSize = 4
-  const topTotalPages = Math.max(1, Math.ceil(topStudents.length / topPageSize))
-  const currentTopPage = Math.min(topPage, topTotalPages)
-  const topRows = topStudents.slice(
-    (currentTopPage - 1) * topPageSize,
-    currentTopPage * topPageSize
-  )
   // 在线活跃度：后端返回今年逐日活跃学生（真实学习行为去重），按星期对齐成 7 行热力图
   const activityPeak = activity.reduce((max, item) => Math.max(max, item.activeUsers), 0)
   const activitySeries: ActivityPoint[] = activity.map((item) => {
@@ -230,36 +254,44 @@ export function DashboardPage() {
 
         {/* 第一行：优秀学生 + 学习趋势（对应模板的 Recent hires + Earned so far） */}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-          <Card className={`${panelClass} flex flex-col justify-between p-2`}>
-            {/* 面板头：标签 + 总人数 + 排序方式 */}
+          <Card
+            className={`${panelClass} flex flex-col justify-between p-2`}
+            onMouseEnter={() => setTopHover(true)}
+            onMouseLeave={() => setTopHover(false)}
+          >
+            {/* 面板头：本周榜单 + 排序方式 */}
             <div className="flex items-start justify-between px-2 pt-2">
               <div>
-                <div className="text-body-medium text-ink-secondary">优秀学生</div>
+                <div className="text-body-medium text-ink-secondary">本周优秀学生</div>
                 <div className="mt-0.5 text-[24px] font-medium leading-[34px] text-ink-primary tnum">
-                  {topStudents.length}
+                  Top {topStudents.length}
                 </div>
               </div>
-              <label className="relative inline-flex items-center">
-                <Select
-                  aria-label="优秀学生排序方式"
-                  value={topMetric}
-                  onChange={(e) => {
-                    setTopMetric(e.target.value as 'total' | 'today')
-                    setTopPage(1)
-                  }}
-                  className="cursor-pointer appearance-none bg-transparent pr-5 text-body-medium text-ink-primary outline-hidden"
-                >
-                  <option value="total">累计时长</option>
-                  <option value="today">今日时长</option>
-                </Select>
-                <ChevronDown className="pointer-events-none absolute right-0 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-primary" />
-              </label>
+              <Select
+                aria-label="优秀学生排序方式"
+                value={topMetric}
+                onChange={(e) => {
+                  setTopMetric(e.target.value as 'week' | 'accuracy')
+                  setTopPage(1)
+                }}
+                className="h-8 w-[140px] shrink-0 text-caption-1-medium"
+              >
+                <option value="week">本周学习时长</option>
+                <option value="accuracy">本周答题正确率</option>
+              </Select>
             </div>
 
-            {/* 2×2 学生卡：头像 + 姓名 + 时长 + 班级标签 */}
+            {/* 2×2 学生卡：头像 + 姓名 + 本周指标 + 班级标签（轮播时逐张淡入上浮） */}
             <div className="mt-2 grid grid-cols-2 gap-2">
-              {topRows.map((s) => (
-                <div key={s.id} className="min-w-0 rounded-lg bg-neutral-100 p-2.5">
+              {topRows.map((s, index) => (
+                <div
+                  key={`${currentTopPage}-${s.id}`}
+                  className="min-w-0 rounded-lg bg-neutral-100 p-2.5"
+                  style={{
+                    animation: 'student-carousel-in 0.4s ease both',
+                    animationDelay: `${index * 50}ms`,
+                  }}
+                >
                   <div className="flex items-center gap-2">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-neutral-500 to-neutral-700 text-sm font-medium text-white">
                       {s.realName?.slice(0, 1) || '学'}
@@ -269,9 +301,11 @@ export function DashboardPage() {
                         {s.realName || '未命名'}
                       </div>
                       <div className="truncate text-sm text-ink-secondary tnum">
-                        {topMetric === 'total'
-                          ? `累计 ${formatStudyTime(s.totalSeconds)}`
-                          : `今日 ${formatStudyTime(s.todaySeconds)}`}
+                        {topMetric === 'week'
+                          ? `本周 ${formatStudyTime(s.weekSeconds)}`
+                          : `正确率 ${Math.round(
+                              (s.weekQuizCorrect / Math.max(1, s.weekQuizTotal)) * 100
+                            )}% · ${s.weekQuizTotal} 题`}
                       </div>
                     </div>
                   </div>
@@ -282,27 +316,30 @@ export function DashboardPage() {
               ))}
               {topRows.length === 0 && (
                 <div className="col-span-2 flex h-[190px] items-center justify-center text-body-2-regular text-ink-tertiary">
-                  暂无学生数据
+                  本周暂无学习数据
                 </div>
               )}
             </div>
 
-            {/* 翻页：模板底部两个白色按钮 */}
-            <div className="mt-2 grid grid-cols-2 gap-2">
+            {/* 翻页：自动轮播，悬停暂停，中间显示页码 */}
+            <div className="mt-2 flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => setTopPage((p) => Math.max(1, p - 1))}
                 disabled={currentTopPage <= 1}
-                className="inline-flex h-10 items-center justify-center gap-1.5 rounded-lg bg-neutral-100 text-body-2-medium text-ink-primary transition-colors hover:bg-neutral-150 disabled:pointer-events-none disabled:opacity-40"
+                className="inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-lg bg-neutral-100 text-body-2-medium text-ink-primary transition-[background-color,transform] duration-150 hover:bg-neutral-150 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40"
               >
                 <ArrowLeft className="h-4 w-4" />
                 上一页
               </button>
+              <span className="w-9 shrink-0 text-center text-caption-1-regular text-ink-tertiary tnum">
+                {currentTopPage}/{topTotalPages}
+              </span>
               <button
                 type="button"
                 onClick={() => setTopPage((p) => Math.min(topTotalPages, p + 1))}
                 disabled={currentTopPage >= topTotalPages}
-                className="inline-flex h-10 items-center justify-center gap-1.5 rounded-lg bg-neutral-100 text-body-2-medium text-ink-primary transition-colors hover:bg-neutral-150 disabled:pointer-events-none disabled:opacity-40"
+                className="inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-lg bg-neutral-100 text-body-2-medium text-ink-primary transition-[background-color,transform] duration-150 hover:bg-neutral-150 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40"
               >
                 下一页
                 <ArrowRight className="h-4 w-4" />
