@@ -1,5 +1,3 @@
-export type AssistantMode = 'agent' | 'chat'
-
 export interface AssistantCapability {
   key: string
   title: string
@@ -11,8 +9,7 @@ export interface AssistantMeta {
   subtitle: string
   role: 'admin' | 'teacher' | string
   capabilities: AssistantCapability[]
-  agentSuggestions: string[]
-  chatSuggestions: string[]
+  suggestions: string[]
 }
 
 export interface AssistantActionField {
@@ -46,6 +43,36 @@ export interface AssistantMessage {
   content: string
   action?: AssistantActionCard
   suggestions?: string[]
-  mode?: AssistantMode
   error?: boolean
+}
+
+export interface AssistantRecord {
+  id: number
+  userId: number
+  operatorName?: string
+  operatorUsername?: string
+  userRole?: string
+  sessionId?: string
+  mode?: string
+  userMessage?: string
+  actionName?: string
+  actionLabel?: string
+  args?: Record<string, unknown>
+  status?: string
+  summary?: string
+  durationMs?: number
+  errorCode?: string
+  createdAt?: string
+  restorable?: boolean
+  restored?: boolean
+  targetType?: 'student' | 'teacher' | string
+  targetName?: string
+  restoreReason?: string
+}
+
+export interface AssistantRecordPage {
+  total: number
+  pageNum: number
+  pageSize: number
+  list: AssistantRecord[]
 }

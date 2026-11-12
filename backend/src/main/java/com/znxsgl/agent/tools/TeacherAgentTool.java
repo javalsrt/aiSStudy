@@ -7,6 +7,7 @@ import com.znxsgl.agent.dto.ToolResult;
 import com.znxsgl.controller.AdminUserController;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -88,6 +89,7 @@ public class TeacherAgentTool extends BaseAgentTool {
     }
 
     @Component
+    @Transactional
     public static class Create extends BaseAgentTool {
         private final TeacherAgentTool parent;
 
@@ -132,6 +134,7 @@ public class TeacherAgentTool extends BaseAgentTool {
     }
 
     @Component
+    @Transactional
     public static class Update extends BaseAgentTool {
         private final TeacherAgentTool parent;
 
@@ -178,6 +181,7 @@ public class TeacherAgentTool extends BaseAgentTool {
     }
 
     @Component
+    @Transactional
     public static class Delete extends BaseAgentTool {
         private final TeacherAgentTool parent;
 
@@ -270,6 +274,9 @@ public class TeacherAgentTool extends BaseAgentTool {
                     ? resp.getBody().get("error") : "修改失败";
             throw new AgentException("UPDATE_FAILED", error);
         }
+        if (status != null && status == 0) {
+            jdbc.update("UPDATE user SET current_token = NULL WHERE id = ?", userId);
+        }
         String name = newRealName.isEmpty() ? String.valueOf(user.get("real_name")) : newRealName;
         return ToolResult.ok("已更新教师 " + name + " 的信息。",
                 data("姓名", name, "账号", user.get("username")), "/admin/staff?tab=teachers");
@@ -294,6 +301,7 @@ public class TeacherAgentTool extends BaseAgentTool {
         if (!resp.getStatusCode().is2xxSuccessful()) {
             throw new AgentException("DELETE_FAILED", "删除失败");
         }
+        jdbc.update("UPDATE user SET current_token = NULL WHERE id = ?", userId);
         return ToolResult.ok("已停用教师 " + user.get("real_name") + "（账号 " + user.get("username") + "）。",
                 data("姓名", user.get("real_name"), "账号", user.get("username"), "状态", "已停用"),
                 "/admin/staff?tab=teachers");

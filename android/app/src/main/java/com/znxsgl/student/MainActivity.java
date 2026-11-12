@@ -33,6 +33,7 @@ import com.znxsgl.student.network.ApiService;
 import com.znxsgl.student.network.RetrofitClient;
 import com.znxsgl.student.network.WebSocketManager;
 import com.znxsgl.student.update.AppUpdateManager;
+import com.znxsgl.student.widget.AiTabIconDrawable;
 import com.znxsgl.student.widget.AiTabBurstView;
 import com.znxsgl.student.widget.GlassNavBackgroundView;
 
@@ -58,6 +59,8 @@ public class MainActivity extends AppCompatActivity {
     private int navigationBarInset;
     /** 中间 AI 星星的点击爆发动效层 */
     private AiTabBurstView aiBurst;
+    /** AI 页签图标：空闲为原图标，思考/回答时过渡为动态星星 */
+    private AiTabIconDrawable aiTabIcon;
     private ValueAnimator aiIconAnimator;
     /** 星星正在播放弹性缩放时为 true，此时 styleAiTab 不要再改写缩放值 */
     private boolean aiIconPopping;
@@ -148,13 +151,23 @@ public class MainActivity extends AppCompatActivity {
         if (bottomNav == null) return;
         // 标题置空：Material 在选中时会重新显示 largeLabel，只有清空标题才能彻底不出现文字
         android.view.MenuItem aiMenu = bottomNav.getMenu().findItem(R.id.nav_ai);
-        if (aiMenu != null) aiMenu.setTitle("");
+        if (aiMenu != null) {
+            aiMenu.setTitle("");
+            // 原图标 + 动态星星的过渡 Drawable（同一实例，避免重复 setIcon 重启动画）
+            if (aiTabIcon == null) aiTabIcon = new AiTabIconDrawable(this);
+            aiMenu.setIcon(aiTabIcon);
+        }
         bottomNav.post(() -> {
             try {
                 ViewGroup menuView = (ViewGroup) bottomNav.getChildAt(0);
                 if (menuView == null) return;
                 View aiItem = findAiTabView();
                 if (aiItem == null) return;
+                // 清除 Material 的颜色 tint，图标颜色由 AiTabIconDrawable 按选中态自行控制
+                ImageView aiIcon = findIcon(aiItem);
+                if (aiIcon != null) aiIcon.setImageTintList(null);
+                if (aiTabIcon != null) aiTabIcon.setActive(
+                        bottomNav.getSelectedItemId() == R.id.nav_ai);
                 aiItem.setContentDescription("AI 助手");
                 menuView.setClipChildren(false);
                 if (aiItem instanceof ViewGroup) ((ViewGroup) aiItem).setClipChildren(false);
@@ -165,6 +178,34 @@ public class MainActivity extends AppCompatActivity {
             } catch (Exception ignored) {
             }
         });
+    }
+
+    /**
+     * AI 助手思考/回答期间：原图标模糊过渡到动态星星；
+     * 结束后再模糊过渡回原图标。
+     */
+    public void setAiThinking(boolean thinking) {
+        if (aiTabIcon == null) {
+            if (bottomNav == null) return;
+            styleAiTab();
+        }
+        if (aiTabIcon == null) return;
+        aiTabIcon.setThinking(thinking);
+        blurAiIconOnce();
+    }
+
+    /** 过渡期间给图标加一次短促模糊（Android 12+），形成模糊过渡的观感 */
+    private void blurAiIconOnce() {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.S) return;
+        View aiItem = findAiTabView();
+        ImageView icon = aiItem == null ? null : findIcon(aiItem);
+        if (icon == null) return;
+        try {
+            icon.setRenderEffect(android.graphics.RenderEffect.createBlurEffect(
+                    dp(3), dp(3), android.graphics.Shader.TileMode.CLAMP));
+            icon.postDelayed(() -> icon.setRenderEffect(null), 340L);
+        } catch (Exception ignored) {
+        }
     }
 
     // ========== 中间 AI 星星的点击爆发动效 ==========
@@ -291,8 +332,7 @@ public class MainActivity extends AppCompatActivity {
             icon.getLocationInWindow(iconPos);
             float itemCenter = item.getHeight() / 2f;
             float iconCenter = (iconPos[1] - itemPos[1]) + icon.getHeight() / 2f;
-            // 星星图形在 24dp viewBox 里偏下（大星在上、两颗小星在下），
-            // 放大后视觉重心比图标 bounds 中心低，需整体上提对齐其他页签图标的视觉中线
+            // 其他页签有文字占了底部，图标视觉中心偏上；AI 页签隐藏文字后需上提对齐同一水平线
             icon.setTranslationY(itemCenter - iconCenter - dp(14));
         } catch (Exception ignored) {
         }
@@ -513,6 +553,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onDestroy() {
         // 先停动效，避免动画回调打到已销毁的视图
         if (aiIconAnimator != null) aiIconAnimator.cancel();
+        if (aiTabIcon != null) aiTabIcon.stop();
         if (aiBurst != null) aiBurst.stop();
         if (aiIconWatched != null) aiIconWatched.removeOnLayoutChangeListener(aiIconLayoutWatcher);
         super.onDestroy();

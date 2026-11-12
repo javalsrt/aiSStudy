@@ -134,7 +134,7 @@ export function Select({
         title={title}
         aria-label={ariaLabel}
         className={cn(
-          'flex w-auto cursor-pointer items-center justify-between gap-1.5 rounded-[10px] border border-line-separator bg-neutral-100 px-2.5 text-body-2-medium text-ink-primary shadow-xs outline-hidden transition-[background-color,border-color,box-shadow] duration-200 hover:bg-neutral-150 focus-visible:border-neutral-300 focus-visible:bg-surface-primary data-[state=open]:border-neutral-300 data-[state=open]:bg-surface-primary disabled:cursor-not-allowed disabled:opacity-50',
+          'flex w-auto cursor-pointer items-center justify-between gap-1.5 rounded-[var(--radius-control)] border border-line-separator bg-neutral-100 px-2.5 text-body-2-medium text-ink-primary shadow-xs outline-hidden transition-[background-color,border-color,box-shadow] duration-200 hover:bg-neutral-150 focus-visible:border-neutral-300 focus-visible:bg-surface-primary data-[state=open]:border-neutral-300 data-[state=open]:bg-surface-primary disabled:cursor-not-allowed disabled:opacity-50',
           ghost
             ? 'h-8 border-transparent bg-transparent px-1 shadow-none hover:bg-neutral-100 focus-visible:border-transparent focus-visible:bg-neutral-100 data-[state=open]:border-transparent data-[state=open]:bg-neutral-100'
             : compact

@@ -17,6 +17,7 @@ import { ExamHomeworkPage } from '@/pages/exam-homework'
 import ExamTakePage from '@/pages/exam-take'
 import { TeacherChatPage } from '@/pages/teacher-chat'
 import { MyClassPage } from '@/pages/teacher/my-class'
+import { AiRecordsPage } from '@/pages/ai-records'
 import { useAuthStore } from '@/store/auth'
 import { useEffect, useState } from 'react'
 
@@ -165,6 +166,10 @@ export const router = createBrowserRouter(
               <LeaveApprovalPage />
             </TeacherRoute>
           ),
+        },
+        {
+          path: 'ai-records',
+          element: <AiRecordsPage />,
         },
         {
           path: 'admin/staff',

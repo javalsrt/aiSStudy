@@ -6,6 +6,7 @@ import com.znxsgl.agent.dto.AgentContext;
 import com.znxsgl.agent.dto.ToolResult;
 import com.znxsgl.service.SemesterService;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -100,6 +101,7 @@ public class CourseAgentTool extends BaseAgentTool {
     }
 
     @Component
+    @Transactional
     public static class Create extends BaseAgentTool {
         private final CourseAgentTool parent;
 
@@ -145,6 +147,7 @@ public class CourseAgentTool extends BaseAgentTool {
     }
 
     @Component
+    @Transactional
     public static class Update extends BaseAgentTool {
         private final CourseAgentTool parent;
 

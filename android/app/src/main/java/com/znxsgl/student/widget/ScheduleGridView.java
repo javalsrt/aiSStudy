@@ -108,7 +108,8 @@ public class ScheduleGridView extends View {
 
         roomPaint.setTextSize(sp(10));
         roomPaint.setColor(0xFF8E8E93);
-        roomPaint.setTextAlign(Paint.Align.CENTER);
+        // 使用 StaticLayout 居中排版，Paint 设为左对齐避免二次偏移
+        roomPaint.setTextAlign(Paint.Align.LEFT);
 
         timePaint.setTextSize(sp(10));
         timePaint.setColor(0xFF1D1D1F);
@@ -271,35 +272,57 @@ public class ScheduleGridView extends View {
         canvas.save();
         canvas.clipPath(path);
         float maxWidth = Math.max(dp(10), rect.width() - dp(8));
+        float availableHeight = Math.max(dp(10), rect.height() - dp(6));
 
         String name = info.name == null ? "" : info.name;
-        StaticLayout nameLayout = StaticLayout.Builder
-                .obtain(name, 0, name.length(), namePaint, (int) maxWidth)
-                .setAlignment(Layout.Alignment.ALIGN_CENTER)
-                .setMaxLines(2)
-                .setEllipsize(TextUtils.TruncateAt.END)
-                .setIncludePad(false)
-                .build();
-
         String room = info.room == null ? "" : info.room;
         boolean hasRoom = !room.isEmpty();
-        float roomHeight = hasRoom ? (roomPaint.descent() - roomPaint.ascent()) : 0;
         float gap = hasRoom ? dp(2) : 0;
-        float totalHeight = nameLayout.getHeight() + gap + roomHeight;
+
+        // 课程名/教室完整显示：从 11sp 开始逐级缩小，直到两段文字都能放进卡片，
+        // 不再使用省略号截断。
+        namePaint.setTextSize(sp(11));
+        roomPaint.setTextSize(sp(10));
+        StaticLayout nameLayout = null;
+        StaticLayout roomLayout = null;
+        for (float nameSize = sp(11); nameSize >= sp(7f); nameSize -= sp(0.5f)) {
+            namePaint.setTextSize(nameSize);
+            nameLayout = buildLayout(name, namePaint, (int) maxWidth,
+                    Integer.MAX_VALUE, null, Layout.Alignment.ALIGN_CENTER);
+            if (hasRoom) {
+                roomPaint.setTextSize(Math.max(sp(8), nameSize - sp(1)));
+                roomLayout = buildLayout(room, roomPaint, (int) maxWidth,
+                        2, null, Layout.Alignment.ALIGN_CENTER);
+            }
+            float total = nameLayout.getHeight() + (hasRoom ? gap + roomLayout.getHeight() : 0);
+            if (total <= availableHeight) break;
+        }
+        if (nameLayout == null) return;
+
+        float totalHeight = nameLayout.getHeight()
+                + (hasRoom ? gap + roomLayout.getHeight() : 0);
         float textTop = rect.centerY() - totalHeight / 2f;
 
         canvas.save();
         canvas.translate(rect.left + dp(4), textTop);
         nameLayout.draw(canvas);
-        canvas.restore();
-
         if (hasRoom) {
-            CharSequence roomText = TextUtils.ellipsize(room, roomPaint, maxWidth,
-                    TextUtils.TruncateAt.END);
-            float baseline = textTop + nameLayout.getHeight() + gap - roomPaint.ascent();
-            canvas.drawText(roomText, 0, roomText.length(), rect.centerX(), baseline, roomPaint);
+            canvas.translate(0, nameLayout.getHeight() + gap);
+            roomLayout.draw(canvas);
         }
         canvas.restore();
+        canvas.restore();
+    }
+
+    private StaticLayout buildLayout(String text, TextPaint paint, int width, int maxLines,
+                                     TextUtils.TruncateAt ellipsize, Layout.Alignment align) {
+        return StaticLayout.Builder
+                .obtain(text, 0, text.length(), paint, width)
+                .setAlignment(align)
+                .setMaxLines(maxLines)
+                .setEllipsize(ellipsize)
+                .setIncludePad(false)
+                .build();
     }
 
     private void drawBreakRow(Canvas canvas, float top, float bottom, String text) {

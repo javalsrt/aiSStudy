@@ -406,18 +406,6 @@ public class LeaveController {
         return n != null && n > 0;
     }
 
-    /** 审批人身份标记：班主任 / 教导主任 / 管理员 */
-    private String reviewerIdentity(Authentication auth, Long classId) {
-        Long uid = uid(auth);
-        if (hasRole(auth, "ROLE_ADMIN")) return "管理员";
-        if (classId != null && isClassTeacher(uid, classId)) return "班主任";
-        if (isLeader(uid)) return "教导主任";
-        List<String> duty = jdbc.queryForList(
-                "SELECT t.duty FROM teacher t JOIN user u ON u.real_name = t.real_name WHERE u.id = ? LIMIT 1",
-                String.class, uid);
-        return duty.isEmpty() ? "教师" : duty.get(0);
-    }
-
     private boolean hasRole(Authentication auth, String role) {
         return auth != null && auth.getAuthorities().stream().anyMatch(a -> role.equals(a.getAuthority()));
     }

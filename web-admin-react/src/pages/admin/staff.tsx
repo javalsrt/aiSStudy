@@ -56,8 +56,9 @@ import {
   importTeachers,
   getTeacherCourses,
 } from '@/api/staff'
-import { Users, School, ChevronLeft, UserCheck, UserX, BookOpen } from 'lucide-react'
+import { School, ChevronLeft, UserCheck, UserX, BookOpen } from 'lucide-react'
 import type { UserListItem, ClassInfo } from '@/types'
+import { StaffRelationGraph } from '@/components/staff-relation-graph'
 
 const PAGE_SIZE = 10
 const ROLE_STUDENT = 1
@@ -1011,15 +1012,73 @@ export function StaffPage() {
       )}
 
       {/* Page header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          {/* 副标题（不展示）：管理教师和学生账号信息 */}
+      <div className="space-y-3">
+        {/* 第一行：标题 + 主要操作 */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-display-4-medium text-ink-primary">人员管理</h1>
+          <div className="flex items-center gap-2">
+            <input
+              ref={importInputRef}
+              type="file"
+              accept=".xlsx,.xls"
+              className="hidden"
+              onChange={handleImportFile}
+            />
+            {activeTab !== 'duty' && activeTab !== 'cadre' && (
+              <>
+                <Button
+                  variant="outline"
+                  className="gap-2"
+                  onClick={() => importInputRef.current?.click()}
+                  disabled={importing}
+                  title={
+                    currentRole === ROLE_TEACHER
+                      ? '上传教师名单 Excel（表头：账号 | 姓名 | 密码 | 手机号 | 邮箱 | 院系），院系不存在时自动创建'
+                      : '请使用标准模板上传 .xlsx/.xls 文件，仅支持导入学生名单，不要上传课程表、课表或其他非人员名单文件。'
+                  }
+                >
+                  {importing ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Upload className="w-4 h-4" />
+                  )}
+                  {importing ? '导入中...' : `批量导入${tabLabel}`}
+                </Button>
+                <Button variant="default" className="gap-2" onClick={openCreateSheet}>
+                  <Plus className="w-4 h-4" />
+                  新增{tabLabel}
+                </Button>
+              </>
+            )}
+            {/* 次要操作收进「更多」，避免顶部按钮过多 */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-9 w-9"
+                  title="更多操作"
+                >
+                  <MoreHorizontal className="w-4 h-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44">
+                <DropdownMenuItem onSelect={downloadTemplate}>
+                  <Download className="w-4 h-4 mr-2" />
+                  下载导入模板
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={openClassDialog}>
+                  <School className="w-4 h-4 mr-2" />
+                  新增班级
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* 角色切换：分段控件（BoardUI SegmentedControl） */}
+
+        {/* 第二行：角色页签 + 人数统计 */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <SegmentedControl
-            className="mr-1"
             ariaLabel="人员角色"
             value={activeTab}
             onChange={(next) => handleTabChange(next)}
@@ -1036,43 +1095,9 @@ export function StaffPage() {
               { value: 'cadre', label: '班干部设置' },
             ]}
           />
-          <input
-            ref={importInputRef}
-            type="file"
-            accept=".xlsx,.xls"
-            className="hidden"
-            onChange={handleImportFile}
-          />
-          <Button variant="outline" className="gap-2" onClick={downloadTemplate}>
-            <Download className="w-4 h-4" />
-            {activeTab === 'teachers' ? '教师批量导入模板' : '学生批量导入模板'}
-          </Button>
-          <Button
-            variant="outline"
-            className="gap-2"
-            onClick={() => importInputRef.current?.click()}
-            disabled={importing}
-            title={
-              currentRole === ROLE_TEACHER
-                ? '上传教师名单 Excel（表头：账号 | 姓名 | 密码 | 手机号 | 邮箱 | 院系），院系不存在时自动创建'
-                : '请使用标准模板上传 .xlsx/.xls 文件，仅支持导入学生名单，不要上传课程表、课表或其他非人员名单文件。'
-            }
-          >
-            {importing ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Upload className="w-4 h-4" />
-            )}
-            {importing ? '导入中...' : `批量导入${tabLabel}`}
-          </Button>
-          <Button variant="outline" className="gap-2" onClick={openClassDialog}>
-            <School className="w-4 h-4" />
-            新增班级
-          </Button>
-          <Button variant="default" className="gap-2" onClick={openCreateSheet}>
-            <Plus className="w-4 h-4" />
-            新增{tabLabel}
-          </Button>
+          {activeTab !== 'duty' && activeTab !== 'cadre' && (
+            <span className="text-sm text-ink-tertiary">共 {total} 人</span>
+          )}
         </div>
       </div>
 
@@ -1118,11 +1143,20 @@ export function StaffPage() {
                   { value: 'compact', label: '紧凑' },
                 ]}
               />
-              <div className="text-sm text-neutral-500">共 {total} 人</div>
             </div>
           </div>
         </CardContent>
       </Card>
+
+      {/* 人员关系星图：院系/专业 → 班级/教师 → 学生，点击表盘逐层展开 */}
+      {overview && activeTab !== 'duty' && activeTab !== 'cadre' && (
+        <StaffRelationGraph
+          role={activeTab === 'teachers' ? 'teachers' : 'students'}
+          majors={overview.majors}
+          classes={overview.classes || []}
+          deptMembers={overview.deptMembers}
+        />
+      )}
 
       {/* 人员概览卡片：专业 → 班级 → 列表 下钻 */}
       {overview && activeTab !== 'duty' && activeTab !== 'cadre' && (
@@ -1170,17 +1204,15 @@ export function StaffPage() {
                     <button
                       key={m.name}
                       onClick={() => handleMajorClick(m.name)}
-                      className="text-left p-3 rounded-xl border border-neutral-200 bg-neutral-50 hover:border-emerald-300 hover:bg-emerald-50/60 transition-colors group"
+                      className="text-left px-3.5 py-3 rounded-xl border border-neutral-200 bg-neutral-50 hover:border-emerald-300 hover:bg-emerald-50/60 transition-colors group"
                     >
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="w-7 h-7 rounded-md bg-primary-100 text-primary flex items-center justify-center">
-                          <School className="w-3.5 h-3.5" />
-                        </div>
-                        <span className="text-lg font-semibold text-neutral-900 group-hover:text-primary">
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-xl font-semibold text-neutral-900 group-hover:text-primary">
                           {m.count}
                         </span>
+                        <span className="text-[11px] text-neutral-400">人</span>
                       </div>
-                      <div className="text-xs text-neutral-600 truncate" title={m.name}>
+                      <div className="mt-1 text-xs text-neutral-600 truncate" title={m.name}>
                         {m.name}
                       </div>
                     </button>
@@ -1236,17 +1268,15 @@ export function StaffPage() {
                     <button
                       key={c.id}
                       onClick={() => handleClassClick(c.name)}
-                      className="text-left p-3 rounded-xl border border-neutral-200 bg-neutral-50 hover:border-emerald-300 hover:bg-emerald-50/60 transition-colors group"
+                      className="text-left px-3.5 py-3 rounded-xl border border-neutral-200 bg-neutral-50 hover:border-emerald-300 hover:bg-emerald-50/60 transition-colors group"
                     >
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="w-7 h-7 rounded-md bg-cyan-100 text-cyan-600 flex items-center justify-center">
-                          <Users className="w-3.5 h-3.5" />
-                        </div>
-                        <span className="text-lg font-semibold text-neutral-900 group-hover:text-primary">
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-xl font-semibold text-neutral-900 group-hover:text-primary">
                           {c.count}
                         </span>
+                        <span className="text-[11px] text-neutral-400">人</span>
                       </div>
-                      <div className="text-xs text-neutral-600 truncate" title={c.name}>
+                      <div className="mt-1 text-xs text-neutral-600 truncate" title={c.name}>
                         {c.name}
                       </div>
                     </button>

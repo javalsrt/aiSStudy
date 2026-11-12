@@ -3,6 +3,7 @@ import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu'
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/auth'
+import { playAuthTransition } from '@/store/auth-transition'
 import {
   getTeacherUnreadNotifications,
   markTeacherRead,
@@ -71,8 +72,11 @@ export function SidebarFooter() {
   }, [isTeacher, currentChatCourse])
 
   const handleLogout = () => {
-    logout()
-    navigate('/login')
+    // 像素过渡铺满后再清除登录态并回登录页
+    playAuthTransition(() => {
+      logout()
+      navigate('/login')
+    })
   }
 
   const handleNotiClick = (courseName: string, courseId?: number) => {

@@ -4,16 +4,25 @@ import { RouterProvider } from 'react-router-dom'
 import { router } from './router'
 import { useAuthStore } from './store/auth'
 import { initTheme } from './store/theme'
+import { TargetCursor } from '@/components/ui/target-cursor'
+import { AuthPixelTransition } from '@/components/transition/auth-pixel-transition'
 import '@/styles/globals.css'
 
 function App() {
   return (
-    <RouterProvider
-      router={router}
-      future={{
-        v7_startTransition: true,
-      }}
-    />
+    <>
+      <RouterProvider
+        router={router}
+        future={{
+          v7_startTransition: true,
+        }}
+      />
+      <TargetCursor
+        targetSelector=".cursor-target, button, a[href], [role='button'], [role='tab']"
+        spinDuration={5}
+      />
+      <AuthPixelTransition />
+    </>
   )
 }
 

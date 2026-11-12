@@ -8,6 +8,7 @@ import com.znxsgl.controller.AdminUserController;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -162,6 +163,7 @@ public class StudentAgentTool extends BaseAgentTool {
     }
 
     @Component
+    @Transactional
     public static class Create extends BaseAgentTool {
         private final StudentAgentTool parent;
 
@@ -207,6 +209,7 @@ public class StudentAgentTool extends BaseAgentTool {
     }
 
     @Component
+    @Transactional
     public static class Update extends BaseAgentTool {
         private final StudentAgentTool parent;
 
@@ -254,6 +257,7 @@ public class StudentAgentTool extends BaseAgentTool {
     }
 
     @Component
+    @Transactional
     public static class Delete extends BaseAgentTool {
         private final StudentAgentTool parent;
 
@@ -303,6 +307,7 @@ public class StudentAgentTool extends BaseAgentTool {
     }
 
     @Component
+    @Transactional
     public static class ResetPassword extends BaseAgentTool {
         private final StudentAgentTool parent;
 
@@ -446,6 +451,9 @@ public class StudentAgentTool extends BaseAgentTool {
                         ? resp.getBody().get("error") : "修改失败";
                 throw new AgentException("UPDATE_FAILED", error);
             }
+            if (status != null && status == 0) {
+                jdbc.update("UPDATE user SET current_token = NULL WHERE id = ?", studentId);
+            }
         } else {
             if (targetClassId != null) {
                 Map<String, Object> classRow = row("SELECT class_name, major, grade FROM class_info WHERE id = ?", targetClassId);
@@ -464,6 +472,9 @@ public class StudentAgentTool extends BaseAgentTool {
             }
             if (status != null) {
                 jdbc.update("UPDATE user SET status = ? WHERE id = ?", status, studentId);
+                if (status == 0) {
+                    jdbc.update("UPDATE user SET current_token = NULL WHERE id = ?", studentId);
+                }
             }
         }
         String name = newRealName.isEmpty() ? String.valueOf(student.get("real_name")) : newRealName;
@@ -496,6 +507,7 @@ public class StudentAgentTool extends BaseAgentTool {
             if (!resp.getStatusCode().is2xxSuccessful()) {
                 throw new AgentException("DELETE_FAILED", "删除失败");
             }
+            jdbc.update("UPDATE user SET current_token = NULL WHERE id = ?", studentId);
         } else {
             jdbc.update("UPDATE user SET status = 0, current_token = NULL WHERE id = ?", studentId);
         }

@@ -1,5 +1,23 @@
 import request from './request'
 
+export interface TeacherRole {
+  code: string
+  name: string
+  category: 'title' | 'position' | 'leader' | 'middle' | 'support'
+  teaches: boolean
+}
+
+export interface TeacherRoleCategory {
+  key: string
+  label: string
+  multi: boolean
+}
+
+export interface TeacherRoleCatalog {
+  categories: TeacherRoleCategory[]
+  roles: TeacherRole[]
+}
+
 export interface TeacherDutyItem {
   id: number
   name: string
@@ -9,8 +27,52 @@ export interface TeacherDutyItem {
   isLeader: number
   phone?: string | null
   status?: number
+  dept?: string | null
+  roles?: TeacherRole[]
+  roleNames?: string[]
+  canTeach?: boolean
   headClasses: string[]
   headClassCount: number
+}
+
+export interface StaffRelationTeacher {
+  id: number
+  name: string
+  teacherNo?: string | null
+  title?: string | null
+  duty?: string | null
+  isLeader?: number
+  status?: number
+  dept?: string | null
+  roles: TeacherRole[]
+  roleNames: string[]
+  canTeach: boolean
+}
+
+export interface StaffRelationClass {
+  id: number
+  className: string
+  grade?: string | null
+  major?: string | null
+  department?: string | null
+  headTeacherId?: number | null
+  headTeacherName?: string | null
+  studentCount: number
+}
+
+export interface StaffRelationTeaching {
+  teacherId: number
+  teacherName: string
+  classId: number
+  className: string
+  courseName: string
+}
+
+export interface StaffRelations {
+  roleCatalog: TeacherRoleCatalog
+  teachers: StaffRelationTeacher[]
+  classes: StaffRelationClass[]
+  teachings: StaffRelationTeaching[]
 }
 
 export interface ClassHeadItem {
@@ -33,9 +95,27 @@ export const getTeacherDutyList = (keyword?: string) => {
   })
 }
 
-/** 修改教师职务 / 领导标记 */
+/** 修改教师职务 / 领导标记（兼容旧接口） */
 export const updateTeacherDuty = (id: number, data: { duty?: string; isLeader?: number | boolean }) => {
   return request.post<any, { msg: string; duty: string; isLeader: number }>(`/admin/teacher-duty/teachers/${id}`, data)
+}
+
+/** 教师身份目录：职称 / 岗位角色 / 校级领导 / 中层领导 / 教辅岗位 */
+export const getTeacherRoleCatalog = () => {
+  return request.get<any, TeacherRoleCatalog>('/admin/teacher-duty/roles')
+}
+
+/** 覆盖式保存教师身份（支持一人多身份） */
+export const updateTeacherRoles = (id: number, roleCodes: string[]) => {
+  return request.post<any, { msg: string; roles: TeacherRole[]; canTeach: boolean }>(
+    `/admin/teacher-duty/teachers/${id}/roles`,
+    { roleCodes },
+  )
+}
+
+/** 教务关系：教师 + 身份 + 班级 + 授课关系 */
+export const getStaffRelations = () => {
+  return request.get<any, StaffRelations>('/admin/teacher-duty/relations')
 }
 
 /** 班级列表（含当前班主任） */

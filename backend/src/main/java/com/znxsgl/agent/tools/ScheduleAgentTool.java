@@ -76,10 +76,11 @@ public class ScheduleAgentTool extends BaseAgentTool {
         }
         Integer week = intVal(args, "week");
 
+        // schedule 每个学生一行，这里按课程/星期/节次聚合去重
         StringBuilder sql = new StringBuilder(
-                "SELECT DISTINCT s.course_name, s.day_of_week, s.start_node, s.step, " +
-                        "LEFT(s.start_time, 5) AS start_time, LEFT(s.end_time, 5) AS end_time, " +
-                        "s.classroom, s.weeks " +
+                "SELECT s.course_name, s.day_of_week, s.start_node, s.step, " +
+                        "MIN(LEFT(s.start_time, 5)) AS start_time, MIN(LEFT(s.end_time, 5)) AS end_time, " +
+                        "MAX(s.classroom) AS classroom, GROUP_CONCAT(DISTINCT s.weeks) AS weeks " +
                         "FROM schedule s JOIN user u ON u.id = s.user_id " +
                         "WHERE u.class_id = ? AND s.status = 1 ");
         List<Object> params = new ArrayList<>();
@@ -88,6 +89,7 @@ public class ScheduleAgentTool extends BaseAgentTool {
             sql.append("AND s.day_of_week = ? ");
             params.add(dayOfWeek);
         }
+        sql.append("GROUP BY s.course_name, s.day_of_week, s.start_node, s.step, s.classroom ");
         sql.append("ORDER BY s.day_of_week, s.start_node");
 
         List<Map<String, Object>> rows = query(sql.toString(), params.toArray());

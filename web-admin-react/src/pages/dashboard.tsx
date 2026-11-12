@@ -240,6 +240,8 @@ export function DashboardPage() {
     []
   )
   const panelClass = 'rounded-3xl bg-surface-primary shadow-none hover:shadow-none'
+  // 四张 KPI 卡轮换极淡色晕，保持整页氛围一致
+  const metricTints = ['tint-blue', 'tint-violet', 'tint-green', 'tint-amber']
 
   return (
     /* 仅数据总览：页面底色由 AppLayout 提供，这里只负责内容纵向节奏 */
@@ -255,7 +257,7 @@ export function DashboardPage() {
         {/* 第一行：优秀学生 + 学习趋势（对应模板的 Recent hires + Earned so far） */}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <Card
-            className={`${panelClass} flex flex-col justify-between p-2`}
+            className={`${panelClass} tint-violet flex flex-col justify-between p-2`}
             onMouseEnter={() => setTopHover(true)}
             onMouseLeave={() => setTopHover(false)}
           >
@@ -347,11 +349,15 @@ export function DashboardPage() {
             </div>
           </Card>
 
-          <Card className={`${panelClass} lg:col-span-2`}>
+          <Card className={`${panelClass} tint-blue lg:col-span-2`}>
             <CardHeader className="flex-row items-start justify-between space-y-0 p-4 pb-0">
               <div className="min-w-0">
                 <div className="text-body-medium text-ink-secondary">日均学习时长</div>
-                <div className="mt-0.5 text-[24px] font-medium leading-[34px] text-ink-primary tnum">
+                {/* 区间切换时数字淡入，避免直接跳变 */}
+                <div
+                  key={period}
+                  className="mt-0.5 animate-fade-in text-[24px] font-medium leading-[34px] text-ink-primary tnum"
+                >
                   {avgDailyMinutes}
                   <span className="ml-1 text-body-medium text-ink-secondary">分钟</span>
                 </div>
@@ -366,52 +372,56 @@ export function DashboardPage() {
               />
             </CardHeader>
             <CardContent className="p-4 pt-4">
-              <ResponsiveContainer width="100%" height={220}>
-                <AreaChart data={trendSeries} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="colorMinutes" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor={CHART_BLUE} stopOpacity={0.28} />
-                      <stop offset="95%" stopColor={CHART_BLUE} stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="4 8" stroke={chartGrid} vertical={false} />
-                  <XAxis
-                    dataKey="date"
-                    tick={{ fontSize: 12, fill: chartTick }}
-                    axisLine={false}
-                    tickLine={false}
-                    interval={tickInterval}
-                    minTickGap={16}
-                    padding={{ left: 4, right: 8 }}
-                  />
-                  <YAxis tick={{ fontSize: 12, fill: chartTick }} axisLine={false} tickLine={false} width={32} />
-                  <Tooltip
-                    cursor={{ stroke: chartGrid }}
-                    contentStyle={{
-                      borderRadius: '10px',
-                      ...chartTip,
-                      boxShadow: '0 1px 1px rgba(0,0,0,0.04), 0 4px 4px rgba(0,0,0,0.02)',
-                      fontSize: '12px',
-                    }}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="minutes"
-                    stroke={CHART_BLUE_ACTIVE}
-                    strokeWidth={2}
-                    fill="url(#colorMinutes)"
-                    name="学习时长(分钟)"
-                    isAnimationActive={false}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+              {/* 区间切换时图表淡入并重新绘制曲线 */}
+              <div key={period} className="animate-fade-in">
+                <ResponsiveContainer width="100%" height={220}>
+                  <AreaChart data={trendSeries} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="colorMinutes" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor={CHART_BLUE} stopOpacity={0.28} />
+                        <stop offset="95%" stopColor={CHART_BLUE} stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="4 8" stroke={chartGrid} vertical={false} />
+                    <XAxis
+                      dataKey="date"
+                      tick={{ fontSize: 12, fill: chartTick }}
+                      axisLine={false}
+                      tickLine={false}
+                      interval={tickInterval}
+                      minTickGap={16}
+                      padding={{ left: 4, right: 8 }}
+                    />
+                    <YAxis tick={{ fontSize: 12, fill: chartTick }} axisLine={false} tickLine={false} width={32} />
+                    <Tooltip
+                      cursor={{ stroke: chartGrid }}
+                      contentStyle={{
+                        borderRadius: '10px',
+                        ...chartTip,
+                        boxShadow: '0 1px 1px rgba(0,0,0,0.04), 0 4px 4px rgba(0,0,0,0.02)',
+                        fontSize: '12px',
+                      }}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="minutes"
+                      stroke={CHART_BLUE_ACTIVE}
+                      strokeWidth={2}
+                      fill="url(#colorMinutes)"
+                      name="学习时长(分钟)"
+                      animationDuration={650}
+                      animationEasing="ease-out"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
             </CardContent>
           </Card>
         </div>
 
         {/* 第二行：班级排行 + 在线活跃度（对应模板的 Revenue + Contributions） */}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <Card className={panelClass}>
+          <Card className={`${panelClass} tint-green`}>
             <CardHeader className="flex-row items-start justify-between space-y-0 p-4 pb-0">
               <div>
                 <div className="text-body-medium text-ink-secondary">班级平均学习时长</div>
@@ -471,7 +481,7 @@ export function DashboardPage() {
           </Card>
 
           {/* 在线活跃度：真实学习行为（专注/刷题/章节/考试/聊天）去重统计 */}
-          <Card className={panelClass}>
+          <Card className={`${panelClass} tint-amber`}>
             <div className="p-4">
               <div className="text-body-medium text-ink-secondary">今年的学习活跃</div>
               <div className="mt-0.5 text-[24px] font-medium leading-[34px] text-ink-primary tnum">
@@ -558,6 +568,7 @@ export function DashboardPage() {
               value={card.value}
               icon={card.icon}
               change={card.change}
+              className={metricTints[i % metricTints.length]}
             />
           ))}
         </div>
@@ -567,7 +578,7 @@ export function DashboardPage() {
         </p>
 
         {/* 学生表：灰底上的白色卡片，表头 14px 三级文字 */}
-        <Card className="rounded-3xl border border-line-separator bg-surface-primary shadow-none hover:shadow-none">
+        <Card className="tint-teal rounded-3xl border border-line-separator bg-surface-primary shadow-none hover:shadow-none">
           <CardHeader className="flex-row items-center justify-between space-y-0 px-5 pb-3 pt-4">
             <span className="text-body-medium text-ink-tertiary">学生学习状态</span>
             <span className="text-body-medium text-ink-primary tnum">

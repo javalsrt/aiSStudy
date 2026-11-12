@@ -5,6 +5,7 @@ import com.znxsgl.agent.BaseAgentTool;
 import com.znxsgl.agent.dto.AgentContext;
 import com.znxsgl.agent.dto.ToolResult;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -122,6 +123,7 @@ public class ClassAgentTool extends BaseAgentTool {
     }
 
     @Component
+    @Transactional
     public static class Create extends BaseAgentTool {
         private final ClassAgentTool parent;
 
@@ -165,6 +167,7 @@ public class ClassAgentTool extends BaseAgentTool {
     }
 
     @Component
+    @Transactional
     public static class Update extends BaseAgentTool {
         private final ClassAgentTool parent;
 

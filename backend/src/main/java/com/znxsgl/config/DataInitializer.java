@@ -28,8 +28,98 @@ public class DataInitializer implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
+        ensureSchema();
         initUserPasswords();
         fixCourseCredits();
+    }
+
+    /**
+     * 兼容旧数据库：补齐新版本新增的字段和表。
+     * 部署时只更新代码、未同步数据库时，缺少字段会导致课程/课表接口 500，
+     * 这里在启动时做一次幂等检查并自动补齐。
+     */
+    private void ensureSchema() {
+        ensureColumn("course", "cover_url",
+                "ALTER TABLE `course` ADD COLUMN `cover_url` varchar(500) NULL " +
+                        "COMMENT '课程封面图 URL' AFTER `description`");
+
+        ensureTable("bell_schedule",
+                "CREATE TABLE IF NOT EXISTS `bell_schedule` (" +
+                        "`id` bigint NOT NULL AUTO_INCREMENT," +
+                        "`semester` varchar(20) NOT NULL DEFAULT '' COMMENT '学期，空=通用'," +
+                        "`grade` varchar(20) NOT NULL DEFAULT '' COMMENT '年级（如 2026级），空=默认作息'," +
+                        "`class_id` bigint DEFAULT NULL COMMENT '班级ID'," +
+                        "`week_parity` tinyint NOT NULL DEFAULT '0' COMMENT '0=通用 1=单周 2=双周'," +
+                        "`node` int NOT NULL COMMENT '节次，从 1 开始'," +
+                        "`start_time` time NOT NULL COMMENT '上课时间'," +
+                        "`end_time` time NOT NULL COMMENT '下课时间'," +
+                        "PRIMARY KEY (`id`)," +
+                        "KEY `idx_bell_class_node` (`class_id`,`node`)," +
+                        "KEY `idx_bell_scope` (`semester`,`class_id`,`week_parity`,`node`)" +
+                        ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='作息时间表（节次起止时间）'");
+
+        ensureTable("grade_week_parity",
+                "CREATE TABLE IF NOT EXISTS `grade_week_parity` (" +
+                        "`id` bigint NOT NULL AUTO_INCREMENT," +
+                        "`grade` varchar(20) NOT NULL COMMENT '年级，如 2026级'," +
+                        "`odd_week_parity` tinyint NOT NULL DEFAULT '1' COMMENT '奇数周套用的作息：1=单周表 2=双周表'," +
+                        "`remark` varchar(100) DEFAULT NULL," +
+                        "PRIMARY KEY (`id`)," +
+                        "UNIQUE KEY `grade` (`grade`)" +
+                        ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='年级单双周作息映射'");
+
+        ensureTable("ai_agent_log",
+                "CREATE TABLE IF NOT EXISTS `ai_agent_log` (" +
+                        "`id` bigint NOT NULL AUTO_INCREMENT," +
+                        "`request_id` varchar(64) DEFAULT NULL COMMENT '单次请求 ID'," +
+                        "`user_id` bigint NOT NULL COMMENT '操作人 user.id'," +
+                        "`user_role` varchar(16) NOT NULL COMMENT 'ADMIN / TEACHER'," +
+                        "`session_id` varchar(64) DEFAULT NULL COMMENT '会话 ID'," +
+                        "`mode` varchar(16) NOT NULL COMMENT 'agent / chat'," +
+                        "`user_message` text COMMENT '用户原始指令'," +
+                        "`action_name` varchar(64) DEFAULT NULL COMMENT '执行的工具名'," +
+                        "`action_args` json DEFAULT NULL COMMENT '工具参数（密码类已脱敏）'," +
+                        "`result_status` varchar(16) DEFAULT NULL COMMENT 'success / failed / pending_confirm / canceled'," +
+                        "`result_summary` varchar(500) DEFAULT NULL COMMENT '执行结果摘要'," +
+                        "`duration_ms` int DEFAULT NULL COMMENT '耗时'," +
+                        "`error_code` varchar(64) DEFAULT NULL COMMENT '错误码'," +
+                        "`created_at` datetime DEFAULT CURRENT_TIMESTAMP," +
+                        "PRIMARY KEY (`id`)," +
+                        "KEY `idx_ai_log_user_time` (`user_id`, `created_at`)," +
+                        "KEY `idx_ai_log_action` (`action_name`)" +
+                        ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='管理端 AI 助手操作审计'");
+    }
+
+    /** 字段不存在时才 ALTER，避免重复执行报错 */
+    private void ensureColumn(String table, String column, String ddl) {
+        try {
+            Integer count = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM information_schema.COLUMNS " +
+                            "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?",
+                    Integer.class, table, column);
+            if (count == null || count == 0) {
+                jdbc.execute(ddl);
+                System.out.println("[初始化] 已自动补充字段 " + table + "." + column);
+            }
+        } catch (Exception e) {
+            System.err.println("[初始化] 检查字段 " + table + "." + column + " 失败: " + e.getMessage());
+        }
+    }
+
+    /** 表不存在时才创建 */
+    private void ensureTable(String table, String ddl) {
+        try {
+            Integer count = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM information_schema.TABLES " +
+                            "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?",
+                    Integer.class, table);
+            if (count == null || count == 0) {
+                jdbc.execute(ddl);
+                System.out.println("[初始化] 已自动创建表 " + table);
+            }
+        } catch (Exception e) {
+            System.err.println("[初始化] 检查表 " + table + " 失败: " + e.getMessage());
+        }
     }
 
     /**

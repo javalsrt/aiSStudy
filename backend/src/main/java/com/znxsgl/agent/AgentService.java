@@ -33,11 +33,12 @@ public class AgentService {
     private final AgentProtocolParser protocolParser;
     private final AgentToolRegistry toolRegistry;
     private final AgentAuditService auditService;
+    private final AgentPageLinker pageLinker;
 
     public AgentService(LlmService llmService, AgentScopeService scopeService,
                         AgentSessionStore sessionStore, AgentPromptBuilder promptBuilder,
                         AgentProtocolParser protocolParser, AgentToolRegistry toolRegistry,
-                        AgentAuditService auditService) {
+                        AgentAuditService auditService, AgentPageLinker pageLinker) {
         this.llmService = llmService;
         this.scopeService = scopeService;
         this.sessionStore = sessionStore;
@@ -45,12 +46,12 @@ public class AgentService {
         this.protocolParser = protocolParser;
         this.toolRegistry = toolRegistry;
         this.auditService = auditService;
+        this.pageLinker = pageLinker;
     }
 
     public AgentReply chat(Authentication auth, AgentChatRequest request) {
         protocolParser.validate(request);
         AgentContext ctx = scopeService.buildContext(auth);
-        String mode = "chat".equalsIgnoreCase(request.getMode()) ? "chat" : "agent";
         String requestId = UUID.randomUUID().toString().replace("-", "");
         AgentSessionStore.Session session = sessionStore.getOrCreate(ctx.getUserId(), request.getSessionId());
         long start = System.currentTimeMillis();
@@ -62,8 +63,8 @@ public class AgentService {
                 } else {
                     AgentReply reply = new AgentReply();
                     reply.setSessionId(session.getSessionId());
-                    reply.setContent("还有一个待确认的操作，请先在卡片上点「确认执行」或「取消」。");
-                    reply.setSuggestions(List.of("确认执行", "取消"));
+                    reply.setContent("还有一个待确认的删除操作，请先在卡片上长按 3 秒解锁并点击确认，或取消。");
+                    reply.setSuggestions(List.of("取消"));
                     reply.setNeedConfirm(true);
                     return reply;
                 }
@@ -75,22 +76,16 @@ public class AgentService {
             long llmStart = System.currentTimeMillis();
             String raw;
             try {
-                if ("chat".equals(mode)) {
-                    List<Map<String, String>> messages = buildMessages(
-                            promptBuilder.buildChatSystem(ctx), session);
-                    raw = llmService.chatMessages(ctx.getUserId(), messages, 3000, false);
-                } else {
-                    List<AgentTool> tools = toolRegistry.toolsFor(ctx.getRole());
-                    List<Map<String, String>> messages = buildMessages(
-                            promptBuilder.buildAgentSystem(ctx, tools, session), session);
-                    raw = llmService.chatMessages(ctx.getUserId(), messages, 4096, true);
-                }
+                List<AgentTool> tools = toolRegistry.toolsFor(ctx.getRole());
+                List<Map<String, String>> messages = buildMessages(
+                        promptBuilder.buildAgentSystem(ctx, tools, session), session);
+                raw = llmService.chatMessages(ctx.getUserId(), messages, 4096, true);
             } catch (Exception e) {
                 String msg = e.getMessage() == null ? "" : e.getMessage();
                 String friendly = msg.contains("频繁") || msg.contains("繁忙")
                         ? "你操作得有点快，稍等几秒再试。"
                         : "AI 服务暂时不可用，请稍后再试。";
-                auditService.log(ctx.getUserId(), ctx.getRole(), session.getSessionId(), mode,
+                auditService.log(ctx.getUserId(), ctx.getRole(), session.getSessionId(), "assistant",
                         message, null, null, "failed", friendly,
                         System.currentTimeMillis() - start, requestId, "LLM_ERROR");
                 return simpleReply(session, friendly);
@@ -98,27 +93,18 @@ public class AgentService {
 
             if (raw == null || raw.isBlank()) {
                 String friendly = "AI 服务暂时不可用，请稍后再试。";
-                auditService.log(ctx.getUserId(), ctx.getRole(), session.getSessionId(), mode,
+                auditService.log(ctx.getUserId(), ctx.getRole(), session.getSessionId(), "assistant",
                         message, null, null, "failed", friendly,
                         System.currentTimeMillis() - start, requestId, "LLM_EMPTY");
                 return simpleReply(session, friendly);
             }
 
-            AgentReply reply;
-            if ("chat".equals(mode)) {
-                AgentProtocolParser.ParsedReply parsed = protocolParser.textReply(raw);
-                reply = replyFromParsed(session, parsed);
-                auditService.log(ctx.getUserId(), ctx.getRole(), session.getSessionId(), mode,
-                        message, null, null, "success", reply.getContent(),
-                        System.currentTimeMillis() - start, requestId, null);
-            } else {
-                reply = handleAgentRaw(ctx, session, message, raw, requestId, start);
-            }
+            AgentReply reply = handleAgentRaw(ctx, session, message, raw, requestId, start);
 
             sessionStore.addMessage(session, "assistant",
                     reply.getContent() + (reply.getAction() == null ? "" : " [" + reply.getAction().getStatus() + "]"));
             reply.setSessionId(session.getSessionId());
-            log.info("AI 助手[{}] {} 用时 {}ms", mode, ctx.getRole(), System.currentTimeMillis() - llmStart);
+            log.info("AI 助手 {} 用时 {}ms", ctx.getRole(), System.currentTimeMillis() - llmStart);
             return reply;
         }
     }
@@ -138,8 +124,17 @@ public class AgentService {
                 String retry = llmService.chatMessages(ctx.getUserId(), retryMessages, 4096, true);
                 parsed = protocolParser.parse(retry);
             } catch (Exception retryError) {
+                // 模型偶尔直接返回普通文本：能读就作为回答展示，不执行任何操作
+                if (raw != null && !raw.trim().startsWith("{")) {
+                    AgentProtocolParser.ParsedReply text = protocolParser.textReply(raw);
+                    AgentReply reply = replyFromParsed(ctx, session, text);
+                    auditService.log(ctx.getUserId(), ctx.getRole(), session.getSessionId(), "assistant",
+                            userMessage, null, null, "success", reply.getContent(),
+                            System.currentTimeMillis() - start, requestId, null);
+                    return reply;
+                }
                 String content = "我没太理解你的意思，可以换个说法，或直接告诉我要查/改哪个班级、哪位学生。";
-                auditService.log(ctx.getUserId(), ctx.getRole(), session.getSessionId(), "agent",
+                auditService.log(ctx.getUserId(), ctx.getRole(), session.getSessionId(), "assistant",
                         userMessage, null, null, "failed", content,
                         System.currentTimeMillis() - start, requestId, "PARSE_ERROR");
                 return simpleReplyWithSuggestions(session, content,
@@ -148,8 +143,8 @@ public class AgentService {
         }
 
         if (!"action".equals(parsed.getType())) {
-            AgentReply reply = replyFromParsed(session, parsed);
-            auditService.log(ctx.getUserId(), ctx.getRole(), session.getSessionId(), "agent",
+            AgentReply reply = replyFromParsed(ctx, session, parsed);
+            auditService.log(ctx.getUserId(), ctx.getRole(), session.getSessionId(), "assistant",
                     userMessage, null, null, "success", reply.getContent(),
                     System.currentTimeMillis() - start, requestId, null);
             return reply;
@@ -162,7 +157,7 @@ public class AgentService {
             tool = toolRegistry.requireAllowed(toolName, ctx);
         } catch (AgentException e) {
             AgentReply reply = failedActionReply(session, toolName, toolName, e.getMessage());
-            auditService.log(ctx.getUserId(), ctx.getRole(), session.getSessionId(), "agent",
+            auditService.log(ctx.getUserId(), ctx.getRole(), session.getSessionId(), "assistant",
                     userMessage, toolName, args, "failed", e.getMessage(),
                     System.currentTimeMillis() - start, requestId, e.getCode());
             return reply;
@@ -202,13 +197,13 @@ public class AgentService {
                 reply.setAction(card);
                 reply.setNeedConfirm(true);
                 reply.setSuggestions(List.of("确认执行", "取消"));
-                auditService.log(ctx.getUserId(), ctx.getRole(), session.getSessionId(), "agent",
+                auditService.log(ctx.getUserId(), ctx.getRole(), session.getSessionId(), "assistant",
                         userMessage, toolName, args, "pending_confirm", preview.getSummary(),
                         System.currentTimeMillis() - start, requestId, null);
                 return reply;
             } catch (AgentException e) {
                 AgentReply reply = failedActionReply(session, tool.name(), tool.label(), e.getMessage());
-                auditService.log(ctx.getUserId(), ctx.getRole(), session.getSessionId(), "agent",
+                auditService.log(ctx.getUserId(), ctx.getRole(), session.getSessionId(), "assistant",
                         userMessage, toolName, args, "failed", e.getMessage(),
                         System.currentTimeMillis() - start, requestId, e.getCode());
                 return reply;
@@ -219,13 +214,13 @@ public class AgentService {
             ToolResult result = toolRegistry.execute(ctx, toolName, args);
             AgentReply reply = actionReply(session, parsed, tool, result);
             remember(session, toolName, result);
-            auditService.log(ctx.getUserId(), ctx.getRole(), session.getSessionId(), "agent",
+            auditService.log(ctx.getUserId(), ctx.getRole(), session.getSessionId(), "assistant",
                     userMessage, toolName, args, result.isSuccess() ? "success" : "failed",
                     result.getSummary(), System.currentTimeMillis() - start, requestId, result.getErrorCode());
             return reply;
         } catch (AgentException e) {
             AgentReply reply = failedActionReply(session, tool.name(), tool.label(), e.getMessage());
-            auditService.log(ctx.getUserId(), ctx.getRole(), session.getSessionId(), "agent",
+            auditService.log(ctx.getUserId(), ctx.getRole(), session.getSessionId(), "assistant",
                     userMessage, toolName, args, "failed", e.getMessage(),
                     System.currentTimeMillis() - start, requestId, e.getCode());
             return reply;
@@ -233,7 +228,7 @@ public class AgentService {
             log.warn("AI 工具执行失败 {}: {}", toolName, e.getMessage());
             String msg = "执行失败：" + (e.getMessage() == null ? "系统异常，请稍后重试" : e.getMessage());
             AgentReply reply = failedActionReply(session, tool.name(), tool.label(), msg);
-            auditService.log(ctx.getUserId(), ctx.getRole(), session.getSessionId(), "agent",
+            auditService.log(ctx.getUserId(), ctx.getRole(), session.getSessionId(), "assistant",
                     userMessage, toolName, args, "failed", msg,
                     System.currentTimeMillis() - start, requestId, "EXECUTE_ERROR");
             return reply;
@@ -251,7 +246,7 @@ public class AgentService {
             AgentSessionStore.PendingAction pending = sessionStore.consumePending(
                     session, request.getToken(), approved);
             if (pending == null) {
-                auditService.log(ctx.getUserId(), ctx.getRole(), session.getSessionId(), "agent",
+                auditService.log(ctx.getUserId(), ctx.getRole(), session.getSessionId(), "assistant",
                         "取消确认", null, null, "canceled", "用户取消操作",
                         System.currentTimeMillis() - start, requestId, null);
                 return simpleReply(session, "已取消，本次没有修改任何数据。");
@@ -262,18 +257,18 @@ public class AgentService {
                 AgentActionCard card = toCard(tool, result);
                 AgentReply reply = new AgentReply();
                 reply.setSessionId(session.getSessionId());
-                reply.setContent(result.isSuccess() ? result.getSummary() : "操作失败：" + result.getSummary());
+                reply.setContent(result.isSuccess() ? "操作已完成。" : "操作失败：" + result.getSummary());
                 reply.setAction(card);
                 reply.setSuggestions(List.of("查看相关页面"));
                 sessionStore.addMessage(session, "assistant", reply.getContent());
-                auditService.log(ctx.getUserId(), ctx.getRole(), session.getSessionId(), "agent",
+                auditService.log(ctx.getUserId(), ctx.getRole(), session.getSessionId(), "assistant",
                         "确认执行", pending.getName(), pending.getArgs(),
                         result.isSuccess() ? "success" : "failed", result.getSummary(),
                         System.currentTimeMillis() - start, requestId, result.getErrorCode());
                 return reply;
             } catch (Exception e) {
                 String msg = "操作失败：" + (e.getMessage() == null ? "系统异常" : e.getMessage());
-                auditService.log(ctx.getUserId(), ctx.getRole(), session.getSessionId(), "agent",
+                auditService.log(ctx.getUserId(), ctx.getRole(), session.getSessionId(), "assistant",
                         "确认执行", pending.getName(), pending.getArgs(), "failed", msg,
                         System.currentTimeMillis() - start, requestId, "CONFIRM_ERROR");
                 return simpleReply(session, msg);
@@ -290,6 +285,7 @@ public class AgentService {
         capabilities.add(cap("course", "课程与课表", admin ? "课程维护、课表查询" : "自己的课程与班级课表"));
         capabilities.add(cap("exam", "考试作业", "查询、上下架、删除"));
         capabilities.add(cap("leave", "请假审批", "查询待办、通过或驳回"));
+        capabilities.add(cap("records", "操作记录", "查看 AI 操作历史、恢复已删除账号"));
         if (admin) {
             capabilities.add(cap("teacher", "教师管理", "查询、新增、修改、删除教师"));
             capabilities.add(cap("school", "校园信息", "校园信息查询与维护"));
@@ -300,36 +296,26 @@ public class AgentService {
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("greeting", "你好，我是智学 AI 助手");
-        result.put("subtitle", admin
-                ? "可以直接告诉我：查学生、改信息、看课表、审批请假"
-                : "可以帮你查任教班级、管理学生、看课表、审批请假");
+        result.put("subtitle", "可以查数据、改信息、看课表、审批请假，也可以问系统怎么用");
         result.put("role", ctx.getRole().toLowerCase());
         result.put("capabilities", capabilities);
 
         if (admin) {
-            result.put("agentSuggestions", List.of(
+            result.put("suggestions", List.of(
                     "现在有多少学生和教师？",
                     "查一下24级计算机应用1班的学生",
-                    "给24级计算机应用1班新增学生 2026999 张三",
+                    "删除学生后怎么恢复？",
+                    "操作记录在哪里？",
                     "列出待审批的请假",
-                    "查一下计算机应用1班的课表"));
-            result.put("chatSuggestions", List.of(
-                    "怎么批量导入学生？",
-                    "怎么发布考试或作业？",
-                    "怎么给教师排课？",
-                    "怎么修改校园信息？"));
+                    "怎么批量导入学生？"));
         } else {
-            result.put("agentSuggestions", List.of(
+            result.put("suggestions", List.of(
                     "我教哪些班级？",
                     "查一下我班级的学生",
-                    "给机电263班新增学生 2026999 张三",
+                    "删除学生后怎么恢复？",
+                    "操作记录在哪里？",
                     "列出我班级待审批的请假",
-                    "查一下我班级的课表"));
-            result.put("chatSuggestions", List.of(
-                    "怎么导入学生名单？",
-                    "怎么审批学生请假？",
-                    "怎么发布考试作业？",
-                    "怎么查看班级学习统计？"));
+                    "怎么导入学生名单？"));
         }
         return result;
     }
@@ -353,11 +339,11 @@ public class AgentService {
         return messages;
     }
 
-    private AgentReply replyFromParsed(AgentSessionStore.Session session,
+    private AgentReply replyFromParsed(AgentContext ctx, AgentSessionStore.Session session,
                                        AgentProtocolParser.ParsedReply parsed) {
         AgentReply reply = new AgentReply();
         reply.setSessionId(session.getSessionId());
-        reply.setContent(parsed.getContent());
+        reply.setContent(pageLinker.link(parsed.getContent(), ctx.isAdmin()));
         reply.setSuggestions(parsed.getSuggestions());
         return reply;
     }
@@ -368,8 +354,8 @@ public class AgentService {
         AgentReply reply = new AgentReply();
         reply.setSessionId(session.getSessionId());
         String content = parsed == null ? "" : parsed.getContent();
-        if (result.getSummary() != null && !result.getSummary().isBlank()) {
-            content = content.isBlank() ? result.getSummary() : content + "\n\n" + result.getSummary();
+        if (content.isBlank()) {
+            content = result.isSuccess() ? "已完成。" : "操作失败。";
         }
         reply.setContent(content);
         reply.setAction(toCard(tool, result));

@@ -55,14 +55,14 @@ export function SegmentedControl<T extends string>({
       role="tablist"
       aria-label={ariaLabel}
       className={cn(
-        'relative inline-flex items-center rounded-lg border border-line-separator bg-neutral-100 p-1',
+        'relative inline-flex items-center rounded-full border border-line-separator/80 bg-neutral-100 p-1',
         className
       )}
     >
       {thumb && (
         <span
           aria-hidden="true"
-          className="absolute top-1 bottom-1 left-0 rounded-[4px] bg-surface-primary shadow-sm transition-[transform,width] duration-200 ease-[cubic-bezier(0.2,0,0,1)]"
+          className="absolute top-1 bottom-1 left-0 rounded-full bg-surface-primary shadow-[0_1px_2px_rgba(16,24,40,0.06),0_4px_10px_-4px_rgba(16,24,40,0.14)] transition-[transform,width] duration-200 ease-[cubic-bezier(0.2,0,0,1)]"
           style={{ transform: `translateX(${thumb.left}px)`, width: thumb.width }}
         />
       )}
@@ -79,7 +79,8 @@ export function SegmentedControl<T extends string>({
             data-segment={option.value}
             onClick={() => onChange(option.value)}
             className={cn(
-              'relative z-10 inline-flex items-center justify-center gap-1.5 rounded-[4px] transition-colors duration-150',
+              'relative z-10 inline-flex items-center justify-center gap-1.5 rounded-full transition-colors duration-150',
+              'focus:outline-hidden focus-visible:ring-2 focus-visible:ring-primary/30',
               size === 'sm' ? 'h-6 px-2.5' : 'h-7 px-3',
               option.label ? 'text-caption-1-medium' : 'px-2',
               active

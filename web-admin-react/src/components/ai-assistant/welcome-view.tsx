@@ -5,6 +5,7 @@ import {
   Bot,
   ClipboardCheck,
   ClipboardList,
+  History,
   School,
   Sparkles,
   UserCheck,
@@ -12,7 +13,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { AssistantCapability, AssistantMeta, AssistantMode } from '@/types/assistant'
+import type { AssistantCapability, AssistantMeta } from '@/types/assistant'
 
 const ICONS: Record<string, LucideIcon> = {
   student: Users,
@@ -23,16 +24,16 @@ const ICONS: Record<string, LucideIcon> = {
   leave: ClipboardCheck,
   school: BookMarked,
   stats: BarChart3,
+  records: History,
 }
 
 interface WelcomeViewProps {
   meta: AssistantMeta
-  mode: AssistantMode
   onSuggestion: (text: string) => void
 }
 
-export function WelcomeView({ meta, mode, onSuggestion }: WelcomeViewProps) {
-  const suggestions = mode === 'agent' ? meta.agentSuggestions : meta.chatSuggestions
+export function WelcomeView({ meta, onSuggestion }: WelcomeViewProps) {
+  const suggestions = meta.suggestions
 
   return (
     <div className="px-4 pb-4 pt-6">
@@ -59,9 +60,7 @@ export function WelcomeView({ meta, mode, onSuggestion }: WelcomeViewProps) {
       </div>
 
       <div className="mt-5">
-        <div className="text-caption-1-medium text-ink-tertiary">
-          {mode === 'agent' ? '试着这样指挥我' : '试试这样问'}
-        </div>
+        <div className="text-caption-1-medium text-ink-tertiary">试着这样问我</div>
         <div className="mt-2 flex flex-wrap gap-1.5">
           {suggestions.map((suggestion) => (
             <button

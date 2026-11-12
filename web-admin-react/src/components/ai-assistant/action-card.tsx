@@ -1,8 +1,9 @@
-import { AlertTriangle, ArrowUpRight, CheckCircle2, Loader2, MinusCircle, ShieldAlert, XCircle } from 'lucide-react'
+import { AlertTriangle, ArrowUpRight, CheckCircle2, MinusCircle, ShieldAlert, XCircle } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import type { AssistantActionCard } from '@/types/assistant'
+import { LongPressConfirmButton } from './long-press-confirm-button'
 
 interface ActionCardProps {
   card: AssistantActionCard
@@ -105,7 +106,7 @@ export function ActionCard({ card, confirming = false, onConfirm }: ActionCardPr
           <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/60 px-3 py-2.5">
             <div className="flex items-center gap-1.5 text-caption-2-medium text-amber-700">
               <ShieldAlert className="h-3.5 w-3.5" />
-              此操作会修改系统数据，确认后才会真正执行
+              删除会停用账号，请按住下方按钮 3 秒解锁，再点击一次确认
             </div>
             <div className="mt-2 flex justify-end gap-2">
               <Button
@@ -117,16 +118,10 @@ export function ActionCard({ card, confirming = false, onConfirm }: ActionCardPr
               >
                 取消
               </Button>
-              <Button
-                type="button"
-                variant="destructive"
-                size="sm"
-                disabled={confirming}
-                onClick={() => card.confirmToken && onConfirm?.(card.confirmToken, true)}
-              >
-                {confirming && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                确认执行
-              </Button>
+              <LongPressConfirmButton
+                confirming={confirming}
+                onConfirm={() => card.confirmToken && onConfirm?.(card.confirmToken, true)}
+              />
             </div>
           </div>
         ) : (

@@ -4,6 +4,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
@@ -22,6 +23,7 @@ public class LeaveReviewService {
         this.jdbc = jdbc;
     }
 
+    @Transactional
     public ResponseEntity<?> review(Long id, Map<String, Object> body, Authentication auth) {
         Long userId = uid(auth);
         if (userId == null) return ResponseEntity.status(401).body(Map.of("error", "请先登录"));

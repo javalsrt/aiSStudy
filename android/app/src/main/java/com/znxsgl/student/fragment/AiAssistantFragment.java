@@ -28,6 +28,7 @@ import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 
 import com.znxsgl.student.R;
+import com.znxsgl.student.MainActivity;
 import com.znxsgl.student.UiMsg;
 import com.znxsgl.student.network.ApiService;
 import com.znxsgl.student.network.RetrofitClient;
@@ -241,6 +242,7 @@ public class AiAssistantFragment extends Fragment {
         final int seq = sessionSeq;
         startAgentStatus();
         setLoading(true);
+        setNavAiThinking(true);
 
         ApiService api = RetrofitClient.getInstance().create(ApiService.class);
         Map<String, String> body = new HashMap<>();
@@ -255,6 +257,7 @@ public class AiAssistantFragment extends Fragment {
                 if (!resp.isSuccessful() || resp.body() == null) {
                     hideAgentStatus();
                     setLoading(false);
+                    setNavAiThinking(false);
                     addBubble("服务暂时不可用，请稍后再试", false);
                     scrollToBottom();
                     return;
@@ -292,6 +295,7 @@ public class AiAssistantFragment extends Fragment {
                 }
                 setLoading(false);
                 hideAgentStatus();
+                setNavAiThinking(false);
                 addBubble(UiMsg.network(t), false);
                 scrollToBottom();
             }
@@ -433,6 +437,7 @@ public class AiAssistantFragment extends Fragment {
                 if (full.isEmpty()) {
                     hideAgentStatus();
                     setLoading(false);
+                    setNavAiThinking(false);
                     return;
                 }
                 shown = Math.min(full.length(), shown + step);
@@ -447,6 +452,7 @@ public class AiAssistantFragment extends Fragment {
                     hideAgentStatus();
                     scrollToBottom();
                     setLoading(false);
+                    setNavAiThinking(false);
                 }
             }
         };
@@ -460,6 +466,14 @@ public class AiAssistantFragment extends Fragment {
             streamTask = null;
         }
         hideAgentStatus();
+        setNavAiThinking(false);
+    }
+
+    /** 同步底部导航的星星动画：思考/回答时播放，结束恢复静止帧 */
+    private void setNavAiThinking(boolean thinking) {
+        if (getActivity() instanceof MainActivity) {
+            ((MainActivity) getActivity()).setAiThinking(thinking);
+        }
     }
 
     private void scrollToBottom() {

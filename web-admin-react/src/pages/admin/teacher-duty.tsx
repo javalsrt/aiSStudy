@@ -17,14 +17,16 @@ import {
   getClassHeadList,
   getHeadTeacherLogs,
   getTeacherDutyList,
+  getTeacherRoleCatalog,
   setClassHeadTeacher,
-  updateTeacherDuty,
+  updateTeacherRoles,
   type ClassHeadItem,
   type HeadTeacherLog,
   type TeacherDutyItem,
+  type TeacherRole,
+  type TeacherRoleCatalog,
 } from '@/api/teacher-duty'
-
-const DUTIES = ['教师', '班主任', '教导主任', '副校长']
+import { TEACHER_ROLE_CATEGORIES, TEACHER_ROLES } from '@/config/teacher-roles'
 
 /**
  * 教师职务与班主任设置：
@@ -51,14 +53,24 @@ export function TeacherDutyPage() {
   // clearTarget 的 setState 要等下一次渲染才生效，快速连点会重复发请求，用同步 ref 上锁
   const clearGuard = useRef(false)
 
+  // 身份目录与身份编辑弹窗
+  const [catalog, setCatalog] = useState<TeacherRoleCatalog>({
+    categories: TEACHER_ROLE_CATEGORIES,
+    roles: TEACHER_ROLES,
+  })
+  const [roleTarget, setRoleTarget] = useState<TeacherDutyItem | null>(null)
+  const [rolePicked, setRolePicked] = useState<string[]>([])
+  const [roleSaving, setRoleSaving] = useState(false)
+
   const load = useCallback(async () => {
     setLoading(true)
     try {
       // 记录接口失败不应拖垮整页（例如数据库尚未执行迁移 24）
-      const [tsR, csR, lgR] = await Promise.allSettled([
+      const [tsR, csR, lgR, catR] = await Promise.allSettled([
         getTeacherDutyList(),
         getClassHeadList(),
         getHeadTeacherLogs(20),
+        getTeacherRoleCatalog(),
       ])
       if (tsR.status === 'rejected' && csR.status === 'rejected') {
         throw tsR.reason
@@ -68,6 +80,9 @@ export function TeacherDutyPage() {
       setTeachers(ts)
       setClasses(cs)
       setLogs(lgR.status === 'fulfilled' ? lgR.value || [] : [])
+      if (catR.status === 'fulfilled' && catR.value?.roles?.length) {
+        setCatalog(catR.value)
+      }
       setPicked(Object.fromEntries(cs.map((c) => [c.id, c.headTeacherId ?? ''])))
     } catch (e: any) {
       setMessage({ type: 'err', text: e?.message || '加载失败' })
@@ -104,34 +119,89 @@ export function TeacherDutyPage() {
     })
   }, [classes, classKeyword, gradeFilter])
 
-  const leaders = filtered.filter((t) => t.isLeader === 1)
-  const headTeachers = filtered.filter((t) => t.isLeader !== 1 && t.headClassCount > 0)
-  const others = filtered.filter((t) => t.isLeader !== 1 && t.headClassCount === 0)
+  const rolesOf = (t: TeacherDutyItem) => t.roles || []
+  const isManagement = (t: TeacherDutyItem) =>
+    rolesOf(t).some(
+      (r) =>
+        r.category === 'leader' ||
+        r.category === 'middle' ||
+        r.code === 'position_grade_leader' ||
+        r.code === 'position_research_leader',
+    )
 
-  const changeDuty = async (t: TeacherDutyItem, duty: string) => {
-    setSaving(t.id)
+  const leaders = filtered.filter(isManagement)
+  const headTeachers = filtered.filter(
+    (t) =>
+      !isManagement(t) &&
+      (t.headClassCount > 0 || rolesOf(t).some((r) => r.code === 'position_head_teacher')),
+  )
+  const others = filtered.filter((t) => !isManagement(t) && !headTeachers.includes(t))
+
+  const openRoleEditor = (t: TeacherDutyItem) => {
+    setRoleTarget(t)
+    setRolePicked(rolesOf(t).map((r) => r.code))
+  }
+
+  const toggleRole = (role: TeacherRole) => {
+    setRolePicked((prev) => {
+      if (role.category === 'title') {
+        const withoutTitle = prev.filter(
+          (code) => catalog.roles.find((r) => r.code === code)?.category !== 'title',
+        )
+        return prev.includes(role.code) ? withoutTitle : [...withoutTitle, role.code]
+      }
+      return prev.includes(role.code) ? prev.filter((c) => c !== role.code) : [...prev, role.code]
+    })
+  }
+
+  const saveRoles = async () => {
+    if (!roleTarget) return
+    setRoleSaving(true)
     try {
-      await updateTeacherDuty(t.id, { duty })
-      setMessage({ type: 'ok', text: `已更新「${t.name}」职务为 ${duty}` })
+      await updateTeacherRoles(roleTarget.id, rolePicked)
+      setMessage({ type: 'ok', text: `已更新「${roleTarget.name}」的身份` })
+      setRoleTarget(null)
       await load()
     } catch (e: any) {
-      setMessage({ type: 'err', text: e?.response?.data?.error || e?.message || '保存失败' })
+      setMessage({
+        type: 'err',
+        text: e?.response?.data?.error || e?.message || '保存失败',
+      })
     } finally {
-      setSaving(null)
+      setRoleSaving(false)
     }
   }
 
-  const toggleLeader = async (t: TeacherDutyItem, isLeader: boolean) => {
-    setSaving(t.id)
-    try {
-      await updateTeacherDuty(t.id, { isLeader: isLeader ? 1 : 0, duty: isLeader ? '教导主任' : '教师' })
-      setMessage({ type: 'ok', text: isLeader ? `已将「${t.name}」设为校级领导` : `已取消「${t.name}」领导身份` })
-      await load()
-    } catch (e: any) {
-      setMessage({ type: 'err', text: e?.message || '操作失败' })
-    } finally {
-      setSaving(null)
+  const roleBadgeClass = (role: TeacherRole) => {
+    switch (role.category) {
+      case 'title':
+        return 'bg-blue-50 text-blue-700'
+      case 'position':
+        return 'bg-emerald-50 text-emerald-700'
+      case 'leader':
+        return 'bg-amber-50 text-amber-700'
+      case 'middle':
+        return 'bg-purple-50 text-purple-700'
+      default:
+        return 'bg-neutral-100 text-neutral-600'
     }
+  }
+
+  const roleBadges = (t: TeacherDutyItem) => {
+    const roles = rolesOf(t)
+    if (roles.length === 0) {
+      return <span className="text-[10px] text-neutral-400">未设置身份</span>
+    }
+    return roles.map((role) => (
+      <span
+        key={role.code}
+        title={role.teaches ? '承担课堂教学' : '不排常规课'}
+        className={`rounded px-1.5 py-0.5 text-[10px] ${roleBadgeClass(role)}`}
+      >
+        {role.name}
+        {!role.teaches && <span className="opacity-60">·不排课</span>}
+      </span>
+    ))
   }
 
   const assign = async (c: ClassHeadItem) => {
@@ -181,7 +251,9 @@ export function TeacherDutyPage() {
   }
 
   const teacherLabel = (t: TeacherDutyItem) =>
-    `${t.name}${t.isLeader === 1 ? '（领导）' : t.headClassCount > 0 ? '（班主任）' : ''}`
+    `${t.name}${
+      t.roleNames && t.roleNames.length > 0 ? `（${t.roleNames.slice(0, 2).join('、')}）` : ''
+    }`
 
   return (
     <div className="space-y-6">
@@ -189,10 +261,13 @@ export function TeacherDutyPage() {
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-bold text-neutral-900">
             <Users2 className="h-6 w-6 text-primary-500" />
-            教师职务与班主任
+            教师身份与班主任
           </h1>
           <p className="mt-1 text-sm text-neutral-500">
-            设置教师职务与校级领导；为每个班级指定班主任。请假 3 天内由班主任审批，超过 3 天由领导终审。
+            支持一人多身份：教师职称、校内岗位角色、校级/中层领导、教辅岗位可同时设置；为每个班级指定班主任。
+          </p>
+          <p className="mt-1 text-xs text-neutral-400">
+            有任一教学岗身份即视为可上课；纪委书记、工会主席、总务/办公室主任、校医、图书管理员、实验员默认不排常规课。
           </p>
           <p className="mt-1 text-xs text-primary-600">
             更换班主任：在下方「班级班主任设置」中搜索班级 → 点「更换」→ 选择教师（含领导）→ 保存；点「取消班主任」可清空。
@@ -370,41 +445,26 @@ export function TeacherDutyPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <Crown className="h-4 w-4 text-amber-500" />
-            校级领导（{leaders.length}）
+            管理岗教师（校级 / 中层 / 组长）（{leaders.length}）
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
-          {leaders.length === 0 && <div className="text-xs text-neutral-400">暂无领导，可在下方教师中勾选「设为领导」</div>}
+          {leaders.length === 0 && <div className="text-xs text-neutral-400">暂无管理岗教师，可在下方教师中设置身份</div>}
           {leaders.map((t) => (
-            <div key={t.id} className="flex flex-wrap items-center gap-3 rounded-lg border border-amber-100 bg-amber-50/40 px-3 py-2">
+            <div key={t.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-100 bg-amber-50/40 px-3 py-2">
               <span className="text-sm font-medium text-neutral-900">{t.name}</span>
-              <span className="rounded bg-amber-100 px-2 py-0.5 text-[11px] text-amber-700">{t.duty}</span>
+              <span className="flex flex-wrap items-center gap-1">{roleBadges(t)}</span>
               {t.headClasses.length > 0 && (
                 <span className="text-[11px] text-neutral-500">兼班主任：{t.headClasses.join('、')}</span>
               )}
-              <div className="ml-auto flex items-center gap-2">
-                <Select
-                  className="h-8 rounded-md border border-neutral-200 px-2 text-xs"
-                  value={t.duty}
-                  disabled={saving === t.id}
-                  onChange={(e) => changeDuty(t, e.target.value)}
-                >
-                  {DUTIES.map((d) => (
-                    <option key={d} value={d}>
-                      {d}
-                    </option>
-                  ))}
-                </Select>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 px-3 text-xs"
-                  disabled={saving === t.id}
-                  onClick={() => toggleLeader(t, false)}
-                >
-                  取消领导身份
-                </Button>
-              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="ml-auto h-8 px-3 text-xs"
+                onClick={() => openRoleEditor(t)}
+              >
+                身份设置
+              </Button>
             </div>
           ))}
         </CardContent>
@@ -423,20 +483,17 @@ export function TeacherDutyPage() {
             <div key={t.id} className="rounded-lg border border-neutral-200 px-3 py-2">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-sm font-medium text-neutral-900">{t.name}</span>
-                <span className="text-[11px] text-neutral-400">{t.title || '未填职称'}</span>
-              </div>
-              <div className="mt-1 text-[11px] text-neutral-500">带班：{t.headClasses.join('、') || '-'}</div>
-              <div className="mt-2 flex items-center justify-end gap-2">
                 <Button
                   variant="ghost"
                   size="sm"
                   className="h-7 px-2 text-[11px]"
-                  onClick={() => toggleLeader(t, true)}
-                  disabled={saving === t.id}
+                  onClick={() => openRoleEditor(t)}
                 >
-                  设为领导
+                  身份设置
                 </Button>
               </div>
+              <div className="mt-1 flex flex-wrap items-center gap-1">{roleBadges(t)}</div>
+              <div className="mt-1 text-[11px] text-neutral-500">带班：{t.headClasses.join('、') || '-'}</div>
             </div>
           ))}
           {headTeachers.length === 0 && <div className="text-xs text-neutral-400">暂无班主任</div>}
@@ -453,34 +510,22 @@ export function TeacherDutyPage() {
         </CardHeader>
         <CardContent className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
           {others.map((t) => (
-            <div key={t.id} className="flex items-center justify-between gap-2 rounded-lg border border-neutral-100 px-3 py-2">
-              <div className="min-w-0">
-                <div className="truncate text-sm text-neutral-800">{t.name}</div>
-                <div className="text-[11px] text-neutral-400">{t.duty} · {t.title || '未填职称'}</div>
-              </div>
-              <div className="flex items-center gap-1">
-                <Select
-                  className="h-7 rounded-md border border-neutral-200 px-1 text-[11px]"
-                  value={t.duty}
-                  disabled={saving === t.id}
-                  onChange={(e) => changeDuty(t, e.target.value)}
-                >
-                  {DUTIES.map((d) => (
-                    <option key={d} value={d}>
-                      {d}
-                    </option>
-                  ))}
-                </Select>
+            <div key={t.id} className="rounded-lg border border-neutral-100 px-3 py-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="truncate text-sm text-neutral-800">{t.name}</div>
+                  <div className="text-[11px] text-neutral-400">{t.dept || '未分配院系'}</div>
+                </div>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-7 px-2 text-[11px]"
-                  onClick={() => toggleLeader(t, true)}
-                  disabled={saving === t.id}
+                  className="h-7 shrink-0 px-2 text-[11px]"
+                  onClick={() => openRoleEditor(t)}
                 >
-                  设为领导
+                  身份设置
                 </Button>
               </div>
+              <div className="mt-1 flex flex-wrap items-center gap-1">{roleBadges(t)}</div>
             </div>
           ))}
           {others.length === 0 && <div className="text-xs text-neutral-400">无</div>}
@@ -576,6 +621,81 @@ export function TeacherDutyPage() {
               onClick={confirmClear}
             >
               {clearing ? '取消中…' : '确认取消'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 教师身份设置：职称单选 + 其他身份多选 */}
+      <Dialog
+        open={!!roleTarget}
+        onOpenChange={(o) => {
+          if (!o && !roleSaving) setRoleTarget(null)
+        }}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>设置「{roleTarget?.name}」的身份</DialogTitle>
+            <DialogDescription>
+              可同时选择职称、岗位角色、领导职务和教辅岗位；有任一教学岗即视为可上课。
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="max-h-[60vh] space-y-4 overflow-y-auto py-1">
+            {catalog.categories.map((cat) => (
+              <div key={cat.key}>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-neutral-700">{cat.label}</span>
+                  <span className="text-[10px] text-neutral-400">
+                    {cat.multi ? '可多选' : '单选'}
+                  </span>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {catalog.roles
+                    .filter((role) => role.category === cat.key)
+                    .map((role) => {
+                      const active = rolePicked.includes(role.code)
+                      return (
+                        <button
+                          key={role.code}
+                          type="button"
+                          onClick={() => toggleRole(role)}
+                          className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+                            active
+                              ? 'border-primary bg-primary text-white'
+                              : 'border-neutral-200 text-neutral-600 hover:border-primary/40 hover:bg-primary-50'
+                          }`}
+                        >
+                          {role.name}
+                          {!role.teaches && (
+                            <span className={`ml-1 ${active ? 'text-white/70' : 'text-neutral-400'}`}>
+                              ·不排课
+                            </span>
+                          )}
+                        </button>
+                      )
+                    })}
+                </div>
+              </div>
+            ))}
+
+            <div className="rounded-lg bg-neutral-50 px-3 py-2 text-[11px] leading-5 text-neutral-500">
+              提示：教师职称和校内岗位角色默认承担教学；纪委书记、工会主席、总务/办公室主任、校医、图书管理员、实验员默认不排常规课。
+              领导职务属管理岗，教师职称属专业技术岗，两者可「双肩挑」。
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              disabled={roleSaving}
+              onClick={() => setRoleTarget(null)}
+            >
+              取消
+            </Button>
+            <Button disabled={roleSaving} onClick={saveRoles}>
+              <Save className="mr-1 h-4 w-4" />
+              {roleSaving ? '保存中…' : '保存身份'}
             </Button>
           </DialogFooter>
         </DialogContent>

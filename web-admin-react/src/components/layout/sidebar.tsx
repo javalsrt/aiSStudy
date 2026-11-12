@@ -160,7 +160,7 @@ export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: (
   }
 
   const itemBase =
-    'relative z-10 flex h-9 items-center gap-2.5 rounded-xl px-2.5 text-body-2-medium transition-colors duration-150'
+    'relative z-10 flex h-9 items-center gap-2.5 rounded-2xl px-2.5 text-body-2-medium transition-colors duration-150'
 
   return (
     <>
@@ -171,7 +171,7 @@ export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: (
 
       <aside
         className={cn(
-          'fixed left-3 top-3 z-50 flex h-[calc(100vh-24px)] w-[260px] shrink-0 flex-col gap-3 overflow-hidden rounded-3xl border border-line-separator bg-surface-primary p-3 shadow-sidebar transition-transform duration-200 lg:z-40 lg:translate-x-0',
+          'sidebar-glass fixed left-3 top-3 z-50 flex h-[calc(100vh-24px)] w-[260px] shrink-0 flex-col gap-3 overflow-hidden rounded-3xl border p-3 shadow-sidebar transition-transform duration-200 lg:z-40 lg:translate-x-0',
           open ? 'translate-x-0' : '-translate-x-[calc(100%+16px)]'
         )}
       >
@@ -204,7 +204,7 @@ export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: (
             aria-label="快速搜索菜单"
             aria-expanded={Boolean(keyword)}
             autoComplete="off"
-            className="h-9 w-full rounded-full bg-neutral-100 pl-9 pr-14 text-body-2-regular text-ink-primary outline-hidden transition-shadow placeholder:text-ink-tertiary focus:bg-surface-primary focus:shadow-[0_0_0_1px_#3b82f6,0_0_0_4px_rgba(59,130,246,0.14)]"
+            className="h-9 w-full rounded-full border border-line-separator/60 bg-surface-primary/55 pl-9 pr-14 text-body-2-regular text-ink-primary outline-hidden transition-shadow placeholder:text-ink-tertiary hover:bg-surface-primary/70 focus:bg-surface-primary focus:shadow-[0_0_0_1px_#3b82f6,0_0_0_4px_rgba(59,130,246,0.14)]"
           />
           {query ? (
             <button
@@ -269,7 +269,7 @@ export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: (
               {/* 选中指示条：同组切换滑动，跨组淡出→跳位→淡入 */}
               <span
                 aria-hidden="true"
-                className="pointer-events-none absolute inset-x-0 top-0 z-0 rounded-xl bg-blue-500"
+                className="pointer-events-none absolute inset-x-0 top-0 z-0 rounded-2xl border border-line-separator/80 bg-surface-primary shadow-[0_1px_2px_rgba(16,24,40,0.05),0_8px_20px_-10px_rgba(16,24,40,0.16)]"
                 style={{
                   height: indicator.height,
                   transform: `translateY(${indicator.top}px)`,
@@ -315,11 +315,16 @@ export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: (
                                     itemBase,
                                     'w-full',
                                     isChildActive(item)
-                                      ? 'bg-blue-50 text-blue-700'
+                                      ? 'bg-surface-primary text-ink-primary font-semibold shadow-[0_1px_2px_rgba(16,24,40,0.05),0_8px_20px_-10px_rgba(16,24,40,0.16)]'
                                       : 'text-ink-secondary hover:bg-neutral-100 hover:text-ink-primary'
                                   )}
                                 >
-                                  <item.icon className="h-[18px] w-[18px] shrink-0" />
+                                  <item.icon
+                                    className={cn(
+                                      'h-[18px] w-[18px] shrink-0',
+                                      isChildActive(item) && 'text-blue-500'
+                                    )}
+                                  />
                                   <span className="flex-1 truncate text-left">{item.title}</span>
                                   <ChevronDown
                                     className={cn(
@@ -337,15 +342,24 @@ export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: (
                                         onClick={handleNavigate}
                                         className={({ isActive }) =>
                                           cn(
-                                            'flex h-8 items-center gap-2 rounded-lg px-2.5 text-caption-1-medium transition-colors duration-150',
+                                            'flex h-8 items-center gap-2 rounded-xl px-2.5 text-caption-1-medium transition-colors duration-150',
                                             isActive
-                                              ? 'bg-blue-100 text-blue-700'
+                                              ? 'bg-surface-primary text-ink-primary font-semibold shadow-[0_1px_2px_rgba(16,24,40,0.05)]'
                                               : 'text-ink-secondary hover:bg-neutral-100 hover:text-ink-primary'
                                           )
                                         }
                                       >
-                                        <child.icon className="h-4 w-4 shrink-0" />
-                                        <span className="truncate">{child.title}</span>
+                                        {({ isActive }) => (
+                                          <>
+                                            <child.icon
+                                              className={cn(
+                                                'h-4 w-4 shrink-0',
+                                                isActive && 'text-blue-500'
+                                              )}
+                                            />
+                                            <span className="truncate">{child.title}</span>
+                                          </>
+                                        )}
                                       </NavLink>
                                     ))}
                                   </div>
@@ -359,15 +373,22 @@ export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: (
                                   cn(
                                     itemBase,
                                     isActive
-                                      ? indicator.visible
-                                        ? 'text-white hover:text-white'
-                                        : 'text-ink-primary'
+                                      ? 'text-ink-primary font-semibold'
                                       : 'text-ink-secondary hover:bg-neutral-100 hover:text-ink-primary'
                                   )
                                 }
                               >
-                                <item.icon className="h-[18px] w-[18px] shrink-0" />
-                                <span className="truncate">{item.title}</span>
+                                {({ isActive }) => (
+                                  <>
+                                    <item.icon
+                                      className={cn(
+                                        'h-[18px] w-[18px] shrink-0',
+                                        isActive && 'text-blue-500'
+                                      )}
+                                    />
+                                    <span className="truncate">{item.title}</span>
+                                  </>
+                                )}
                               </NavLink>
                             )}
                           </div>

@@ -1,0 +1,476 @@
+/* ============================================================
+   人员关系星系（图谱舞台）：珍珠玻璃画在 Canvas，DOM 只保留标签与命中区。
+   颜色变量 --sm-* 同时供 Canvas 的 readStagePalette 读取。
+   ============================================================ */
+
+.sm-stage {
+  --sm-ink: 23, 23, 23;
+  --sm-paper: 255, 255, 255;
+  --sm-accent: 91, 88, 255;
+  --sm-lime: 52, 199, 89;
+  --sm-danger: 243, 57, 57;
+  --sm-cat-1: 10, 132, 255;
+  --sm-cat-2: 52, 199, 89;
+  --sm-cat-3: 109, 102, 255;
+  --sm-cat-4: 255, 149, 0;
+  --sm-cat-5: 15, 181, 174;
+  position: relative;
+  height: 520px;
+  overflow: hidden;
+  border-top: 1px solid hsl(var(--line-separator));
+  background:
+    radial-gradient(circle, rgba(var(--sm-ink), 0.05) 1px, transparent 1.2px) 0 0 / 22px 22px,
+    radial-gradient(55% 50% at 50% 46%, rgba(109, 102, 255, 0.1), transparent 72%),
+    radial-gradient(40% 40% at 10% 92%, rgba(15, 181, 174, 0.1), transparent 70%),
+    hsl(var(--surface-primary));
+}
+
+.dark .sm-stage {
+  --sm-ink: 245, 245, 245;
+  --sm-paper: 26, 26, 26;
+  background:
+    radial-gradient(circle, rgba(var(--sm-ink), 0.06) 1px, transparent 1.2px) 0 0 / 22px 22px,
+    radial-gradient(55% 50% at 50% 46%, rgba(109, 102, 255, 0.16), transparent 72%),
+    radial-gradient(40% 40% at 10% 92%, rgba(15, 181, 174, 0.12), transparent 70%),
+    hsl(var(--surface-primary));
+}
+
+.sm-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.sm-layer {
+  position: absolute;
+  inset: 0;
+}
+
+.sm-node {
+  --sm-node: hsl(var(--primary));
+  --sm-node-soft: rgba(109, 102, 255, 0.12);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: hsl(var(--ink-primary));
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  will-change: transform, opacity;
+  opacity: 0;
+  z-index: 1;
+}
+
+.sm-node.cat-1 { --sm-node: #0a84ff; --sm-node-soft: rgba(10, 132, 255, 0.12); }
+.sm-node.cat-2 { --sm-node: #34c759; --sm-node-soft: rgba(52, 199, 89, 0.12); }
+.sm-node.cat-3 { --sm-node: #6d66ff; --sm-node-soft: rgba(109, 102, 255, 0.12); }
+.sm-node.cat-4 { --sm-node: #ff9500; --sm-node-soft: rgba(255, 149, 0, 0.12); }
+.sm-node.cat-5 { --sm-node: #0fb5ae; --sm-node-soft: rgba(15, 181, 174, 0.12); }
+
+.sm-node.is-static,
+.sm-node.is-ghost {
+  cursor: default;
+  pointer-events: none;
+}
+
+.sm-node.is-active,
+.sm-node:hover,
+.sm-node:focus-visible {
+  z-index: 3;
+}
+
+.sm-node:focus-visible {
+  outline: none;
+}
+
+.sm-node:focus-visible .sm-body {
+  outline: 2px solid hsl(var(--primary));
+  outline-offset: 4px;
+  border-radius: 999px;
+}
+
+.sm-body {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  translate: -50% -50%;
+  transition: opacity 0.3s, box-shadow 0.3s, border-color 0.3s, background 0.3s;
+}
+
+.sm-node.align-left .sm-body {
+  translate: -7px -50%;
+}
+
+.sm-node.align-right .sm-body {
+  translate: calc(-100% + 7px) -50%;
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+.sm-node.is-dim .sm-body {
+  opacity: 0.26;
+}
+
+.sm-dot {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: hsl(var(--surface-primary));
+  border: 1.5px solid var(--sm-node);
+  box-shadow: 0 0 0 4px var(--sm-node-soft);
+  color: var(--sm-node);
+}
+
+.sm-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.sm-label {
+  font-size: 12.5px;
+  font-weight: 620;
+  letter-spacing: -0.005em;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sm-sub {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10.5px;
+  color: hsl(var(--ink-tertiary));
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sm-badge {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10.5px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  color: var(--sm-node);
+  background: var(--sm-node-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+/* item：胶囊 */
+.sm-node.is-item .sm-body {
+  padding: 5px 11px 5px 6px;
+  border-radius: 999px;
+  background: hsl(var(--surface-primary));
+  border: 1px solid hsl(var(--line-separator));
+  box-shadow: var(--shadow-hairline), 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+
+.sm-node.is-item:hover .sm-body,
+.sm-node.is-item.is-active .sm-body {
+  border-color: var(--sm-node);
+  box-shadow: 0 4px 14px rgba(16, 24, 40, 0.08);
+}
+
+.sm-node.is-item.is-active .sm-dot {
+  background: var(--sm-node);
+  color: #fff;
+}
+
+/* core：珍珠球画在 Canvas，名称落在球下 */
+.sm-node.is-core .sm-body {
+  flex-direction: column;
+  gap: 1px;
+  width: auto;
+  height: auto;
+  padding: 0;
+  background: none;
+  translate: -50% calc(var(--size, 96px) / 2 + 26px);
+}
+
+.sm-node.is-core .sm-text {
+  align-items: center;
+  text-align: center;
+}
+
+.sm-node.is-core .sm-label {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.sm-node.is-core .sm-sub {
+  font-family: inherit;
+  font-size: 11.5px;
+  color: hsl(var(--ink-tertiary));
+}
+
+/* hub：玻璃刻度表盘画在 Canvas，图标与读数居中，名称落在表盘下 */
+.sm-node.is-hub .sm-body {
+  flex-direction: column;
+  justify-content: center;
+  gap: 0;
+  width: var(--size, 104px);
+  height: var(--size, 104px);
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  box-shadow: none;
+}
+
+.sm-node.is-hub .sm-dot {
+  width: auto;
+  height: auto;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--sm-node);
+}
+
+.sm-node.is-hub .sm-dot svg {
+  width: 22px;
+  height: 22px;
+}
+
+.sm-node.is-hub .sm-count {
+  font-size: calc(var(--size, 104px) * 0.2);
+  line-height: 1;
+  font-weight: 600;
+  color: hsl(var(--ink-primary));
+  font-variant-numeric: tabular-nums;
+}
+
+.sm-node.is-hub .sm-text {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 50%;
+  translate: -50% 0;
+  align-items: center;
+  text-align: center;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: hsl(var(--surface-primary) / 0.86);
+  backdrop-filter: blur(6px);
+}
+
+.sm-node.is-hub .sm-label {
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.sm-node.is-hub .sm-sub {
+  font-family: inherit;
+  font-size: 11.5px;
+  max-width: 180px;
+}
+
+.sm-node.is-hub:hover .sm-label,
+.sm-node.is-hub.is-active .sm-label {
+  color: var(--sm-node);
+}
+
+/* 密集布局：表盘只留图标与读数，名称悬停 / 聚焦时浮出 */
+.sm-node.is-compact .sm-text {
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.sm-node.is-compact:hover .sm-text,
+.sm-node.is-compact:focus-visible .sm-text,
+.sm-node.is-compact.is-active .sm-text {
+  opacity: 1;
+}
+
+.sm-node.is-compact .sm-dot svg {
+  width: 14px;
+  height: 14px;
+}
+
+.sm-node.is-compact .sm-text {
+  background: hsl(var(--surface-primary) / 0.94);
+  box-shadow: 0 2px 8px rgba(16, 24, 40, 0.08);
+}
+
+.sm-node.tone-off .sm-body {
+  opacity: 0.5;
+}
+
+.sm-node.tone-off .sm-label {
+  text-decoration: line-through;
+}
+
+/* ── 覆盖层：面包屑、图例、工具、提示 ── */
+.sm-corner {
+  position: absolute;
+  z-index: 5;
+  max-width: min(420px, calc(50% - 24px));
+  cursor: default;
+}
+
+.sm-corner.is-tl {
+  left: 16px;
+  top: 16px;
+}
+
+.sm-corner.is-tr {
+  right: 16px;
+  top: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.sm-hint {
+  position: absolute;
+  left: 50%;
+  top: 18px;
+  translate: -50% 0;
+  margin: 0;
+  font-size: 12px;
+  color: hsl(var(--ink-tertiary));
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.sm-tools {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 999px;
+  border: 1px solid hsl(var(--line-separator));
+  background: hsl(var(--surface-primary) / 0.82);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+  backdrop-filter: blur(12px);
+}
+
+.sm-tools button {
+  height: 26px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: hsl(var(--ink-secondary));
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: color 0.2s, background-color 0.2s;
+}
+
+.sm-tools button:hover {
+  color: hsl(var(--ink-primary));
+  background: hsl(var(--surface-secondary));
+}
+
+.sm-tools button[aria-pressed='true'] {
+  color: hsl(var(--ink-primary));
+  background: hsl(var(--surface-secondary));
+}
+
+.sm-tools button:focus-visible {
+  outline: 2px solid hsl(var(--primary));
+  outline-offset: 1px;
+}
+
+/* 面包屑 */
+.sm-crumbs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid hsl(var(--line-separator));
+  background: hsl(var(--surface-primary) / 0.82);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+  backdrop-filter: blur(12px);
+  font-size: 12.5px;
+}
+
+.sm-crumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: hsl(var(--ink-secondary));
+  font: inherit;
+  cursor: pointer;
+}
+
+.sm-crumb:hover {
+  color: hsl(var(--ink-primary));
+  background: hsl(var(--surface-secondary));
+}
+
+.sm-crumb.is-current {
+  color: hsl(var(--ink-primary));
+  font-weight: 650;
+  cursor: default;
+}
+
+.sm-sep {
+  color: hsl(var(--ink-tertiary));
+}
+
+/* 舞台图例 */
+.sm-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid hsl(var(--line-separator));
+  background: hsl(var(--surface-primary) / 0.82);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+  backdrop-filter: blur(12px);
+  font-size: 11.5px;
+  color: hsl(var(--ink-secondary));
+}
+
+.sm-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sm-legend i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+@media (max-width: 760px) {
+  .sm-stage {
+    height: 440px;
+  }
+
+  .sm-hint {
+    display: none;
+  }
+
+  .sm-legend {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sm-tools {
+    display: none;
+  }
+}

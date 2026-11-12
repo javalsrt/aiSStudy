@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
@@ -54,13 +55,47 @@ function MermaidView({ code }: { code: string }) {
  * 管理端富内容渲染：Markdown（标题/列表/加粗）+ GFM 表格 + LaTeX 公式 + Mermaid 图 + 代码高亮底色。
  * 用于课时内容查看、章节内容预览等场景。
  */
-export function MarkdownView({ content, className }: { content: string; className?: string }) {
+export function MarkdownView({
+  content,
+  className,
+  onInternalNavigate,
+}: {
+  content: string
+  className?: string
+  /** 点击站内链接时的额外回调（例如关闭 AI 助手浮窗） */
+  onInternalNavigate?: () => void
+}) {
+  const navigate = useNavigate()
   return (
     <div className={className}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={[rehypeKatex]}
         components={{
+          a({ href, children }) {
+            const linkClass =
+              'text-primary-600 underline underline-offset-2 transition-colors hover:text-primary-700'
+            if (href && href.startsWith('/')) {
+              return (
+                <a
+                  href={href}
+                  className={linkClass}
+                  onClick={(event) => {
+                    event.preventDefault()
+                    onInternalNavigate?.()
+                    navigate(href)
+                  }}
+                >
+                  {children}
+                </a>
+              )
+            }
+            return (
+              <a href={href} target="_blank" rel="noreferrer" className={linkClass}>
+                {children}
+              </a>
+            )
+          },
           pre: ({ children }) => <>{children}</>,
           code({ className: cls, children, ...props }) {
             const match = /language-(\w+)/.exec(cls || '')

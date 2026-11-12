@@ -82,12 +82,16 @@
   --color-line-separator: var(--color-neutral-200);
   --color-line-strong: var(--color-neutral-300);
 
-  /* --- 圆角：BoardUI 原值（lg 8 / xl 12 / 2lg 10 / 2-5xl 20） --- */
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
-  --radius-2lg: 10px;
-  --radius-2-5xl: 20px;
+  /* --- 圆角：整体放大，配合 G2 连续曲率（sm 8 / md 10 / lg 14 / xl 18 / 2xl 22 / 3xl 28） --- */
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --radius-2xl: 22px;
+  --radius-3xl: 28px;
+  --radius-4xl: 32px;
+  --radius-2lg: 12px;
+  --radius-2-5xl: 24px;
 
   /* --- 阴影：BoardUI theme.css 原值（卡片仅 1px 接触阴影） --- */
   --shadow-card: 0 1px 1px 0 rgb(0 0 0 / 0.05);
@@ -192,11 +196,11 @@
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 98%;
 
-    /* --- 圆角：BoardUI 原值 --- */
-    --radius: 12px;
-    --radius-outer: 12px;
-    --radius-inner: 8px;
-    --radius-control: 10px;
+    /* --- 圆角：G2 连续曲率（珍珠玻璃），控件与卡片统一放大 --- */
+    --radius: 20px;
+    --radius-outer: 20px;
+    --radius-inner: 16px;
+    --radius-control: 14px;
 
     /* --- 动效性格：拖拽类零延迟稳定，反馈类 Q 弹回弹 --- */
     --ease-stable: cubic-bezier(0.2, 0, 0, 1);
@@ -287,6 +291,42 @@
 
   .surface-card:hover {
     box-shadow: var(--shadow-raised);
+  }
+
+  /* ============================================================
+     数据总览卡片：极淡的方向性色晕，只做氛围，不抢内容
+     ============================================================ */
+  /* 全站白色卡片默认色晕：左上淡紫、右下淡青 */
+  .card-tint {
+    background-image:
+      radial-gradient(72% 62% at 0% 0%, rgba(109, 102, 255, 0.06) 0%, rgba(109, 102, 255, 0) 62%),
+      radial-gradient(52% 46% at 100% 100%, rgba(15, 181, 174, 0.04) 0%, rgba(15, 181, 174, 0) 70%);
+  }
+
+  .dark .card-tint {
+    background-image:
+      radial-gradient(72% 62% at 0% 0%, rgba(139, 133, 255, 0.085) 0%, rgba(139, 133, 255, 0) 62%),
+      radial-gradient(52% 46% at 100% 100%, rgba(46, 196, 189, 0.06) 0%, rgba(46, 196, 189, 0) 70%);
+  }
+
+  .card-tint.tint-violet {
+    background-image: linear-gradient(135deg, rgba(109, 102, 255, 0.075) 0%, rgba(109, 102, 255, 0) 58%);
+  }
+
+  .card-tint.tint-blue {
+    background-image: linear-gradient(135deg, rgba(10, 132, 255, 0.07) 0%, rgba(10, 132, 255, 0) 58%);
+  }
+
+  .card-tint.tint-green {
+    background-image: linear-gradient(135deg, rgba(52, 199, 89, 0.065) 0%, rgba(52, 199, 89, 0) 58%);
+  }
+
+  .card-tint.tint-amber {
+    background-image: linear-gradient(135deg, rgba(255, 149, 0, 0.065) 0%, rgba(255, 149, 0, 0) 58%);
+  }
+
+  .card-tint.tint-teal {
+    background-image: linear-gradient(135deg, rgba(15, 181, 174, 0.065) 0%, rgba(15, 181, 174, 0) 58%);
   }
 
   /* 双环聚焦：贴边实环 + 外扩柔环，形成温润咬合感 */
@@ -875,3 +915,60 @@
   box-shadow: none;
   opacity: 1;
 }
+
+/* ============================================================
+   AI 助手思考星星：对齐 Android AgentStarsView 的五颗四点闪光
+   1.4s 一轮，淡入放大 → 轻微回缩 → 缩小熄灭
+   ============================================================ */
+@keyframes agent-star-twinkle {
+  0% {
+    opacity: 0;
+    transform: rotate(-18deg) scale(0.25);
+  }
+  35% {
+    opacity: 1;
+    transform: rotate(6deg) scale(1);
+  }
+  62% {
+    opacity: 0.92;
+    transform: rotate(-4deg) scale(0.88);
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(18deg) scale(0.25);
+  }
+}
+
+.agent-star {
+  transform-origin: center;
+  animation: agent-star-twinkle 1.4s linear infinite;
+}
+
+/* ============================================================
+   管理端页面背景：沿用登录页右侧的浅色渐变（靛蓝 → 白 → 青）
+   暗色主题保持原来的深色画布，避免破坏夜间配色
+   ============================================================ */
+.app-canvas {
+  background: linear-gradient(to bottom right, #eef2ff 0%, #ffffff 50%, #ecfeff 100%);
+}
+
+.dark .app-canvas {
+  background: var(--color-surface-canvas);
+}
+
+/* ============================================================
+   侧边栏：白色磨砂玻璃（半透明白 + 背景模糊 + 高光描边）
+   暗色主题改为深色磨砂，保持夜间层次
+   ============================================================ */
+.sidebar-glass {
+  background: rgb(255 255 255 / 0.62);
+  -webkit-backdrop-filter: blur(22px) saturate(180%);
+  backdrop-filter: blur(22px) saturate(180%);
+  border-color: rgb(255 255 255 / 0.7);
+}
+
+.dark .sidebar-glass {
+  background: rgb(26 26 26 / 0.72);
+  border-color: rgb(255 255 255 / 0.08);
+}
+

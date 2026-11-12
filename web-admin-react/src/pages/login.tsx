@@ -15,6 +15,7 @@ import {
 import { SpotlightCard } from '@/components/SpotlightCard'
 import { DecryptText, ShinyText, CircularText, GradientText } from '@/components/text-effects'
 import { useAuthStore } from '@/store/auth'
+import { playAuthTransition } from '@/store/auth-transition'
 import { adminLogin, getCaptcha, guestLogin, parseLoginResponse } from '@/api/auth'
 
 /** 记住密码的本地存储键：只保存账号与编码后的密码，不涉及 token */
@@ -132,8 +133,11 @@ export function LoginPage() {
         } else {
           localStorage.removeItem(REMEMBER_KEY)
         }
-        setAuth(token, user)
-        navigate('/dashboard')
+        // 像素铺满后再切换页面，铺满的像素退场露出数据总览
+        playAuthTransition(() => {
+          setAuth(token, user)
+          navigate('/dashboard')
+        })
       } else {
         // 后端未重启时仍可能返回旧文案，这里统一成不暴露账号是否存在的提示
         const msg = res.message || '账号或密码错误'
@@ -275,7 +279,7 @@ export function LoginPage() {
                     placeholder="请输入用户名或学号"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    className="pl-12 h-12 border-sky-200 focus-visible:border-sky-300 focus-visible:shadow-[0_0_0_1px_#7dd3fc,0_0_0_4px_rgb(125_211_252/0.24)]"
+                    className="pl-12 h-12 rounded-[var(--radius-control)] border-sky-200 focus-visible:border-sky-300 focus-visible:shadow-[0_0_0_1px_#7dd3fc,0_0_0_4px_rgb(125_211_252/0.24)]"
                     autoComplete="off"
                     name="account"
                   />
@@ -294,7 +298,7 @@ export function LoginPage() {
                     placeholder="请输入密码"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="pl-12 pr-12 h-12 border-sky-200 focus-visible:border-sky-300 focus-visible:shadow-[0_0_0_1px_#7dd3fc,0_0_0_4px_rgb(125_211_252/0.24)]"
+                    className="pl-12 pr-12 h-12 rounded-[var(--radius-control)] border-sky-200 focus-visible:border-sky-300 focus-visible:shadow-[0_0_0_1px_#7dd3fc,0_0_0_4px_rgb(125_211_252/0.24)]"
                     autoComplete="new-password"
                     name="access-key"
                   />
@@ -332,7 +336,7 @@ export function LoginPage() {
                       onChange={(e) =>
                         setCaptchaCode(e.target.value.replace(/\s/g, '').slice(0, 4))
                       }
-                      className="pl-12 h-12 border-sky-200 focus-visible:border-sky-300 focus-visible:shadow-[0_0_0_1px_#7dd3fc,0_0_0_4px_rgb(125_211_252/0.24)]"
+                      className="pl-12 h-12 rounded-[var(--radius-control)] border-sky-200 focus-visible:border-sky-300 focus-visible:shadow-[0_0_0_1px_#7dd3fc,0_0_0_4px_rgb(125_211_252/0.24)]"
                       autoComplete="off"
                       maxLength={4}
                       name="captcha-code"
@@ -342,7 +346,7 @@ export function LoginPage() {
                     type="button"
                     onClick={refreshCaptcha}
                     title="点击刷新验证码"
-                    className="flex h-12 w-[120px] shrink-0 items-center justify-center overflow-hidden rounded-xl border border-sky-200 bg-white transition-colors hover:border-sky-300"
+                    className="flex h-12 w-[120px] shrink-0 items-center justify-center overflow-hidden rounded-[var(--radius-control)] border border-sky-200 bg-white transition-colors hover:border-sky-300"
                   >
                     {captchaLoading ? (
                       <span className="text-xs text-neutral-400">加载中...</span>

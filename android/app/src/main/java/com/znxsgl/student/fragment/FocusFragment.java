@@ -168,6 +168,32 @@ public class FocusFragment extends Fragment {
     private long lastCoursesRefreshAt = 0;
     private static final long COURSES_REFRESH_MS = 30_000;
 
+    /** 课程列表缓存键：按登录 token 区分账号，重新登录后自动使用新缓存 */
+    private String coursesCacheKey() {
+        return "focus_courses_cache_" + Integer.toHexString(token == null ? 0 : token.hashCode());
+    }
+
+    /** 冷启动时立即渲染上次成功拉取的课程卡片，把几秒的网络等待变成后台静默刷新 */
+    private void renderCachedCourses() {
+        if (prefs == null || !panelData.isEmpty()) return;
+        try {
+            String raw = prefs.getString(coursesCacheKey(), null);
+            if (raw == null || raw.isEmpty()) return;
+            List<StudentCourse> cached = new com.google.gson.Gson().fromJson(raw,
+                    new com.google.gson.reflect.TypeToken<List<StudentCourse>>() {}.getType());
+            if (cached == null) return;
+            List<StudentCourse> valid = new ArrayList<>();
+            for (StudentCourse c : cached) {
+                if (c.getCourseName() != null && !isActivityName(c.getCourseName())) valid.add(c);
+            }
+            if (valid.isEmpty()) return;
+            panelData.clear();
+            panelData.addAll(valid);
+            buildPanels();
+        } catch (Exception ignored) {
+        }
+    }
+
     private void loadCoursesThrottled() {
         long now = System.currentTimeMillis();
         if (!panelData.isEmpty() && now - lastCoursesRefreshAt < COURSES_REFRESH_MS) return;
@@ -176,6 +202,8 @@ public class FocusFragment extends Fragment {
     }
 
     private void loadStudentCourses(View view) {
+        // 冷启动先用上次缓存的课程卡片秒开，网络结果回来后再静默更新
+        renderCachedCourses();
         ApiService api = RetrofitClient.getInstance().create(ApiService.class);
         api.getStudentCourses(token).enqueue(new Callback<List<StudentCourse>>() {
             @Override public void onResponse(Call<List<StudentCourse>> call, Response<List<StudentCourse>> resp) {
@@ -191,6 +219,12 @@ public class FocusFragment extends Fragment {
                     // 活动类条目（自习/班会/大扫除）只在课表展示，不作为可刷题课程卡片
                     if (isActivityName(c.getCourseName())) continue;
                     next.add(c);
+                }
+                // 成功拉取后写入本地缓存，下次冷启动直接渲染
+                try {
+                    prefs.edit().putString(coursesCacheKey(),
+                            new com.google.gson.Gson().toJson(next)).apply();
+                } catch (Exception ignored) {
                 }
                 // 数据未变化时不重建卡片列表（切 Tab 秒开，不再整页重排）
                 boolean changed = next.size() != panelData.size();
@@ -215,6 +249,8 @@ public class FocusFragment extends Fragment {
             }
             @Override public void onFailure(Call<List<StudentCourse>> call, Throwable t) {
                 if (!isAdded()) return;
+                // 已有缓存或已展示课程时，失败不再填充演示数据，避免覆盖真实缓存
+                if (!panelData.isEmpty()) return;
                 String[] def = {"Python程序设计","数据结构与算法基础","微信小程序设计",
                         "多媒体课件设计与开发","微课制作","高级网站技术",
                         "中国近现代史纲要","教师口语","教师书写技能",

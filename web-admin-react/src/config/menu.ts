@@ -16,6 +16,7 @@ import {
   UserCheck,
   UserCog,
   ShieldCheck,
+  History,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -51,6 +52,7 @@ export const teacherMenus: MenuItem[] = [
   { path: '/stats', title: '学习统计', icon: BarChart3 },
   { path: '/exam-homework', title: '考试作业', icon: ClipboardList },
   { path: '/teacher-chat', title: '课程聊天', icon: MessageSquare },
+  { path: '/ai-records', title: 'AI 操作记录', icon: History },
 ]
 
 export const adminMenus: MenuItem[] = [
@@ -67,6 +69,7 @@ export const adminMenus: MenuItem[] = [
   { path: '/course-chapters', title: '章节管理', icon: ListTree },
   { path: '/stats', title: '学习统计', icon: BarChart3 },
   { path: '/exam-homework', title: '考试作业', icon: ClipboardList },
+  { path: '/ai-records', title: 'AI 操作记录', icon: History },
 ]
 
 /** 侧边栏简单分组：只做功能归类，不添加分隔线 */
@@ -94,6 +97,10 @@ export const adminMenuGroups: MenuGroup[] = [
     title: '校园',
     items: adminMenus.filter((item) => item.path === '/admin/school-info'),
   },
+  {
+    title: 'AI',
+    items: adminMenus.filter((item) => item.path === '/ai-records'),
+  },
 ]
 
 export const teacherMenuGroups: MenuGroup[] = [
@@ -109,6 +116,7 @@ export const teacherMenuGroups: MenuGroup[] = [
     items: teacherMenus.filter((item) => item.path === '/teacher-chat'),
   },
   { title: '事务', items: teacherMenus.filter((item) => item.path === '/teacher/leave') },
+  { title: 'AI', items: teacherMenus.filter((item) => item.path === '/ai-records') },
 ]
 
 export const adminSearchEntries: SearchEntry[] = [
@@ -128,6 +136,7 @@ export const adminSearchEntries: SearchEntry[] = [
   { path: '/course-chapters', title: '章节管理', group: '课程', icon: ListTree, keywords: '章节 课时 chapter' },
   { path: '/stats', title: '学习统计', group: '数据', icon: BarChart3, keywords: '统计 分析 报表 stats' },
   { path: '/exam-homework', title: '考试作业', group: '教学', icon: ClipboardList, keywords: '考试 作业 测验 exam homework' },
+  { path: '/ai-records', title: 'AI 操作记录', group: 'AI', icon: History, keywords: 'AI 操作记录 审计 恢复 删除日志 log record' },
 ]
 
 export const teacherSearchEntries: SearchEntry[] = [
@@ -139,4 +148,5 @@ export const teacherSearchEntries: SearchEntry[] = [
   { path: '/stats', title: '学习统计', group: '数据', icon: BarChart3, keywords: '统计 分析 报表 stats' },
   { path: '/exam-homework', title: '考试作业', group: '教学', icon: ClipboardList, keywords: '考试 作业 测验 exam homework' },
   { path: '/teacher-chat', title: '课程聊天', group: '沟通', icon: MessageSquare, keywords: '聊天 消息 沟通 chat' },
+  { path: '/ai-records', title: 'AI 操作记录', group: 'AI', icon: History, keywords: 'AI 操作记录 审计 恢复 删除日志 log record' },
 ]
