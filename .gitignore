@@ -67,6 +67,7 @@ test/loadtest_results/
 test/screenshots/
 # ===== IDE 会话数据与构建产物 =====
 .codebuddy/
+.trae/
 .trae-html-share-packages/
 *.apk
 
