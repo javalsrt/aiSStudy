@@ -11,6 +11,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.net.SocketTimeoutException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
@@ -125,27 +128,51 @@ public class LlmService {
             }
         }
     }
+    /**
+     * 多消息调用（管理端 AI Agent 使用）：支持 system/user/assistant 历史与 JSON mode。
+     */
+    public String chatMessages(Long userId, List<Map<String, String>> messages, int maxTokens, boolean jsonMode) {
+        checkUserRateLimit(userId);
+        checkGlobalRateLimit();
+        return requestChat(userId, messages, maxTokens, jsonMode);
+    }
+
     private String chatInternal(Long userId, String systemPrompt, String userMessage, int maxTokens) {
+        List<Map<String, String>> messages = new ArrayList<>();
+        if (systemPrompt != null && !systemPrompt.isEmpty()) {
+            messages.add(Map.of("role", "system", "content", systemPrompt));
+        }
+        messages.add(Map.of("role", "user", "content", userMessage != null ? userMessage : ""));
+        return requestChat(userId, messages, maxTokens, false);
+    }
+
+    private String requestChat(Long userId, List<Map<String, String>> messages, int maxTokens, boolean jsonMode) {
         try {
             ObjectNode body = mapper.createObjectNode();
             body.put("model", model);
             body.put("max_tokens", maxTokens);
-
-            ArrayNode messages = body.putArray("messages");
-            if (systemPrompt != null && !systemPrompt.isEmpty()) {
-                ObjectNode sys = mapper.createObjectNode();
-                sys.put("role", "system");
-                sys.put("content", systemPrompt);
-                messages.add(sys);
+            if (jsonMode) {
+                ObjectNode responseFormat = mapper.createObjectNode();
+                responseFormat.put("type", "json_object");
+                body.set("response_format", responseFormat);
             }
 
-            ObjectNode user = mapper.createObjectNode();
-            user.put("role", "user");
-            user.put("content", userMessage != null ? userMessage : "");
-            messages.add(user);
+            ArrayNode messageArray = body.putArray("messages");
+            String lastUserMessage = "";
+            for (Map<String, String> message : messages) {
+                String role = message.getOrDefault("role", "user");
+                String content = message.getOrDefault("content", "");
+                ObjectNode node = mapper.createObjectNode();
+                node.put("role", role);
+                node.put("content", content);
+                messageArray.add(node);
+                if ("user".equals(role)) {
+                    lastUserMessage = content;
+                }
+            }
 
             String reqJson = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(body);
-            System.out.println("=== LLM 请求: " + (userMessage != null ? userMessage.substring(0, Math.min(80, userMessage.length())) : ""));
+            System.out.println("=== LLM 请求: " + (lastUserMessage.length() > 80 ? lastUserMessage.substring(0, 80) : lastUserMessage));
 
             Request request = new Request.Builder()
                     .url(apiUrl)

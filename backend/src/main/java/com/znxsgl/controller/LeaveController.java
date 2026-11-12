@@ -1,5 +1,6 @@
 package com.znxsgl.controller;
 
+import com.znxsgl.service.LeaveReviewService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.Authentication;
@@ -36,10 +37,13 @@ public class LeaveController {
 
     private final JdbcTemplate jdbc;
     private final com.znxsgl.service.GeoService geoService;
+    private final LeaveReviewService leaveReviewService;
 
-    public LeaveController(JdbcTemplate jdbc, com.znxsgl.service.GeoService geoService) {
+    public LeaveController(JdbcTemplate jdbc, com.znxsgl.service.GeoService geoService,
+                           LeaveReviewService leaveReviewService) {
         this.jdbc = jdbc;
         this.geoService = geoService;
+        this.leaveReviewService = leaveReviewService;
     }
 
     /** 提交申请 */
@@ -262,7 +266,7 @@ public class LeaveController {
                 Map<String, Object> one = new LinkedHashMap<>();
                 one.put("action", action);
                 one.put("comment", comment);
-                ResponseEntity<?> r = doReview(id, one, auth);
+                ResponseEntity<?> r = leaveReviewService.review(id, one, auth);
                 if (r.getStatusCode().is2xxSuccessful()) {
                     ok++;
                 } else {
@@ -286,75 +290,13 @@ public class LeaveController {
     public ResponseEntity<?> review(@PathVariable Long id, @RequestBody Map<String, Object> body, Authentication auth) {
         // 统一兜底：把底层 SQL 异常转成可读提示，避免前端只看到 Internal Server Error
         try {
-            return doReview(id, body, auth);
+            return leaveReviewService.review(id, body, auth);
         } catch (Exception e) {
             Throwable cause = e.getCause() == null ? e : e.getCause();
             String detail = cause.getMessage() == null ? cause.getClass().getSimpleName() : cause.getMessage();
             return ResponseEntity.badRequest().body(Map.of("error",
                     "审批失败：" + detail + "（若提示字段不存在，请执行 init-db/25-catchup-safe.sql）"));
         }
-    }
-
-    private ResponseEntity<?> doReview(Long id, Map<String, Object> body, Authentication auth) {
-        Long userId = uid(auth);
-        if (userId == null) return ResponseEntity.status(401).body(Map.of("error", "请先登录"));
-        String action = "reject".equalsIgnoreCase(str(body.get("action"))) ? "reject" : "approve";
-        String comment = str(body.get("comment")).trim();
-        boolean admin = hasRole(auth, "ROLE_ADMIN");
-
-        List<Map<String, Object>> rows = jdbc.queryForList("SELECT * FROM leave_request WHERE id = ?", id);
-        if (rows.isEmpty()) return ResponseEntity.badRequest().body(Map.of("error", "申请不存在"));
-        Map<String, Object> r = rows.get(0);
-        String status = str(r.get("status"));
-        double days = ((Number) r.get("days")).doubleValue();
-
-        if ("PENDING_TEACHER".equals(status)) {
-            Long classId = r.get("class_id") instanceof Number n ? n.longValue() : null;
-            boolean leader = isLeader(userId);
-            // 初审权：该班班主任 / 校领导 / 管理员
-            if (!(admin || leader || isClassTeacher(userId, classId))) {
-                return ResponseEntity.status(403).body(Map.of("error", "只有本班班主任、校级领导或管理员可以审批"));
-            }
-            String identity = reviewerIdentity(auth, classId);
-            if ("reject".equals(action)) {
-                jdbc.update("UPDATE leave_request SET status='REJECTED', teacher_id_op=?, teacher_comment=?, " +
-                                "teacher_reviewer_role=?, teacher_at=NOW() WHERE id=?",
-                        userId, comment, identity, id);
-                return ResponseEntity.ok(Map.of("msg", "已驳回（审批人：" + identity + "）", "status", "REJECTED"));
-            }
-            if ("LEAVE".equals(str(r.get("type"))) && days > 3) {
-                jdbc.update("UPDATE leave_request SET status='PENDING_LEADER', teacher_id_op=?, teacher_comment=?, " +
-                                "teacher_reviewer_role=?, teacher_at=NOW() WHERE id=?",
-                        userId, comment, identity, id);
-                return ResponseEntity.ok(Map.of(
-                        "msg", "初审通过（审批人：" + identity + "），已提交领导终审（超过 3 天）",
-                        "status", "PENDING_LEADER"));
-            }
-            jdbc.update("UPDATE leave_request SET status='APPROVED', teacher_id_op=?, teacher_comment=?, " +
-                            "teacher_reviewer_role=?, teacher_at=NOW() WHERE id=?",
-                    userId, comment, identity, id);
-            return ResponseEntity.ok(Map.of("msg", "审批通过（审批人：" + identity + "）", "status", "APPROVED"));
-        }
-
-        if ("PENDING_LEADER".equals(status)) {
-            // 终审权：校领导 / 管理员
-            if (!(admin || isLeader(userId))) {
-                return ResponseEntity.status(403).body(Map.of("error", "仅教导主任/校级领导或管理员可终审"));
-            }
-            String identity = reviewerIdentity(auth, null);
-            if ("reject".equals(action)) {
-                jdbc.update("UPDATE leave_request SET status='REJECTED', leader_id_op=?, leader_comment=?, " +
-                                "leader_reviewer_role=?, leader_at=NOW() WHERE id=?",
-                        userId, comment, identity, id);
-                return ResponseEntity.ok(Map.of("msg", "已驳回（审批人：" + identity + "）", "status", "REJECTED"));
-            }
-            jdbc.update("UPDATE leave_request SET status='APPROVED', leader_id_op=?, leader_comment=?, " +
-                            "leader_reviewer_role=?, leader_at=NOW() WHERE id=?",
-                    userId, comment, identity, id);
-            return ResponseEntity.ok(Map.of("msg", "终审通过（审批人：" + identity + "）", "status", "APPROVED"));
-        }
-
-        return ResponseEntity.badRequest().body(Map.of("error", "该申请当前状态不可审批"));
     }
 
     // ==================== 工具 ====================

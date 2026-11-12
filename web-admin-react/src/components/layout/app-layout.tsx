@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import { Eye, Menu } from 'lucide-react'
+import { FloatingAssistant } from '@/components/ai-assistant/floating-assistant'
 import { Sidebar } from './sidebar'
 
 export function AppLayout() {
@@ -32,6 +33,7 @@ export function AppLayout() {
           </div>
         </main>
       </div>
+      <FloatingAssistant />
     </div>
   )
 }
