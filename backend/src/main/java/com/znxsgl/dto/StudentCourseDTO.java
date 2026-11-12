@@ -16,6 +16,7 @@ public class StudentCourseDTO {
     private String semester;
     private String courseType;
     private String description;
+    private String coverUrl;       // 课程封面图 URL
     private boolean active;        // 是否在线（任意班级有排课）
     private boolean published;     // 是否已发布/上架（有 status=1 记录，含占位）
     private boolean hasSchedule;   // 本班级是否有排课

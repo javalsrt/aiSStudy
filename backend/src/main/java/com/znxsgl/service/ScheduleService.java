@@ -169,6 +169,7 @@ public class ScheduleService {
             dto.setTeacherId(course.getTeacherId());
             dto.setCourseType(course.getCourseType());
             dto.setDescription(course.getDescription());
+            dto.setCoverUrl(course.getCoverUrl());
             dto.setCredit(course.getCredit());
             dto.setTeacherName(teacherNameMap.get(course.getTeacherId()));
 
@@ -618,7 +619,7 @@ public class ScheduleService {
 
         // 查询该班级关联的所有课程（通过 course_class 表 + schedule 表兜底）
         List<Map<String, Object>> rows = jdbc.queryForList(
-            "SELECT DISTINCT c.id, c.course_name, c.semester, c.course_type, c.description, c.credit, " +
+            "SELECT DISTINCT c.id, c.course_name, c.semester, c.course_type, c.description, c.credit, c.cover_url, " +
             "t.real_name AS teacher_name " +
             "FROM course c " +
             "LEFT JOIN course_class cc ON cc.course_id = c.id AND cc.class_id = ? " +
@@ -681,6 +682,7 @@ public class ScheduleService {
             dto.setSemester((String) row.get("semester"));
             dto.setCourseType((String) row.get("course_type"));
             dto.setDescription((String) row.get("description"));
+            dto.setCoverUrl((String) row.get("cover_url"));
             dto.setHasChapters(chapterCountMap.getOrDefault(dto.getCourseId(), 0) > 0);
 
             // 检查课程是否在线（本班级有 status=1 且 day_of_week>0 即在线）

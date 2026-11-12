@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 检查更新弹窗卡片：20dp 圆角，交由 SquircleInstaller 统一转 G2 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/surface_1" />
+    <corners android:radius="20dp" />
+</shape>

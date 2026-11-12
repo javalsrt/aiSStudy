@@ -31,6 +31,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   setAuth: (token, user) => {
     const roles = user.roles || []
     const permissions = user.permissions || []
+    // 任何一次登录都先解除访客只读标记，访客登录会在此之后重新写入
+    localStorage.removeItem('guest-mode')
     localStorage.setItem(LS_TOKEN, token)
     localStorage.setItem(LS_USER, JSON.stringify(user))
     localStorage.setItem(LS_ROLES, JSON.stringify(roles))

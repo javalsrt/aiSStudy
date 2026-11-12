@@ -1,123 +1,127 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 树形视图：课时 = 叶子节点，引导线只占标题行高度，不随展开内容拉长 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="horizontal">
+    android:orientation="vertical">
 
-    <!-- 左侧课时时间线 -->
     <LinearLayout
-        android:layout_width="12dp"
-        android:layout_height="match_parent"
-        android:orientation="vertical"
-        android:gravity="center_horizontal">
+        android:layout_width="match_parent"
+        android:layout_height="32dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
 
-        <View
-            android:id="@+id/line_lesson_top"
-            android:layout_width="2dp"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:background="@color/hairline" />
+        <!-- 分支引导线：仅覆盖 32dp 标题行 -->
+        <FrameLayout
+            android:layout_width="16dp"
+            android:layout_height="32dp">
 
-        <View
-            android:layout_width="6dp"
-            android:layout_height="6dp"
-            android:background="@drawable/circle_node_normal" />
+            <View
+                android:id="@+id/line_lesson_top"
+                android:layout_width="1dp"
+                android:layout_height="8dp"
+                android:layout_gravity="start"
+                android:layout_marginStart="7dp"
+                android:background="@color/hairline" />
 
-        <View
-            android:id="@+id/line_lesson_bottom"
-            android:layout_width="2dp"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:background="@color/hairline" />
-    </LinearLayout>
+            <ImageView
+                android:layout_width="8dp"
+                android:layout_height="8dp"
+                android:layout_gravity="start"
+                android:layout_marginStart="7dp"
+                android:layout_marginTop="8dp"
+                android:src="@drawable/ic_tree_elbow"
+                android:contentDescription="层级连接线" />
 
-    <!-- 右侧课时卡片 -->
-    <LinearLayout
-        android:id="@+id/ll_lesson_card"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:orientation="vertical"
-        android:background="@drawable/bg_chapter_card"
-        android:padding="12dp"
-        android:layout_marginVertical="4dp"
-        android:paddingEnd="12dp">
+            <View
+                android:id="@+id/line_lesson_bottom"
+                android:layout_width="1dp"
+                android:layout_height="16dp"
+                android:layout_gravity="start"
+                android:layout_marginStart="7dp"
+                android:layout_marginTop="16dp"
+                android:background="@color/hairline" />
+        </FrameLayout>
 
         <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            android:id="@+id/ll_lesson_header"
+            android:layout_width="0dp"
+            android:layout_height="32dp"
+            android:layout_weight="1"
+            android:layout_marginEnd="4dp"
             android:orientation="horizontal"
-            android:gravity="center_vertical">
+            android:gravity="center_vertical"
+            android:paddingStart="6dp"
+            android:paddingEnd="4dp"
+            android:background="@drawable/bg_tree_row"
+            android:clickable="true"
+            android:focusable="true">
 
-            <LinearLayout
+            <ImageView
+                android:id="@+id/iv_lesson_icon"
+                android:layout_width="14dp"
+                android:layout_height="14dp"
+                android:src="@drawable/ic_tree_file"
+                android:tint="@color/ink_tertiary"
+                android:contentDescription="课时" />
+
+            <TextView
+                android:id="@+id/tv_lesson_name"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:orientation="vertical">
-
-                <TextView
-                    android:id="@+id/tv_lesson_name"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="课时名称"
-                    android:textSize="14sp"
-                    android:textColor="@color/ink"
-                    android:maxLines="2"
-                    android:ellipsize="end" />
-
-                <TextView
-                    android:id="@+id/tv_lesson_type"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
-                    android:text="文档"
-                    android:textSize="11sp"
-                    android:textColor="@color/ink_subtle"
-                    android:visibility="gone" />
-            </LinearLayout>
-
-            <TextView
-                android:id="@+id/tv_lesson_arrow"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:text="▼"
+                android:layout_marginStart="6dp"
+                android:text="课时名称"
                 android:textSize="13sp"
-                android:textColor="@color/ink_subtle" />
-        </LinearLayout>
+                android:textColor="@color/ink"
+                android:maxLines="1"
+                android:ellipsize="end" />
 
-        <!-- 课时内容区域（展开后显示） -->
+            <ImageView
+                android:id="@+id/tv_lesson_arrow"
+                android:layout_width="12dp"
+                android:layout_height="12dp"
+                android:layout_marginStart="4dp"
+                android:src="@drawable/ic_tree_chevron_down"
+                android:tint="@color/ink_tertiary"
+                android:contentDescription="展开课时内容" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- 课时内容区域（展开后显示，占满整行，不再被引导线占位） -->
+    <LinearLayout
+        android:id="@+id/ll_lesson_content_area"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="4dp"
+        android:layout_marginTop="2dp"
+        android:layout_marginBottom="4dp"
+        android:orientation="vertical"
+        android:visibility="gone"
+        android:background="@drawable/bg_lesson_content"
+        android:padding="10dp">
+
         <LinearLayout
-            android:id="@+id/ll_lesson_content_area"
+            android:id="@+id/ll_markdown_content"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:visibility="gone"
+            android:orientation="vertical" />
+
+        <!-- 完成学习按钮 -->
+        <TextView
+            android:id="@+id/btn_complete"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="end"
             android:layout_marginTop="12dp"
-            android:background="@drawable/bg_lesson_content"
-            android:padding="12dp">
-
-            <LinearLayout
-                android:id="@+id/ll_markdown_content"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical" />
-
-            <!-- 完成学习按钮 -->
-            <TextView
-                android:id="@+id/btn_complete"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="end"
-                android:layout_marginTop="16dp"
-                android:text="完成学习"
-                android:textSize="12sp"
-                android:textColor="@color/white"
-                android:background="@drawable/bg_btn_primary"
-                android:paddingHorizontal="10dp"
-                android:paddingVertical="5dp"
-                android:clickable="true"
-                android:focusable="true" />
-        </LinearLayout>
+            android:text="完成学习"
+            android:textSize="12sp"
+            android:textColor="@color/white"
+            android:background="@drawable/bg_btn_primary"
+            android:paddingHorizontal="10dp"
+            android:paddingVertical="5dp"
+            android:clickable="true"
+            android:focusable="true" />
     </LinearLayout>
 </LinearLayout>

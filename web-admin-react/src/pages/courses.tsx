@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, LayoutList, Grid3X3, Search, Loader2 } from 'lucide-react'
+import { Plus, LayoutList, Grid3X3, Search, Loader2, ImagePlus } from 'lucide-react'
 import type { ColumnDef } from '@tanstack/react-table'
 import { Button } from '@/components/ui/button'
 import { SegmentedControl } from '@/components/ui/segmented-control'
@@ -19,6 +19,7 @@ import {
   hideCourse,
   unhideCourse,
   removeCourse,
+  uploadCourseCover,
   invalidateCoursesCache,
 } from '@/api/courses'
 import { SchedulePlanner } from '@/components/schedule-planner'
@@ -158,10 +159,12 @@ const normalizeCourse = (raw: any): CourseItem & { classes: ClassInfo[] } => {
   const firstClass = classes.length > 0 ? classes[0] : null
 
   return {
+    courseId: raw.courseId,
     courseName: raw.courseName,
     teacherName: raw.teacherName,
     className,
     semester: raw.semester,
+    coverUrl: raw.coverUrl,
     dayOfWeek: raw.dayOfWeek,
     startTime: raw.startTime,
     endTime: raw.endTime,
@@ -205,6 +208,10 @@ export function CoursesPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [actionLoading, setActionLoading] = useState(false)
+  // 课程封面上传：隐藏的 file input + 当前目标课程
+  const coverInputRef = useRef<HTMLInputElement>(null)
+  const [coverTarget, setCoverTarget] = useState<CourseRow | null>(null)
+  const [coverUploading, setCoverUploading] = useState(false)
 
   // 排课弹窗状态
   const [plannerOpen, setPlannerOpen] = useState(false)
@@ -247,6 +254,51 @@ export function CoursesPage() {
   useEffect(() => {
     fetchCourses()
   }, [])
+
+  // ===== 课程封面：管理员可传任意课程，教师只能传自己任教的课程 =====
+  const pickCourseCover = (course: CourseRow) => {
+    if (!course.courseId) {
+      alert({ description: '该课程缺少课程ID，暂不能上传封面' })
+      return
+    }
+    setCoverTarget(course)
+    coverInputRef.current?.click()
+  }
+
+  const handleCoverChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    const target = coverTarget
+    if (!file || !target?.courseId) return
+    if (!file.type.startsWith('image/')) {
+      await alert({ description: '仅支持图片文件' })
+      return
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      await alert({ description: '图片大小不能超过 2MB' })
+      return
+    }
+    setCoverUploading(true)
+    try {
+      const res = await uploadCourseCover(target.courseId, file)
+      setCourses((prev) =>
+        prev.map((c) =>
+          c.courseId === target.courseId ? { ...c, coverUrl: res.coverUrl } : c
+        )
+      )
+      await alert({ description: '课程封面已更新' })
+    } catch (err: any) {
+      await alert({
+        description:
+          err?.response?.data?.message ||
+          err?.response?.data?.error ||
+          '封面上传失败，请稍后重试',
+      })
+    } finally {
+      setCoverUploading(false)
+      setCoverTarget(null)
+    }
+  }
 
   // 加载班级列表：专业/班级下拉的数据源（管理员为全校，教师为任教班级）
   useEffect(() => {
@@ -433,13 +485,21 @@ export function CoursesPage() {
         const course = row.original
         return (
           <div className="flex min-w-0 items-center gap-2.5">
-            <div
-              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-gradient-to-br ${getCoverGradient(
-                course.courseName || ''
-              )} text-xs font-semibold text-white`}
-            >
-              {course.courseName?.charAt(0) || '?'}
-            </div>
+            {course.coverUrl ? (
+              <img
+                src={course.coverUrl}
+                alt={course.courseName || ''}
+                className="h-8 w-8 shrink-0 rounded-[10px] object-cover"
+              />
+            ) : (
+              <div
+                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-gradient-to-br ${getCoverGradient(
+                  course.courseName || ''
+                )} text-xs font-semibold text-white`}
+              >
+                {course.courseName?.charAt(0) || '?'}
+              </div>
+            )}
             <div className="min-w-0">
               <div
                 className="truncate text-body-2-medium text-ink-primary"
@@ -534,6 +594,16 @@ export function CoursesPage() {
       enableSorting: false,
       cell: ({ row }) => (
         <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 px-2.5 text-xs"
+            disabled={coverUploading || actionLoading}
+            onClick={() => pickCourseCover(row.original)}
+            title="上传/更换课程封面"
+          >
+            封面
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -723,8 +793,30 @@ export function CoursesPage() {
                       className={`h-36 bg-gradient-to-br ${getCoverGradient(
                         course.courseName || ''
                       )} relative`}
+                      style={
+                        course.coverUrl
+                          ? {
+                              backgroundImage: `url(${course.coverUrl})`,
+                              backgroundSize: 'cover',
+                              backgroundPosition: 'center',
+                            }
+                          : undefined
+                      }
                     >
-                      <div className="absolute top-3 right-3">
+                      {course.coverUrl && (
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-black/20" />
+                      )}
+                      {/* 封面上传/更换入口 */}
+                      <button
+                        type="button"
+                        disabled={coverUploading}
+                        onClick={() => pickCourseCover(course)}
+                        className="absolute top-3 left-3 z-10 inline-flex items-center gap-1 rounded-full bg-black/35 px-2.5 py-1 text-[11px] font-medium text-white backdrop-blur transition-colors hover:bg-black/55 disabled:opacity-60"
+                      >
+                        <ImagePlus className="h-3 w-3" />
+                        {course.coverUrl ? '更换封面' : '上传封面'}
+                      </button>
+                      <div className="absolute top-3 right-3 z-10">
                         <Badge
                           variant={active ? 'success' : 'secondary'}
                           className="text-xs"
@@ -732,7 +824,7 @@ export function CoursesPage() {
                           {active ? '已上架' : '已下架'}
                         </Badge>
                       </div>
-                      <div className="absolute bottom-3 left-4 right-4">
+                      <div className="absolute bottom-3 left-4 right-4 z-10">
                         <div className="text-xl font-bold text-white truncate">
                           {course.courseName || '-'}
                         </div>
@@ -838,6 +930,15 @@ export function CoursesPage() {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* 封面上传用的隐藏文件选择器：accept 图片，大小在 handleCoverChange 中限制为 2MB */}
+      <input
+        ref={coverInputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/gif"
+        className="hidden"
+        onChange={handleCoverChange}
+      />
 
       <SchedulePlanner
         open={plannerOpen}

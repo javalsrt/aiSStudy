@@ -14,16 +14,29 @@
         android:orientation="horizontal"
         android:gravity="center_vertical">
 
-        <!-- 课程图标 -->
-        <TextView
-            android:id="@+id/tv_course_icon"
+        <!-- 课程图标：优先显示管理员/教师上传的封面，无封面时回退到 emoji 图标 -->
+        <FrameLayout
             android:layout_width="44dp"
-            android:layout_height="44dp"
-            android:gravity="center"
-            android:text="课"
-            android:textSize="18sp"
-            android:textColor="@color/primary"
-            android:background="@drawable/bg_circle_light" />
+            android:layout_height="44dp">
+
+            <ImageView
+                android:id="@+id/iv_course_cover"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/bg_circle_light"
+                android:contentDescription="@null"
+                android:scaleType="centerCrop"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/tv_course_icon"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:text="课"
+                android:textSize="18sp"
+                android:textColor="@color/primary" />
+        </FrameLayout>
 
         <!-- 课程信息 -->
         <LinearLayout

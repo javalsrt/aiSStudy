@@ -49,6 +49,18 @@ export const getStudentCourses = () => {
   return request.get<any, CourseItem[]>('/schedule/student/courses')
 }
 
+// 上传课程封面（管理员可传任意课程，教师只能传自己任教的课程；后端限制 2MB）
+export const uploadCourseCover = (courseId: number, file: File) => {
+  const form = new FormData()
+  form.append('file', file)
+  return request
+    .post<any, { coverUrl: string }>(`/course/${courseId}/cover`, form)
+    .then((res) => {
+      invalidateCoursesCache()
+      return res
+    })
+}
+
 // 查询已下架课程
 export const getHiddenCourses = () => {
   return request.get<any, CourseItem[]>('/schedule/import/hidden')

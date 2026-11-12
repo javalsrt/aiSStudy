@@ -10,7 +10,6 @@ import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
-import android.graphics.drawable.GradientDrawable;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
@@ -38,6 +37,9 @@ import androidx.fragment.app.Fragment;
 
 import com.znxsgl.student.R;
 import com.znxsgl.student.model.ScheduleItem;
+import com.znxsgl.student.widget.DiagonalHeaderView;
+import com.znxsgl.student.widget.G2Drawable;
+import com.znxsgl.student.widget.ScheduleGridView;
 import com.znxsgl.student.network.ApiService;
 import com.znxsgl.student.network.RetrofitClient;
 
@@ -68,7 +70,8 @@ public class ScheduleFragment extends Fragment {
 
     private TextView tvWeekLabel, tvWeatherInfo, tvOnlineInfo, btnToday;
     private HorizontalScrollView scrollWeeks;
-    private LinearLayout containerWeeks, gridBody;
+    private LinearLayout containerWeeks;
+    private ScheduleGridView gridBody;
     private LinearLayout rowHeader;
     private HorizontalScrollView scrollGrid;
     private View skeletonLoading;
@@ -595,10 +598,10 @@ public class ScheduleFragment extends Fragment {
         // 与课表行相同的左右内边距，保证列对齐
         rowHeader.setPadding(dp(2), 0, dp(2), 0);
         int todayIdx = todayDayOfWeek - 1; // 0索引
-        // 节次列
-        TextView timeHeader = createHeaderCell("节次", 0xFF8E8E93, dp(36));
-        timeHeader.setBackgroundColor(0x00000000);
-        rowHeader.addView(timeHeader);
+        // 左上角斜线表头：日期 / 节次
+        DiagonalHeaderView corner = new DiagonalHeaderView(getContext());
+        corner.setLayoutParams(new LinearLayout.LayoutParams(dp(44), dp(36)));
+        rowHeader.addView(corner);
 
         // 周一到周日，带日期和高亮
         // 日期锚定开学日所在自然周的周一 + 当前周次，对齐真实星期几，与上传/查看日期无关
@@ -616,13 +619,10 @@ public class ScheduleFragment extends Fragment {
             cell.setLayoutParams(hlp);
             cell.setOrientation(LinearLayout.VERTICAL);
             cell.setGravity(Gravity.CENTER);
-            // 当日不再整格填充蓝色，改为白色方格 + 加粗浅蓝边框
+            // 当日不再整格填充蓝色，改为白色方格 + 加粗浅蓝边框（G2 圆角）
             if (isToday) {
-                GradientDrawable todayBg = new GradientDrawable();
-                todayBg.setColor(0xFFFFFFFF);
-                todayBg.setCornerRadius(dp(6));
-                todayBg.setStroke(dp(2), 0xFFDCE9FF);
-                cell.setBackground(todayBg);
+                cell.setBackground(G2Drawable.solid(
+                        getContext(), 0xFFFFFFFF, 0xFFDCE9FF, 2f, 10f));
             } else {
                 cell.setBackgroundColor(0x00000000);
             }
@@ -697,19 +697,6 @@ public class ScheduleFragment extends Fragment {
         return todayMs >= startMs && todayMs <= endMs;
     }
 
-    private TextView createHeaderCell(String text, int color, int fixedWidth) {
-        TextView tv = new TextView(getContext());
-        if (fixedWidth > 0) {
-            tv.setLayoutParams(new LinearLayout.LayoutParams(fixedWidth, dp(36)));
-        } else {
-            tv.setLayoutParams(new LinearLayout.LayoutParams(0, dp(36), 1));
-        }
-        tv.setText(text); tv.setTextSize(11);
-        tv.setTextColor(color); tv.setGravity(Gravity.CENTER);
-        tv.setTypeface(fontMedium());
-        return tv;
-    }
-
     // ========== 周选择器 ==========
     private void buildWeekSelector() {
         containerWeeks.removeAllViews();
@@ -722,9 +709,9 @@ public class ScheduleFragment extends Fragment {
             tv.setLayoutParams(lp);
             tv.setText(String.valueOf(w)); tv.setTextSize(13); tv.setGravity(Gravity.CENTER);
             if (w == currentWeek) {
-                GradientDrawable bg = new GradientDrawable();
-                bg.setColor(0xFF0A84FF); bg.setCornerRadius(dp(15));
-                tv.setBackground(bg); tv.setTextColor(Color.WHITE);
+                tv.setBackground(G2Drawable.solid(
+                        getContext(), 0xFF0A84FF, Color.TRANSPARENT, 0f, 15f));
+                tv.setTextColor(Color.WHITE);
             } else {
                 tv.setBackground(null); tv.setTextColor(0xFF8E8E93);
             }
@@ -745,23 +732,42 @@ public class ScheduleFragment extends Fragment {
 
     // ========== 课表网格 ==========
     private void buildScheduleGrid() {
-        gridBody.removeAllViews();
         String[][] arr = effectiveSlots();
+        List<ScheduleGridView.Row> rows = new ArrayList<>();
+        ScheduleGridView.CourseInfo[][] courseMatrix =
+                new ScheduleGridView.CourseInfo[arr.length][7];
 
         String prevEnd = null;
         for (int s = 0; s < arr.length; s++) {
-            // 相邻节次间隔 ≥ 40 分钟时自动插入休息分隔条（适配任意学校的作息）
+            // 相邻节次间隔 ≥ 40 分钟时插入休息分隔条；休息行会阻断连堂合并
             if (prevEnd != null) {
                 String breakText = breakLabel(prevEnd, arr[s][1]);
-                if (breakText != null) {
-                    gridBody.addView(buildBreakRow(breakText));
-                    gridBody.addView(createHairline());
-                }
+                if (breakText != null) rows.add(ScheduleGridView.Row.breakRow(breakText));
             }
-            gridBody.addView(buildSlotRow(s));
-            gridBody.addView(createHairline());
+            rows.add(ScheduleGridView.Row.slot(s, arr[s][1], arr[s][2]));
+            for (int day = 1; day <= 7; day++) {
+                courseMatrix[s][day - 1] = findCourseInfo(arr, day, s);
+            }
             prevEnd = arr[s][2];
         }
+
+        gridBody.setData(rows, courseMatrix, todayDayOfWeek, isTodayInWeek(currentWeek));
+    }
+
+    /** 查找某天某节次的课程；返回 null 表示空课 */
+    private ScheduleGridView.CourseInfo findCourseInfo(String[][] arr, int dayOfWeek, int slotIndex) {
+        int node = nodeAt(slotIndex);
+        String slotStart = arr[slotIndex][1];
+        String slotEnd = arr[slotIndex][2];
+        for (ScheduleItem item : apiScheduleData) {
+            if (item.getDayOfWeek() != dayOfWeek) continue;
+            boolean hit = item.matchesNode(node)
+                    || (item.getStartNode() <= 0 && item.matchesTimeSlot(slotStart, slotEnd));
+            if (hit) {
+                return new ScheduleGridView.CourseInfo(item.getCourseName(), item.getClassroom());
+            }
+        }
+        return null;
     }
 
     /** 根据两节之间的间隔推断休息文案（替代写死的午休/晚休时间） */
@@ -781,148 +787,6 @@ public class ScheduleFragment extends Fragment {
         } catch (Exception e) {
             return 0;
         }
-    }
-
-    private LinearLayout buildSlotRow(int slotIndex) {
-        String[][] arr = effectiveSlots();
-        String start = arr[slotIndex][1];
-        String end = arr[slotIndex][2];
-
-        LinearLayout row = new LinearLayout(getContext());
-        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1);
-        rp.setMargins(0, dp(2), 0, dp(2));
-        row.setLayoutParams(rp); row.setOrientation(LinearLayout.HORIZONTAL);
-        // 左右各 2dp，与表头/休息分隔条对齐，保证两侧边距一致
-        row.setPadding(dp(2), 0, dp(2), 0);
-
-        // 时间列
-        LinearLayout timeCol = new LinearLayout(getContext());
-        timeCol.setLayoutParams(new LinearLayout.LayoutParams(dp(36),
-                LinearLayout.LayoutParams.MATCH_PARENT));
-        timeCol.setOrientation(LinearLayout.VERTICAL);
-        timeCol.setGravity(Gravity.CENTER);
-        timeCol.setPadding(dp(2), dp(2), dp(2), dp(2));
-        GradientDrawable timeBg = new GradientDrawable();
-        timeBg.setColor(0xFFF5F5F7); timeBg.setCornerRadius(dp(6));
-        timeCol.setBackground(timeBg);
-
-        TextView tvStart = new TextView(getContext());
-        tvStart.setText(start); tvStart.setTextSize(10);
-        tvStart.setTextColor(0xFF1D1D1F); tvStart.setGravity(Gravity.CENTER);
-        timeCol.addView(tvStart);
-
-        TextView tvEnd = new TextView(getContext());
-        tvEnd.setText(end); tvEnd.setTextSize(10);
-        tvEnd.setTextColor(0xFF8E8E93); tvEnd.setGravity(Gravity.CENTER);
-        timeCol.addView(tvEnd);
-        row.addView(timeCol);
-
-        // 7天课程格（周一至周日）
-        for (int d = 1; d <= 7; d++) {
-            row.addView(buildCourseCell(d, start, end, slotIndex));
-        }
-        return row;
-    }
-
-    private LinearLayout buildCourseCell(int dayOfWeek, String slotStart, String slotEnd, int slotIndex) {
-        LinearLayout cell = new LinearLayout(getContext());
-        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0,
-                LinearLayout.LayoutParams.MATCH_PARENT, 1);
-        cp.setMargins(dp(2), 0, dp(2), 0);
-        cell.setLayoutParams(cp);
-        cell.setOrientation(LinearLayout.VERTICAL);
-        cell.setGravity(Gravity.CENTER);
-        cell.setPadding(dp(2), dp(2), dp(2), dp(2));
-
-        // 当天列只做描边标记，不再整格填充高亮色
-        boolean isToday = isTodayInWeek(currentWeek) && (dayOfWeek == todayDayOfWeek);
-
-        // 查找匹配的课程：优先按节次定位（适配任意作息），节次缺失时按时间交集兜底
-        int node = nodeAt(slotIndex);
-        String courseName = null;
-        String classroom = null;
-        for (ScheduleItem item : apiScheduleData) {
-            if (item.getDayOfWeek() != dayOfWeek) continue;
-            boolean hit = item.matchesNode(node)
-                    || (item.getStartNode() <= 0 && item.matchesTimeSlot(slotStart, slotEnd));
-            if (hit) {
-                courseName = item.getCourseName();
-                classroom = item.getClassroom();
-                break;
-            }
-        }
-
-        if (courseName != null) {
-            // 课程统一白色卡片；当天列用加粗浅蓝边框标记
-            GradientDrawable bg = new GradientDrawable();
-            bg.setColor(0xFFFFFFFF);
-            bg.setCornerRadius(dp(6));
-            bg.setStroke(dp(isToday ? 2 : 1), isToday ? 0xFFDCE9FF : 0xFFE8E8ED);
-            cell.setBackground(bg);
-
-            TextView tvName = new TextView(getContext());
-            tvName.setText(courseName); tvName.setTextSize(11);
-            tvName.setTextColor(0xFF1D1D1F); tvName.setGravity(Gravity.CENTER);
-            tvName.setMaxLines(2);
-            cell.addView(tvName);
-            if (classroom != null && !classroom.isEmpty()) {
-                String shortRoom = classroom.length() > 10 ? classroom.substring(0, 9) + "…" : classroom;
-                TextView tvRoom = new TextView(getContext());
-                tvRoom.setText(shortRoom); tvRoom.setTextSize(10);
-                tvRoom.setTextColor(0xFF8E8E93); tvRoom.setGravity(Gravity.CENTER);
-                tvRoom.setMaxLines(1);
-                cell.addView(tvRoom);
-            }
-        } else {
-            // 没有课的位置不显示任何底色或边框，保持干净的灰底
-            cell.setBackgroundColor(0x00000000);
-        }
-        return cell;
-    }
-
-    private LinearLayout buildBreakRow(String text) {
-        LinearLayout row = new LinearLayout(getContext());
-        row.setLayoutParams(new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(26)));
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(2), 0, dp(2), 0);
-
-        View spacer = new View(getContext());
-        spacer.setLayoutParams(new LinearLayout.LayoutParams(dp(36), dp(1)));
-        row.addView(spacer);
-
-        LinearLayout sep = new LinearLayout(getContext());
-        sep.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
-        sep.setGravity(Gravity.CENTER);
-        sep.setOrientation(LinearLayout.HORIZONTAL);
-
-        View lineL = new View(getContext());
-        lineL.setLayoutParams(new LinearLayout.LayoutParams(dp(20), dp(1)));
-        lineL.setBackgroundColor(0xFFD9D9DE);
-        sep.addView(lineL);
-
-        TextView tv = new TextView(getContext());
-        tv.setText(text);
-        tv.setTextSize(11); tv.setTextColor(0xFF8E8E93); tv.setGravity(Gravity.CENTER);
-        sep.addView(tv);
-
-        View lineR = new View(getContext());
-        lineR.setLayoutParams(new LinearLayout.LayoutParams(0, dp(1), 1));
-        lineR.setBackgroundColor(0xFFD9D9DE);
-        sep.addView(lineR);
-
-        row.addView(sep);
-        return row;
-    }
-
-    private View createHairline() {
-        View v = new View(getContext());
-        v.setLayoutParams(new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(1)));
-        v.setBackgroundColor(0xFFF0F0F3);
-        return v;
     }
 
     // ========== 周数选择弹窗 ==========
@@ -961,13 +825,15 @@ public class ScheduleFragment extends Fragment {
             tv.setLayoutParams(params);
             tv.setText(String.valueOf(w)); tv.setTextSize(15); tv.setGravity(Gravity.CENTER);
             if (w == currentWeek) {
-                GradientDrawable bg = new GradientDrawable();
-                bg.setColor(0xFF0A84FF); bg.setCornerRadius(dp(8));
-                tv.setBackground(bg); tv.setTextColor(Color.WHITE);
+                tv.setBackground(G2Drawable.solid(
+                        getContext(), 0xFF0A84FF, Color.TRANSPARENT, 0f, 8f));
+                tv.setTextColor(Color.WHITE);
                 tv.setTypeface(fontMedium());
             } else {
                 tv.setTextColor(0xFF1D1D1F);
-                tv.setBackgroundResource(R.drawable.bg_sheet_row);
+                tv.setBackground(G2Drawable.pressed(
+                        getContext(), Color.TRANSPARENT, Color.TRANSPARENT,
+                        0f, 8f, 0x0F000000));
             }
             tv.setOnClickListener(v -> { currentWeek = week; dialog.dismiss(); refreshAll(); });
             grid.addView(tv);

@@ -161,6 +161,57 @@
             android:layout_marginStart="20dp"
             android:background="@color/hairline" />
 
+        <!-- 检查更新 -->
+        <LinearLayout
+            android:id="@+id/row_check_update"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="20dp"
+            android:paddingVertical="12dp"
+            android:background="@drawable/bg_sheet_row"
+            android:clickable="true"
+            android:focusable="true">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="检查更新"
+                    android:textSize="16sp"
+                    android:textColor="@color/ink" />
+
+                <TextView
+                    android:id="@+id/tv_app_version"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:text="当前版本"
+                    android:textSize="12sp"
+                    android:textColor="@color/ink_subtle" />
+            </LinearLayout>
+
+            <ImageView
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:src="@drawable/ic_chevron_right"
+                android:tint="@color/ink_tertiary"
+                android:contentDescription="@null"
+                android:importantForAccessibility="no" />
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginStart="20dp"
+            android:background="@color/hairline" />
+
         <!-- 退出登录 -->
         <LinearLayout
             android:id="@+id/row_logout"

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 子级连接线：从上向下的圆角肘形分支 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="10dp"
+    android:height="10dp"
+    android:viewportWidth="10"
+    android:viewportHeight="10">
+    <path
+        android:pathData="M0.5,0 L0.5,4.5 Q0.5,9.5 5.5,9.5 L9.5,9.5"
+        android:strokeColor="@color/hairline"
+        android:strokeWidth="1"
+        android:fillColor="#00000000" />
+</vector>

@@ -38,7 +38,7 @@ public class LlmService {
 
     private final ObjectMapper mapper = new ObjectMapper();
 
-    // 全局限流：每秒最多 20 次 AI 调用（DeepSeek V4 Flash 平台并发额度 2500，20/s 仅是零头，
+    // 全局限流：每秒最多 20 次 AI 调用（DeepSeek V4.1 Flash 1017 平台并发额度 2500，20/s 仅是零头，
     // 主要防止极端刷接口，不影响几十人并发刷题）
     private final RateLimiter globalRateLimiter = RateLimiter.create(20.0);
 

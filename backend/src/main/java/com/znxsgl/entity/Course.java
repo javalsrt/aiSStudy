@@ -31,4 +31,7 @@ public class Course {
     /** 学分 */
     private BigDecimal credit;
     private String description;
+
+    /** 课程封面图 URL（/uploads/course/xxx.jpg），由管理员或任课教师上传 */
+    private String coverUrl;
 }

@@ -65,18 +65,26 @@
                 android:focusable="true" />
         </LinearLayout>
 
-        <ScrollView
-            android:id="@+id/scroll"
+        <!-- 对话区：消息列表 + 左下角思考/进度提示 -->
+        <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
-            android:layout_weight="1"
-            android:fillViewport="true">
+            android:layout_weight="1">
+
+            <ScrollView
+                android:id="@+id/scroll"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:fillViewport="true">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="16dp">
+                android:paddingStart="16dp"
+                android:paddingTop="16dp"
+                android:paddingEnd="16dp"
+                android:paddingBottom="46dp">
 
                 <!-- 欢迎卡片（首次进入展示，提问后隐藏） -->
                 <LinearLayout
@@ -153,7 +161,52 @@
                     android:layout_height="wrap_content"
                     android:orientation="vertical" />
             </LinearLayout>
-        </ScrollView>
+            </ScrollView>
+
+            <!-- 思考过程与任务进度：星星动画 + 灰色小字固定在对话区左下角，不进入消息列表 -->
+            <LinearLayout
+                android:id="@+id/boxAgentStatus"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="bottom|start"
+                android:layout_marginStart="20dp"
+                android:layout_marginEnd="20dp"
+                android:layout_marginBottom="6dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:visibility="gone"
+                android:clickable="false"
+                android:focusable="false"
+                android:importantForAccessibility="no">
+
+                <com.znxsgl.student.widget.AgentStarsView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:layout_marginEnd="8dp"
+                    android:importantForAccessibility="no" />
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/tvAgentTitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textColor="#B7BCC6"
+                        android:textSize="11sp" />
+
+                    <TextView
+                        android:id="@+id/tvAgentStatus"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:textColor="#98A0AE"
+                        android:textSize="11sp" />
+                </LinearLayout>
+            </LinearLayout>
+        </FrameLayout>
 
         <!-- 输入区（透明底，浮在页面上） -->
         <LinearLayout

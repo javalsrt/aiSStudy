@@ -4,6 +4,7 @@ import android.animation.ValueAnimator;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Paint;
+import android.graphics.Path;
 import android.graphics.RectF;
 import android.util.AttributeSet;
 import android.view.View;
@@ -24,6 +25,7 @@ public class ScheduleSkeletonView extends View {
     private final Paint blockPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint blockLightPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF rect = new RectF();
+    private final Path blockPath = new Path();
     private final float density;
     /** 呼吸动画进度：只作用于线条与色块，背景保持不透明，避免透出底层真实课表 */
     private float pulse = 1f;
@@ -127,12 +129,14 @@ public class ScheduleSkeletonView extends View {
         float barH = dp(9);
         float barY = (headerH - barH) / 2f;
         rect.set(dp(10), barY, timeW - dp(10), barY + barH);
-        canvas.drawRoundRect(rect, dp(4), dp(4), blockPaint);
+        G2Drawable.buildPath(rect, dp(4), blockPath);
+        canvas.drawPath(blockPath, blockPaint);
         for (int i = 0; i < DAYS; i++) {
             float cx = timeW + i * colW + colW / 2f;
             float bw = Math.min(colW * 0.52f, dp(26));
             rect.set(cx - bw / 2f, barY, cx + bw / 2f, barY + barH);
-            canvas.drawRoundRect(rect, dp(4), dp(4), blockPaint);
+            G2Drawable.buildPath(rect, dp(4), blockPath);
+            canvas.drawPath(blockPath, blockPaint);
         }
 
         // 课程块
@@ -146,7 +150,8 @@ public class ScheduleSkeletonView extends View {
             float right = timeW + (col + 1) * colW - pad;
             float bottom = headerH + (row + span) * rowH - pad;
             rect.set(left, top, right, bottom);
-            canvas.drawRoundRect(rect, dp(6), dp(6), (i % 2 == 0) ? blockPaint : blockLightPaint);
+            G2Drawable.buildPath(rect, dp(10), blockPath);
+            canvas.drawPath(blockPath, (i % 2 == 0) ? blockPaint : blockLightPaint);
         }
     }
 }

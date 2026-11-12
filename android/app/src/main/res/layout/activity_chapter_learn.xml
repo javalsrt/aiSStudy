@@ -37,30 +37,34 @@
             android:maxLines="1"
             android:ellipsize="end" />
 
-        <View android:layout_width="40dp" android:layout_height="1dp" />
+        <!-- 总进度胶囊直接放进顶栏右侧，省掉一整行 -->
+        <TextView
+            android:id="@+id/tv_progress"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="已完成 0/0 课时"
+            android:textSize="11sp"
+            android:textColor="@color/primary"
+            android:fontFamily="@font/harmonyos_sans_sc_medium"
+            android:background="@drawable/bg_progress_pill"
+            android:paddingHorizontal="8dp"
+            android:paddingVertical="2dp" />
     </LinearLayout>
 
     <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/hairline" />
 
-    <TextView
-        android:id="@+id/tv_progress"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="已完成 0/0 课时"
-        android:textSize="13sp"
-        android:textColor="@color/primary"
-        android:textStyle="bold"
-        android:paddingHorizontal="16dp"
-        android:paddingVertical="10dp"
-        android:background="@color/surface_3" />
-
+    <!-- 树形视图面板 -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/rv_chapters"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
+        android:layout_marginHorizontal="8dp"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="8dp"
+        android:background="@drawable/bg_tree_panel"
         android:scrollbars="none"
         android:clipToPadding="false"
-        android:paddingHorizontal="2dp"
-        android:paddingVertical="4dp" />
+        android:padding="4dp"
+        android:overScrollMode="never" />
 </LinearLayout>

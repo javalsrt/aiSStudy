@@ -1,5 +1,6 @@
 package com.znxsgl.student.network;
 
+import com.znxsgl.student.model.AppVersionInfo;
 import com.znxsgl.student.model.Chapter;
 import com.znxsgl.student.model.ChatMsgDto;
 import com.znxsgl.student.model.LoginRequest;
@@ -269,4 +270,8 @@ public interface ApiService {
     @GET("/api/exam-homework/student/course-todos")
     Call<List<Map<String, Object>>> getExamHomeworkTodos(
             @Header("Authorization") String token);
+
+    /** App 检查更新（公开接口，无需 token） */
+    @GET("/api/app/latest")
+    Call<AppVersionInfo> getLatestAppVersion();
 }

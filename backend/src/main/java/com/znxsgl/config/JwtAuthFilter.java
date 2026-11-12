@@ -38,6 +38,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
+        // 登录相关接口是公开接口：忽略浏览器里可能残留的旧 token（尤其是访客 token），
+        // 否则访客 token 会让 admin-login 这类 POST 请求在进入 Controller 前就被 403 拦截
+        if (request.getRequestURI().startsWith("/api/auth/")) {
+            filterChain.doFilter(request, response);
+            return;
+        }
         String authHeader = request.getHeader("Authorization");
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             String token = authHeader.substring(7);

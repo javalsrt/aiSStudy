@@ -99,6 +99,7 @@ export interface CourseItem {
   courseId?: number // 课程ID（来自 TeacherCourseDTO）
   teacherId?: number // 教师ID（来自 TeacherCourseDTO）
   scheduleInfo?: string // 聚合排课摘要（来自 TeacherCourseDTO）
+  coverUrl?: string // 课程封面图 URL（学生端“我的课程”图标）
 }
 
 // 人员

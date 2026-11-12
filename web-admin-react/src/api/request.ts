@@ -8,6 +8,11 @@ const request = axios.create({
 // 请求拦截：附加 token；访客模式拦截所有写操作
 request.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
+    // 登录相关接口是公开接口，不带旧 token，也不受访客只读限制，
+    // 否则残留的访客 token / 访客标记会导致无法重新登录管理员账号
+    const isAuthPath = (config.url || '').startsWith('/auth/')
+    if (isAuthPath) return config
+
     const token = localStorage.getItem('token')
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
@@ -40,6 +45,8 @@ request.interceptors.response.use(
       localStorage.removeItem('user')
       localStorage.removeItem('roles')
       localStorage.removeItem('permissions')
+      // 登录态失效后访客标记也一并清除，避免重新登录时仍被只读拦截
+      localStorage.removeItem('guest-mode')
       window.location.href = '/login'
     }
     return Promise.reject(error)

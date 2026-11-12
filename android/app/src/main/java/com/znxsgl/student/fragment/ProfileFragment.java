@@ -43,6 +43,10 @@ import com.znxsgl.student.model.StudentCourse;
 import com.znxsgl.student.network.ApiService;
 import com.znxsgl.student.network.RetrofitClient;
 import com.znxsgl.student.network.WebSocketManager;
+import com.znxsgl.student.update.AppUpdateManager;
+
+import com.bumptech.glide.Glide;
+import com.bumptech.glide.load.resource.bitmap.RoundedCorners;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -321,6 +325,21 @@ public class ProfileFragment extends Fragment implements WebSocketManager.OnChat
             });
         }
 
+        // 检查更新：显示当前版本，点击后请求后端最新版本
+        TextView tvAppVersion = dialog.findViewById(R.id.tv_app_version);
+        if (tvAppVersion != null) {
+            tvAppVersion.setText("当前版本 v" + currentAppVersion());
+        }
+        View rowCheckUpdate = dialog.findViewById(R.id.row_check_update);
+        if (rowCheckUpdate != null) {
+            rowCheckUpdate.setOnClickListener(v -> {
+                dialog.dismiss();
+                if (getActivity() != null) {
+                    AppUpdateManager.check(getActivity(), true);
+                }
+            });
+        }
+
         View rowLogout = dialog.findViewById(R.id.row_logout);
         if (rowLogout != null) {
             rowLogout.setOnClickListener(v -> {
@@ -333,6 +352,16 @@ public class ProfileFragment extends Fragment implements WebSocketManager.OnChat
         if (btnCancel != null) btnCancel.setOnClickListener(v -> dialog.dismiss());
 
         dialog.show();
+    }
+
+    /** 当前安装包版本名（如 1.3） */
+    private String currentAppVersion() {
+        try {
+            return getContext() == null ? "" : getContext().getPackageManager()
+                    .getPackageInfo(getContext().getPackageName(), 0).versionName;
+        } catch (Exception e) {
+            return "";
+        }
     }
 
     /** 请求地址切换：教务系统 / 本地离线（与设置面板同款底部卡片） */
@@ -824,21 +853,39 @@ public class ProfileFragment extends Fragment implements WebSocketManager.OnChat
             StudentCourse c = courseList.get(pos);
             holder.icon.setText(ICONS[pos % ICONS.length]);
 
+            // 课程封面：管理员/教师上传后优先显示图片，否则回退到 emoji 图标
+            String cover = c.getCoverUrl();
+            boolean hasCover = cover != null && !cover.trim().isEmpty();
+            holder.cover.setVisibility(hasCover ? View.VISIBLE : View.GONE);
+            holder.icon.setVisibility(hasCover ? View.GONE : View.VISIBLE);
+            if (hasCover) {
+                Glide.with(holder.itemView.getContext())
+                        .load(RetrofitClient.toFullUrl(cover))
+                        .transform(new RoundedCorners(dp(12)))
+                        .placeholder(R.drawable.bg_circle_light)
+                        .into(holder.cover);
+            } else {
+                Glide.with(holder.itemView.getContext()).clear(holder.cover);
+            }
+
             if (c.isActive()) {
                 holder.name.setText(c.getCourseName());
                 holder.name.setAlpha(1.0f);
                 holder.icon.setAlpha(1.0f);
+                holder.cover.setAlpha(1.0f);
                 holder.status.setVisibility(View.GONE);
             } else if (c.isPublished()) {
                 holder.name.setText(c.getCourseName());
                 holder.name.setAlpha(0.55f);
                 holder.icon.setAlpha(0.55f);
+                holder.cover.setAlpha(0.55f);
                 holder.status.setVisibility(View.VISIBLE);
                 holder.status.setText("无课");
             } else {
                 holder.name.setText(c.getCourseName());
                 holder.name.setAlpha(0.45f);
                 holder.icon.setAlpha(0.45f);
+                holder.cover.setAlpha(0.45f);
                 holder.status.setVisibility(View.VISIBLE);
                 holder.status.setText("已下架");
             }
@@ -1006,11 +1053,13 @@ public class ProfileFragment extends Fragment implements WebSocketManager.OnChat
 
         class VH extends RecyclerView.ViewHolder {
             TextView icon, name, info, status, badge, semesterTag;
+            ImageView cover;
             HorizontalScrollView hsvPendingExams;
             LinearLayout llPendingExams;
             VH(View v) {
                 super(v);
                 icon = v.findViewById(R.id.tv_course_icon);
+                cover = v.findViewById(R.id.iv_course_cover);
                 name = v.findViewById(R.id.tv_course_name);
                 info = v.findViewById(R.id.tv_course_info);
                 status = v.findViewById(R.id.tv_course_status);

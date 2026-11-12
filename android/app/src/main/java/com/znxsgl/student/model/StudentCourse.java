@@ -24,6 +24,10 @@ public class StudentCourse {
     @SerializedName("description")
     private String description;
 
+    /** 课程封面图 URL（教师/管理员上传，用于“我的课程”图标） */
+    @SerializedName("coverUrl")
+    private String coverUrl;
+
     @SerializedName("active")
     private boolean active;
 
@@ -62,6 +66,8 @@ public class StudentCourse {
     public void setCourseType(String v) { this.courseType = v; }
     public String getDescription() { return description; }
     public void setDescription(String v) { this.description = v; }
+    public String getCoverUrl() { return coverUrl; }
+    public void setCoverUrl(String v) { this.coverUrl = v; }
     public boolean isActive() { return active; }
     public void setActive(boolean v) { this.active = v; }
     public boolean isPublished() { return published; }

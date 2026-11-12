@@ -6,6 +6,9 @@ import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.SystemClock;
 import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.LayoutInflater;
@@ -32,6 +35,7 @@ import com.znxsgl.student.network.RetrofitClient;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import retrofit2.Call;
@@ -56,6 +60,15 @@ public class AiAssistantFragment extends Fragment {
     private boolean quickLoaded = false;
     /** 会话序号：点「新建会话」后自增，用来丢弃上一轮还没回来的回答 */
     private int sessionSeq = 0;
+    /** 对话区左下角的思考/进度提示（灰色小字，不进入消息列表） */
+    private View boxAgentStatus;
+    private TextView tvAgentTitle;
+    private TextView tvAgentStatus;
+    private final Handler uiHandler = new Handler(Looper.getMainLooper());
+    /** 思考阶段计时任务 */
+    private Runnable statusTicker;
+    /** 回答逐字输出的任务 */
+    private Runnable streamTask;
 
     private static final String[][] FALLBACK_CAPS = {
             {"校园规定", "作息/宿舍/请假"},
@@ -94,6 +107,9 @@ public class AiAssistantFragment extends Fragment {
         welcomeCard = view.findViewById(R.id.welcomeCard);
         etInput = view.findViewById(R.id.etInput);
         btnSend = view.findViewById(R.id.btnSend);
+        boxAgentStatus = view.findViewById(R.id.boxAgentStatus);
+        tvAgentTitle = view.findViewById(R.id.tvAgentTitle);
+        tvAgentStatus = view.findViewById(R.id.tvAgentStatus);
 
         // 右上角「+」：开启新会话
         view.findViewById(R.id.btnNewChat).setOnClickListener(v -> startNewSession());
@@ -222,8 +238,8 @@ public class AiAssistantFragment extends Fragment {
         hideWelcome();
         addBubble(text, true);
 
-        final TextView loadingBubble = addBubble("正在思考…", false);
         final int seq = sessionSeq;
+        startAgentStatus();
         setLoading(true);
 
         ApiService api = RetrofitClient.getInstance().create(ApiService.class);
@@ -232,10 +248,15 @@ public class AiAssistantFragment extends Fragment {
         api.askAssistant(token, body).enqueue(new Callback<Map<String, Object>>() {
             @Override
             public void onResponse(Call<Map<String, Object>> call, Response<Map<String, Object>> resp) {
-                if (!isAdded() || seq != sessionSeq) return; // 已开启新会话，丢弃旧回答
-                setLoading(false);
+                if (!isAdded() || seq != sessionSeq) { // 已开启新会话，丢弃旧回答
+                    hideAgentStatus();
+                    return;
+                }
                 if (!resp.isSuccessful() || resp.body() == null) {
-                    loadingBubble.setText("服务暂时不可用，请稍后再试");
+                    hideAgentStatus();
+                    setLoading(false);
+                    addBubble("服务暂时不可用，请稍后再试", false);
+                    scrollToBottom();
                     return;
                 }
                 Map<String, Object> data = resp.body();
@@ -257,23 +278,36 @@ public class AiAssistantFragment extends Fragment {
                         ans += "\n\n来源：" + joined;
                     }
                 }
-                loadingBubble.setText(ans);
-                scrollToBottom();
+                // 思考结束，进入逐字输出；输出完成后左下角提示自动消失
+                stopStatusTicker();
+                TextView answerView = addBubble("", false);
+                streamAnswer(answerView, ans, seq);
             }
 
             @Override
             public void onFailure(Call<Map<String, Object>> call, Throwable t) {
-                if (!isAdded() || seq != sessionSeq) return;
+                if (!isAdded() || seq != sessionSeq) {
+                    hideAgentStatus();
+                    return;
+                }
                 setLoading(false);
-                loadingBubble.setText(UiMsg.network(t));
+                hideAgentStatus();
+                addBubble(UiMsg.network(t), false);
                 scrollToBottom();
             }
         });
     }
 
+    @Override
+    public void onDestroyView() {
+        cancelStreaming();
+        super.onDestroyView();
+    }
+
     /** 新建会话：清空消息区、回到欢迎页，并作废上一轮还没返回的回答 */
     private void startNewSession() {
         sessionSeq++;
+        cancelStreaming();
         if (boxMessages != null) boxMessages.removeAllViews();
         if (etInput != null) etInput.setText("");
         if (welcomeCard != null) welcomeCard.setVisibility(View.VISIBLE);
@@ -314,13 +348,118 @@ public class AiAssistantFragment extends Fragment {
             tv.setBackground(roundBg(0xFF3B6EF6, 14, 0));
         } else {
             tv.setTextColor(0xFF1F2937);
-            tv.setBackground(roundBg(0xFFFFFFFF, 14, 0xFFECECF1));
+            // 回答气泡：纯白无边框，四角统一圆角
+            tv.setBackground(roundBg(0xFFFFFFFF, 16, 0));
         }
         row.addView(tv, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         boxMessages.addView(row);
         scrollToBottom();
         return tv;
+    }
+
+    /** 开始展示左下角灰色小字：思考阶段 + 阶段说明 + 进度 */
+    private void startAgentStatus() {
+        if (boxAgentStatus == null) return;
+        stopStatusTicker();
+        final long startAt = SystemClock.uptimeMillis();
+        statusTicker = new Runnable() {
+            @Override
+            public void run() {
+                if (!isAdded() || boxAgentStatus == null) return;
+                long elapsed = SystemClock.uptimeMillis() - startAt;
+                String title;
+                String detail;
+                int percent;
+                if (elapsed < 1100) {
+                    title = "正在理解问题";
+                    detail = "分析问题意图，判断需要哪些校园数据";
+                    percent = 15;
+                } else if (elapsed < 3000) {
+                    title = "正在检索校园资料";
+                    detail = "查询校内规定、课程资料与个人成绩";
+                    percent = 45;
+                } else {
+                    title = "正在生成回答";
+                    detail = "组织答案结构，准备输出";
+                    percent = 76;
+                }
+                showAgentStatus(title, String.format(Locale.CHINA, "· %s… %d%% · %.1fs",
+                        detail, percent, elapsed / 1000f));
+                uiHandler.postDelayed(this, 160L);
+            }
+        };
+        uiHandler.post(statusTicker);
+    }
+
+    private void stopStatusTicker() {
+        if (statusTicker != null) {
+            uiHandler.removeCallbacks(statusTicker);
+            statusTicker = null;
+        }
+    }
+
+    private void showAgentStatus(String title, String detail) {
+        if (boxAgentStatus == null) return;
+        tvAgentTitle.setText(title);
+        tvAgentStatus.setText(detail);
+        boxAgentStatus.setVisibility(View.VISIBLE);
+    }
+
+    /** 收起左下角提示（回答输出完成或请求失败时调用） */
+    private void hideAgentStatus() {
+        stopStatusTicker();
+        if (boxAgentStatus != null) boxAgentStatus.setVisibility(View.GONE);
+    }
+
+    /** 逐字输出回答：模拟流式效果，输出过程中左下角保留进度，完成后自动消失 */
+    private void streamAnswer(final TextView tv, final String full, final int seq) {
+        if (streamTask != null) {
+            uiHandler.removeCallbacks(streamTask);
+            streamTask = null;
+        }
+        final int step = 2;
+        streamTask = new Runnable() {
+            private int shown = 0;
+            private int ticks = 0;
+
+            @Override
+            public void run() {
+                // 会话已切换或页面已销毁：立即停止并收起提示
+                if (!isAdded() || seq != sessionSeq || tv == null) {
+                    hideAgentStatus();
+                    return;
+                }
+                if (full.isEmpty()) {
+                    hideAgentStatus();
+                    setLoading(false);
+                    return;
+                }
+                shown = Math.min(full.length(), shown + step);
+                tv.setText(full.substring(0, shown));
+                int percent = (int) (shown * 100L / full.length());
+                showAgentStatus("正在输出回答", "已完成 " + percent + "%");
+                if (++ticks % 4 == 0) scrollToBottom();
+                if (shown < full.length()) {
+                    uiHandler.postDelayed(this, 20L);
+                } else {
+                    streamTask = null;
+                    hideAgentStatus();
+                    scrollToBottom();
+                    setLoading(false);
+                }
+            }
+        };
+        uiHandler.post(streamTask);
+    }
+
+    /** 中断思考与流式输出（新建会话 / 页面销毁时） */
+    private void cancelStreaming() {
+        if (streamTask != null) {
+            uiHandler.removeCallbacks(streamTask);
+            streamTask = null;
+        }
+        hideAgentStatus();
     }
 
     private void scrollToBottom() {

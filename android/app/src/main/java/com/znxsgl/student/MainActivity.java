@@ -32,6 +32,7 @@ import com.znxsgl.student.fragment.TestFragment;
 import com.znxsgl.student.network.ApiService;
 import com.znxsgl.student.network.RetrofitClient;
 import com.znxsgl.student.network.WebSocketManager;
+import com.znxsgl.student.update.AppUpdateManager;
 import com.znxsgl.student.widget.AiTabBurstView;
 import com.znxsgl.student.widget.GlassNavBackgroundView;
 
@@ -504,6 +505,8 @@ public class MainActivity extends AppCompatActivity {
         applyStatusBarForCurrentFragment();
         // 从聊天页返回时同步未读（对应课程红点应已消除）
         refreshUnread();
+        // 每天最多静默检查一次新版本
+        AppUpdateManager.checkOnLaunch(this);
     }
 
     @Override

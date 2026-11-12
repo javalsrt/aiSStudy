@@ -89,6 +89,8 @@ export function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    // 可能是从访客模式返回登录页，先清掉只读标记，避免登录请求被前端拦截或后端误判
+    localStorage.removeItem('guest-mode')
 
     if (!username.trim() || !password) {
       setError('请输入账号和密码')
@@ -159,10 +161,10 @@ export function LoginPage() {
         setError(res.message || '访客登录失败')
         return
       }
-      // 标记访客模式：前端拦截所有写请求，后端也只会放行 GET
-      localStorage.setItem('guest-mode', '1')
       const { token, user } = parseLoginResponse(res)
+      // setAuth 会先清除旧的访客标记，所以这里必须在它之后重新标记
       setAuth(token, user)
+      localStorage.setItem('guest-mode', '1')
       navigate('/dashboard')
     } catch (err: any) {
       setError(err.response?.data?.message || '访客登录失败，请稍后重试')
@@ -172,7 +174,7 @@ export function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-100 flex">
+    <div className="min-h-screen lg:h-screen lg:overflow-hidden bg-neutral-100 flex">
       {/* ===== 左侧品牌区（右缘斜切，右上高左下低） ===== */}
       <div
         className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-gradient-to-br from-primary-550 via-primary-500 to-cyan-500"
@@ -216,7 +218,7 @@ export function LoginPage() {
           {/* 底部品牌标识（解密文字） */}
           <div className="self-start">
             <DecryptText
-              text="DeepSeek V4 Flash"
+              text="DeepSeek V4.1 Flash 1017"
               className="font-mono text-xl font-semibold tracking-widest text-white/85"
               speed={46}
               cycles={6}
@@ -226,13 +228,13 @@ export function LoginPage() {
       </div>
 
       {/* ===== 右侧登录表单区（左缘做互补斜切，与左面板斜线无缝拼接） ===== */}
-      <div className="w-full lg:w-[calc(50%+90px)] lg:-ml-[90px] relative flex items-center justify-center p-6 sm:p-12 lg:pl-[135px] bg-gradient-to-br from-[#eef2ff] via-white to-[#ecfeff] lg:[clip-path:polygon(90px_0,100%_0,100%_100%,0_100%)]">
+      <div className="w-full lg:w-[calc(50%+90px)] lg:-ml-[90px] relative flex items-center justify-center p-6 sm:p-10 lg:py-5 lg:pl-[135px] bg-gradient-to-br from-[#eef2ff] via-white to-[#ecfeff] lg:[clip-path:polygon(90px_0,100%_0,100%_100%,0_100%)]">
         {/* 交界处蓝色雾化过渡（沿斜线边缘被裁剪，自然贴合左侧面板） */}
         <div
           aria-hidden="true"
           className="hidden lg:block absolute inset-y-0 -left-10 w-72 bg-gradient-to-r from-primary-300/40 via-primary-200/15 to-transparent pointer-events-none"
         ></div>
-        <div className="w-full max-w-md relative">
+        <div className="w-full max-w-md relative origin-center [@media(min-width:1024px)_and_(max-height:860px)]:scale-95 [@media(min-width:1024px)_and_(max-height:800px)]:scale-90 [@media(min-width:1024px)_and_(max-height:740px)]:scale-[.85] [@media(min-width:1024px)_and_(max-height:680px)]:scale-[.8]">
           <div className="lg:hidden flex items-center gap-3 mb-10 justify-center">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-cyan-500 flex items-center justify-center">
               <Sparkles className="w-5 h-5 text-white" />
@@ -247,16 +249,16 @@ export function LoginPage() {
           </div>
 
           <SpotlightCard
-            className="bg-surface-primary rounded-[24px] shadow-card p-8"
+            className="bg-surface-primary rounded-[24px] shadow-card p-6"
             spotlightColor="rgba(91, 88, 255, 0.15)"
             spotlightSize={320}
           >
-            <div className="text-center mb-8">
+            <div className="text-center mb-5">
               <h2 className="text-2xl font-bold text-neutral-900 mb-2">欢迎回来</h2>
               <p className="text-neutral-500 text-sm">登录您的账号以继续使用</p>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-5">
+            <form onSubmit={handleSubmit} className="space-y-4">
               {error && (
                 <div className="bg-danger/10 text-danger text-sm px-4 py-3 rounded-xl">
                   {error}
@@ -408,9 +410,6 @@ export function LoginPage() {
                   <Eye className="h-4 w-4" />
                   {guestLoading ? '正在进入...' : '访客模式 · 只读浏览'}
                 </button>
-                <p className="mt-2 text-center text-[11px] text-neutral-400">
-                  无需账号，仅可浏览演示数据，不能进行增删改操作
-                </p>
               </div>
             </form>
           </SpotlightCard>
@@ -469,9 +468,9 @@ export function LoginPage() {
             </DialogContent>
           </Dialog>
 
-          <div className="text-center mt-8">
+          <div className="text-center mt-4">
             <DecryptText
-              text="DeepSeek V4 Flash"
+              text="DeepSeek V4.1 Flash 1017"
               className="font-mono text-xs font-semibold tracking-widest text-neutral-400"
               speed={46}
               cycles={6}
@@ -479,7 +478,7 @@ export function LoginPage() {
           </div>
 
           {/* 底部合规信息：ICP备案 · 公安备案 · 举报邮箱 */}
-          <div className="mt-7 flex flex-col items-center gap-1 text-[11px] leading-5 text-neutral-400">
+          <div className="mt-3 flex flex-col items-center gap-1 text-[11px] leading-5 text-neutral-400">
             <a
               href="https://beian.miit.gov.cn/"
               target="_blank"

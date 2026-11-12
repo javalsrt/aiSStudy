@@ -13,6 +13,7 @@ public class TeacherCourseDTO {
     private List<ClazzDTO> classes;
     private String courseType;
     private String description;
+    private String coverUrl; // 课程封面图 URL
     private boolean active;
     private BigDecimal credit; // 课时/学分
     private String teacherName; // 教师姓名（管理员查看时使用）

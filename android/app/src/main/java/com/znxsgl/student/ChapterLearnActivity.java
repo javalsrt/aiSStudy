@@ -1,6 +1,7 @@
 package com.znxsgl.student;
 
 import android.content.SharedPreferences;
+import android.graphics.Color;
 import android.graphics.Typeface;
 import android.os.Bundle;
 import android.os.Handler;
@@ -22,6 +23,7 @@ import com.znxsgl.student.model.Chapter;
 import com.znxsgl.student.model.Lesson;
 import com.znxsgl.student.network.ApiService;
 import com.znxsgl.student.network.RetrofitClient;
+import com.znxsgl.student.widget.G2Drawable;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -74,6 +76,9 @@ public class ChapterLearnActivity extends AppCompatActivity {
         ((TextView) findViewById(R.id.tv_title)).setText(courseName);
         tvProgress = findViewById(R.id.tv_progress);
         rvChapters = findViewById(R.id.rv_chapters);
+        // 章节目录与总进度统一使用 G2 连续曲率圆角
+        rvChapters.setBackground(G2Drawable.solid(this, 0xFFFFFFFF, 0xFFE5E5EA, 1f, 16f));
+        tvProgress.setBackground(G2Drawable.solid(this, 0xFFE5F1FF, Color.TRANSPARENT, 0f, 100f));
         rvChapters.setLayoutManager(new LinearLayoutManager(this));
         adapter = new ChapterAdapter();
         rvChapters.setAdapter(adapter);
@@ -137,7 +142,9 @@ public class ChapterLearnActivity extends AppCompatActivity {
                 if (r.isSuccessful()) {
                     completedIds.add(lesson.getId());
                     btnComplete.setText("✓已完成");
-                    btnComplete.setBackgroundColor(0xFF34C759);
+                    btnComplete.setBackground(G2Drawable.pressed(
+                            ChapterLearnActivity.this, 0xFF34C759,
+                            Color.TRANSPARENT, 0f, 8f, 0x22000000));
                     updateProgress();
                     adapter.notifyDataSetChanged();
                 } else {
@@ -220,44 +227,27 @@ public class ChapterLearnActivity extends AppCompatActivity {
 
         @Override public void onBindViewHolder(@NonNull ChapterVH h, int pos) {
             Chapter ch = chapters.get(pos);
-            h.tvNo.setText("第 " + ch.getChapterNo() + " 章");
-            h.tvTitle.setText(ch.getChapterName());
-            if (ch.getDescription() != null && !ch.getDescription().isEmpty()) {
-                h.tvDesc.setVisibility(View.VISIBLE);
-                h.tvDesc.setText(ch.getDescription());
-            } else {
-                h.tvDesc.setVisibility(View.GONE);
-            }
+            h.tvTitle.setText("第" + ch.getChapterNo() + "章 · " + ch.getChapterName());
 
             int total = ch.getLessons().size();
             int doneCount = 0;
             for (Lesson l : ch.getLessons()) if (completedIds.contains(l.getId())) doneCount++;
-            h.tvProgress.setText("已完成 " + doneCount + "/" + total + " 课时");
-
-            // 章节状态：全部完成 / 进行中 / 未开始
+            // 与 BoardUI tree-view 一致：右侧只保留紧凑的 4/6 进度
+            h.tvProgress.setText(doneCount + "/" + total);
             boolean chapterDone = total > 0 && doneCount == total;
-            boolean chapterStarted = doneCount > 0;
-            h.ivNode.setImageResource(chapterDone
-                    ? R.drawable.circle_node_done
-                    : chapterStarted ? R.drawable.circle_node_current
-                    : R.drawable.circle_node_normal);
-
-            // 时间线配色：绿=已完成流经的线，蓝=当前进行中，灰=未开始
-            final int LINE_DONE = 0xFF34C759;
-            final int LINE_ACTIVE = 0xFF0A84FF;
-            final int LINE_IDLE = 0xFFE5E7EB;
-            // 上线连接上一章：上一章已完成则绿色；第一章无上线
-            boolean prevDone = pos > 0 && isChapterDone(chapters.get(pos - 1));
-            h.lineTop.setBackgroundColor(pos == 0 ? 0x00000000
-                    : prevDone ? LINE_DONE : LINE_IDLE);
-            // 下线表示本章流向下一章的状态
-            h.lineBottom.setBackgroundColor(pos == chapters.size() - 1 ? 0x00000000
-                    : chapterDone ? LINE_DONE
-                    : chapterStarted ? LINE_ACTIVE
-                    : LINE_IDLE);
+            h.tvProgress.setTextColor(chapterDone ? 0xFF34C759 : 0xFF8E8E93);
 
             boolean expanded = expandedPositions.contains(pos);
-            h.tvExpandIcon.setText(expanded ? "▼" : "▶");
+            // 无课时的章不显示展开箭头（保留占位以对齐图标）
+            h.ivChevron.setVisibility(total > 0 ? View.VISIBLE : View.INVISIBLE);
+            h.ivChevron.setRotation(expanded ? 90f : 0f);
+            h.ivIcon.setImageResource(expanded
+                    ? R.drawable.ic_tree_folder_open
+                    : R.drawable.ic_tree_folder);
+            h.llHeader.setBackground(G2Drawable.pressed(
+                    ChapterLearnActivity.this,
+                    expanded ? 0xFFF2F2F7 : Color.TRANSPARENT,
+                    Color.TRANSPARENT, 0f, 12f, 0x12000000));
             h.llLessons.setVisibility(expanded ? View.VISIBLE : View.GONE);
             h.llHeader.setOnClickListener(v -> {
                 if (expandedPositions.contains(pos)) {
@@ -279,17 +269,18 @@ public class ChapterLearnActivity extends AppCompatActivity {
                 Lesson l = shownLessons.get(li);
                 boolean isLastLesson = li == shownLessons.size() - 1;
                 View lv = LayoutInflater.from(h.itemView.getContext()).inflate(R.layout.item_lesson, h.llLessons, false);
-                LinearLayout llCard = lv.findViewById(R.id.ll_lesson_card);
-                TextView tvArrow = lv.findViewById(R.id.tv_lesson_arrow);
+                LinearLayout llHeader = lv.findViewById(R.id.ll_lesson_header);
+                ImageView ivIcon = lv.findViewById(R.id.iv_lesson_icon);
+                ImageView tvArrow = lv.findViewById(R.id.tv_lesson_arrow);
                 ((TextView) lv.findViewById(R.id.tv_lesson_name)).setText(l.getLessonName());
-                // 隐藏"文档"等类型字样
-                lv.findViewById(R.id.tv_lesson_type).setVisibility(View.GONE);
-                // 第一节课时隐藏上方悬空的连线，最后一课时隐藏向下延伸的多余线条
-                lv.findViewById(R.id.line_lesson_top).setVisibility(
-                        li == 0 ? View.INVISIBLE : View.VISIBLE);
+                // 树形引导线：所有叶子都从上方接入，仅最后一个叶子不向下延伸
+                lv.findViewById(R.id.line_lesson_top).setVisibility(View.VISIBLE);
                 lv.findViewById(R.id.line_lesson_bottom).setVisibility(
                         isLastLesson ? View.INVISIBLE : View.VISIBLE);
                 LinearLayout llContentArea = lv.findViewById(R.id.ll_lesson_content_area);
+                // 章节内容卡片：12dp G2 圆角（外层树面板 16dp - 4dp 内边距 = 同心）
+                llContentArea.setBackground(G2Drawable.solid(
+                        ChapterLearnActivity.this, 0xFFFFFFFF, 0xFFE5E5EA, 1f, 12f));
                 TextView btnComplete = lv.findViewById(R.id.btn_complete);
                 LinearLayout llMarkdownContent = lv.findViewById(R.id.ll_markdown_content);
                 if (l.getContent() != null && !l.getContent().isEmpty()) {
@@ -306,20 +297,24 @@ public class ChapterLearnActivity extends AppCompatActivity {
                 if (done) {
                     btnComplete.setVisibility(View.VISIBLE);
                     btnComplete.setText("✓ 已完成");
-                    btnComplete.setBackgroundResource(R.drawable.bg_btn_success);
+                    btnComplete.setBackground(G2Drawable.pressed(
+                            ChapterLearnActivity.this, 0xFF34C759,
+                            Color.TRANSPARENT, 0f, 8f, 0x22000000));
                     btnComplete.setTextColor(0xFFFFFFFF);
                 } else {
                     btnComplete.setVisibility(View.GONE);
                     btnComplete.setText("完成学习");
-                    btnComplete.setBackgroundResource(R.drawable.bg_btn_primary);
+                    btnComplete.setBackground(G2Drawable.pressed(
+                            ChapterLearnActivity.this, 0xFF0A84FF,
+                            Color.TRANSPARENT, 0f, 8f, 0x22000000));
                     btnComplete.setTextColor(0xFFFFFFFF);
                 }
-                // 卡片视觉：箭头方向 + 已完成未展开时浅灰底
+                // 节点视觉：展开时浅灰底 + 箭头翻转，已完成时文件图标变绿
                 Runnable refreshVisual = () -> updateLessonCardVisual(
-                        llCard, tvArrow, done, llContentArea.getVisibility() == View.VISIBLE);
+                        llHeader, ivIcon, tvArrow, done, llContentArea.getVisibility() == View.VISIBLE);
                 refreshVisual.run();
-                // 点击课时行展开/折叠 content
-                lv.setOnClickListener(v -> {
+                // 点击课时行展开/折叠 content（仅标题行触发，阅读内容时不会误收起）
+                llHeader.setOnClickListener(v -> {
                     if (llContentArea.getVisibility() == View.VISIBLE) {
                         llContentArea.setVisibility(View.GONE);
                         Object tag = btnComplete.getTag();
@@ -344,46 +339,32 @@ public class ChapterLearnActivity extends AppCompatActivity {
     }
 
     static class ChapterVH extends RecyclerView.ViewHolder {
-        ImageView ivNode;
-        View lineTop;
-        View lineBottom;
-        TextView tvNo;
+        ImageView ivChevron;
+        ImageView ivIcon;
         TextView tvTitle;
-        TextView tvDesc;
         TextView tvProgress;
-        TextView tvExpandIcon;
         LinearLayout llHeader;
         LinearLayout llLessons;
         ChapterVH(View v) {
             super(v);
-            ivNode = v.findViewById(R.id.iv_chapter_node);
-            lineTop = v.findViewById(R.id.line_top);
-            lineBottom = v.findViewById(R.id.line_bottom);
-            tvNo = v.findViewById(R.id.tv_chapter_no);
+            ivChevron = v.findViewById(R.id.iv_chapter_chevron);
+            ivIcon = v.findViewById(R.id.iv_chapter_icon);
             tvTitle = v.findViewById(R.id.tv_chapter_title);
-            tvDesc = v.findViewById(R.id.tv_chapter_desc);
             tvProgress = v.findViewById(R.id.tv_chapter_progress);
-            tvExpandIcon = v.findViewById(R.id.tv_expand_icon);
             llHeader = v.findViewById(R.id.ll_chapter_header);
             llLessons = v.findViewById(R.id.ll_lessons);
         }
     }
 
-    /** 课时卡片视觉：已完成且未展开 → 浅灰底；箭头随展开方向变化 */
-    private void updateLessonCardVisual(View card, TextView arrow, boolean done, boolean expanded) {
-        card.setBackgroundResource(done && !expanded
-                ? R.drawable.bg_lesson_card_gray
-                : R.drawable.bg_chapter_card);
-        arrow.setText(expanded ? "▲" : "▼");
-    }
-
-    /** 章节课时是否全部完成 */
-    private boolean isChapterDone(Chapter ch) {
-        if (ch == null || ch.getLessons().isEmpty()) return false;
-        for (Lesson l : ch.getLessons()) {
-            if (!completedIds.contains(l.getId())) return false;
-        }
-        return true;
+    /** 叶子节点视觉：展开时浅灰底 + 箭头翻转，已完成时文件图标变绿 */
+    private void updateLessonCardVisual(View header, ImageView icon, ImageView arrow, boolean done, boolean expanded) {
+        header.setBackground(G2Drawable.pressed(
+                this,
+                expanded ? 0xFFF2F2F7 : Color.TRANSPARENT,
+                Color.TRANSPARENT, 0f, 12f, 0x12000000));
+        icon.setImageTintList(android.content.res.ColorStateList.valueOf(
+                done ? 0xFF34C759 : 0xFFC7C7CC));
+        arrow.setRotation(expanded ? 180f : 0f);
     }
 
     private String typeLabel(String type) {
