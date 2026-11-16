@@ -58,4 +58,14 @@ public class ChapterProgressController {
                 "chapterIds", chapterIds,
                 "canQuiz", canQuiz));
     }
+
+    /**
+     * 每门课程最近学习的章节（学习页课程卡片展示用）
+     */
+    @GetMapping("/recent")
+    @PreAuthorize("hasRole('STUDENT') or hasRole('ADMIN')")
+    public ResponseEntity<List<Map<String, Object>>> recent(Authentication auth) {
+        Long userId = (Long) auth.getPrincipal();
+        return ResponseEntity.ok(progressService.getRecentChapterPerCourse(userId));
+    }
 }

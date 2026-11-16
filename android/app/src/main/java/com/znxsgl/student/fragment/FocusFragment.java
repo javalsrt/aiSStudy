@@ -60,10 +60,22 @@ import retrofit2.Response;
 public class FocusFragment extends Fragment {
 
     private TextView tvTimerCorner, tvToday, tvLast;
-    private RecyclerView rvQuizPanels;
+    /** 课程纸卡舞台：默认从左上角往下依次铺开，可自由拖动 */
+    private View paperBoard;
+    /** 课程 id → 纸卡，用于恢复拖动位置与层级 */
+    private final Map<Long, com.znxsgl.student.widget.CoursePaperView> paperCards = new LinkedHashMap<>();
+    /** 纸卡层级：列表末尾显示在最上方（最后拖动的那张） */
+    private final List<Long> paperZOrder = new ArrayList<>();
+    /** 课程 id → 「第X章 名称」；没有学习记录的课程不放，卡片上不显示 */
+    private final Map<Long, String> recentChapterText = new HashMap<>();
+    private long lastRecentChapterAt;
+    /** 本轮卡片还没铺好时置 true，等布局完成后再摆位置 */
+    private boolean paperLayoutPending;
     private View llQuizArea;
     private ViewPager2 viewPagerQuiz;
     private android.widget.ProgressBar quizProgress;
+    private com.znxsgl.student.widget.SegmentedProgressView quizSegments;
+    private TextView tvQuizCounter;
     private Handler handler = new Handler(Looper.getMainLooper());
     private int seconds;
     private boolean running, quizActive;
@@ -76,6 +88,7 @@ public class FocusFragment extends Fragment {
     private static final int MAX_QUESTION_DURATION_SEC = 600;
     private int lastPageIndex = -1;
     private Long latestSessionId;
+    private long currentQuizCourseId; // 本次答题所属课程，报告页据此拉取 BKT 掌握度
     private int quizPollAttempt; // 异步出题轮询次数（上限 90 次 ≈ 3 分钟）
 
     private final List<Object> panelData = new ArrayList<>();
@@ -94,10 +107,29 @@ public class FocusFragment extends Fragment {
             if (backBtn != null) backBtn.setVisibility(View.GONE);
 
             tvTimerCorner = view.findViewById(R.id.tv_timer_corner);
-            rvQuizPanels = view.findViewById(R.id.rv_quiz_panels);
+            paperBoard = view.findViewById(R.id.paper_board);
+            View resetBtn = view.findViewById(R.id.btn_paper_reset);
+            if (resetBtn != null) resetBtn.setOnClickListener(v -> resetPaperLayoutWithAnimation());
+            if (paperBoard != null) {
+                // 缓存数据在首次布局前就渲染时，等测量完成再摆卡片位置
+                paperBoard.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> {
+                    if (paperLayoutPending) applyPaperLayout();
+                });
+            }
             llQuizArea = view.findViewById(R.id.ll_quiz_area);
             viewPagerQuiz = view.findViewById(R.id.viewpager_quiz);
             quizProgress = view.findViewById(R.id.quiz_progress);
+            quizSegments = view.findViewById(R.id.quiz_segments);
+            tvQuizCounter = view.findViewById(R.id.tv_quiz_counter);
+            applySystemBarInsets(view);
+            applyQuizHeaderInset(view);
+            View quizClose = view.findViewById(R.id.btn_quiz_close);
+            if (quizClose != null) quizClose.setOnClickListener(v -> {
+                if (llQuizArea != null) llQuizArea.setVisibility(View.GONE);
+                if (paperBoard != null) paperBoard.setVisibility(View.VISIBLE);
+                setNavVisible(true);
+                setQuizStatusBar(false);
+            });
 
             // ViewPager2 内部的 RecyclerView 默认可获得焦点：软键盘弹起或窗口尺寸变化时，
             // 它会把焦点从解析题/填空题的输入框抢走。焦点不在 EditText 上时，退格键事件
@@ -189,7 +221,7 @@ public class FocusFragment extends Fragment {
             if (valid.isEmpty()) return;
             panelData.clear();
             panelData.addAll(valid);
-            buildPanels();
+            buildCoursePapers();
         } catch (Exception ignored) {
         }
     }
@@ -204,13 +236,14 @@ public class FocusFragment extends Fragment {
     private void loadStudentCourses(View view) {
         // 冷启动先用上次缓存的课程卡片秒开，网络结果回来后再静默更新
         renderCachedCourses();
+        loadRecentChapters(false);
         ApiService api = RetrofitClient.getInstance().create(ApiService.class);
         api.getStudentCourses(token).enqueue(new Callback<List<StudentCourse>>() {
             @Override public void onResponse(Call<List<StudentCourse>> call, Response<List<StudentCourse>> resp) {
                 if (!isAdded()) return;
                 // 请求失败时保留现有卡片，避免切页面时列表突然变空
                 if (!resp.isSuccessful() || resp.body() == null) {
-                    if (panelData.isEmpty()) handler.post(() -> buildPanels());
+                    if (panelData.isEmpty()) handler.post(() -> buildCoursePapers());
                     return;
                 }
                 List<StudentCourse> next = new ArrayList<>();
@@ -245,7 +278,7 @@ public class FocusFragment extends Fragment {
                 panelData.clear();
                 panelData.addAll(next);
                 // 暂时下线「错题解析」「复习加强」入口卡片
-                handler.post(() -> buildPanels());
+                handler.post(() -> buildCoursePapers());
             }
             @Override public void onFailure(Call<List<StudentCourse>> call, Throwable t) {
                 if (!isAdded()) return;
@@ -257,167 +290,304 @@ public class FocusFragment extends Fragment {
                         "班主任工作技能训练","计算机综合实训","安全教育（六）",
                         "形势与政策"};
                 for (String d : def) panelData.add(d);
-                handler.post(() -> buildPanels());
+                handler.post(() -> buildCoursePapers());
             }
         });
     }
 
-    private void buildPanels() {
-        if (rvQuizPanels == null) return;
-        int panelSize = (getResources().getDisplayMetrics().widthPixels - dp(44)) / 2;
+    /** 学习页最多展示的课程纸卡数量 */
+    private static final int MAX_PAPERS = 16;
 
-        rvQuizPanels.setLayoutManager(new GridLayoutManager(getContext(), 2));
-        // 交错排列的卡片会上下错位，需要允许绘制到边界外
-        rvQuizPanels.setClipChildren(false);
-        rvQuizPanels.setClipToPadding(false);
-        rvQuizPanels.setAdapter(new RecyclerView.Adapter<PanelVH>() {
-            @NonNull @Override
-            public PanelVH onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-                View v = LayoutInflater.from(parent.getContext())
-                        .inflate(R.layout.item_quiz_panel, parent, false);
-                // 设置为正方形
-                GridLayoutManager.LayoutParams lp = new GridLayoutManager.LayoutParams(panelSize, panelSize);
-                // 右下角间距统一 12dp（与列间距一致），卡片网格整齐紧凑
-                lp.setMargins(0, 0, viewType == 0 ? dp(12) : 0, dp(12));
-                v.setLayoutParams(lp);
-                return new PanelVH(v);
-            }
-            @Override public void onBindViewHolder(@NonNull PanelVH h, int pos) {
-                Object item = panelData.get(pos);
-                final String name;
-                boolean isCourse = item instanceof StudentCourse;
-                long courseId = 0;
-                if (isCourse) {
-                    StudentCourse c = (StudentCourse) item;
-                    name = c.getCourseName();
-                    courseId = c.getCourseId();
-                } else {
-                    name = (String) item;
-                }
-                h.tvName.setText(name);
-                String sub;
-                if (isCourse) {
-                    StudentCourse c = (StudentCourse) item;
-                    sub = (c.getTeacherName() != null && !c.getTeacherName().isEmpty())
-                            ? c.getTeacherName() : "章节练习 · 巩固提升";
-                } else if ("复习加强".equals(name)) {
-                    sub = "重点知识巩固提升";
-                } else {
-                    sub = "错题回顾 · 查漏补缺";
-                }
-                h.tvSub.setText(sub);
-                h.tvBig.setText(name.isEmpty() ? "学" : String.valueOf(name.charAt(0)));
+    /** 学习页：把所有课程渲染成可自由拖动的纸质卡片，默认从左上角往下依次铺开 */
+    private void buildCoursePapers() {
+        if (!(paperBoard instanceof ViewGroup)) return;
+        ViewGroup board = (ViewGroup) paperBoard;
+        board.removeAllViews();
+        paperCards.clear();
+        int n = Math.min(panelData.size(), MAX_PAPERS);
+        if (n == 0) return;
+        int cardW = defaultCardW();
+        int cardH = defaultCardH(cardW);
+        for (int i = 0; i < n; i++) {
+            Object item = panelData.get(i);
+            com.znxsgl.student.widget.CoursePaperView card =
+                    new com.znxsgl.student.widget.CoursePaperView(requireContext());
+            String name = item instanceof StudentCourse
+                    ? ((StudentCourse) item).getCourseName() : String.valueOf(item);
+            String teacher = item instanceof StudentCourse
+                    ? ((StudentCourse) item).getTeacherName() : "";
+            long paperId = paperIdOf(item, i);
+            card.bind(item, name, teacher);
+            card.setRecentChapter(recentChapterText.get(paperId));
+            card.setOnOpenListener(this::openCourseCard);
+            card.setOnMovedListener(this::onPaperMoved);
+            android.widget.FrameLayout.LayoutParams lp =
+                    new android.widget.FrameLayout.LayoutParams(cardW, cardH, Gravity.CENTER);
+            board.addView(card, lp);
+            paperCards.put(paperId, card);
+            card.setRotation(0f);
+            card.setRestElevation(dp(6));
+        }
+        paperLayoutPending = true;
+        applyPaperLayout();
+    }
 
-                // ===== 柔和分层卡片：主色 + 属性标签 + 错落排列 =====
-                // 每个 2×2 区块用四种不同颜色（左上粉 / 右上绿 / 左下蓝 / 右下橙）
-                int rowIdx = pos / 2;
-                int colIdx = pos % 2;
-                int color = PANEL_COLORS[(rowIdx % 2) * 2 + colIdx];
-                stylePanel(h, color);
-                if (isCourse) {
-                    StudentCourse c = (StudentCourse) item;
-                    String t = (c.getTeacherName() != null && !c.getTeacherName().isEmpty())
-                            ? c.getTeacherName() : "在线课程";
-                    h.tvMeta.setText(t + " | 章节学习 | 随时练");
-                } else if ("复习加强".equals(name)) {
-                    h.tvMeta.setText("重点巩固 | 错题回顾");
-                } else {
-                    h.tvMeta.setText("错题解析 | 薄弱点定位");
-                }
-                // 取消错落浮动：上下浮动会撑大行间距，改为整齐排列
-                h.itemView.setTranslationY(0);
-                if (isCourse) {
-                    final long cid = courseId;
-                    boolean hasChapters = ((StudentCourse) item).isHasChapters();
-                    // 新版卡片：章节入口 = 点击卡片本体；白胶囊按钮只承担「开始」
-                    h.btnChapter.setVisibility(View.GONE);
-                    h.btnAction.setVisibility(hasChapters ? View.VISIBLE : View.GONE);
-                    h.btnAction.setText("开始");
-                    if (hasChapters) {
-                        // 点击卡片主体或「章节」按钮 → 章节学习；点击「开始」按钮 → 开始刷题
-                        View.OnClickListener toChapter = v -> startActivity(
-                                new Intent(getContext(), ChapterLearnActivity.class)
-                                        .putExtra("courseId", cid).putExtra("courseName", name));
-                        h.itemView.setOnClickListener(toChapter);
-                        h.btnChapter.setOnClickListener(toChapter);
-                        h.btnAction.setOnClickListener(v -> showStartConfirm(name, cid));
-                    } else {
-                        h.itemView.setOnClickListener(null);
+    private static long paperIdOf(Object item, int index) {
+        if (item instanceof StudentCourse) return ((StudentCourse) item).getCourseId();
+        return -(index + 1L);
+    }
+
+    /** 纸卡的默认尺寸（用户长按角改过大小后，以保存的尺寸为准） */
+    private int defaultCardW() {
+        int screenW = getResources().getDisplayMetrics().widthPixels;
+        return Math.min(dp(228), screenW - dp(100));
+    }
+
+    private int defaultCardH(int cardW) {
+        return Math.round(cardW * 0.74f);
+    }
+
+    /** 拉取每门课程最近学习的章节；短时间内不重复请求 */
+    private void loadRecentChapters(boolean force) {
+        if (!isAdded()) return;
+        long now = System.currentTimeMillis();
+        if (!force && now - lastRecentChapterAt < 10_000) return;
+        lastRecentChapterAt = now;
+        ApiService api = RetrofitClient.getInstance().create(ApiService.class);
+        api.getRecentChapters(token).enqueue(new Callback<List<Map<String, Object>>>() {
+            @Override public void onResponse(Call<List<Map<String, Object>>> call,
+                                             Response<List<Map<String, Object>>> resp) {
+                if (!isAdded() || !resp.isSuccessful() || resp.body() == null) return;
+                recentChapterText.clear();
+                for (Map<String, Object> row : resp.body()) {
+                    try {
+                        Object cid = row.get("courseId");
+                        Object nameObj = row.get("chapterName");
+                        if (!(cid instanceof Number) || nameObj == null) continue;
+                        String name = String.valueOf(nameObj);
+                        if (name.isEmpty()) continue;
+                        Object no = row.get("chapterNo");
+                        int chapterNo = no instanceof Number ? ((Number) no).intValue() : 0;
+                        recentChapterText.put(((Number) cid).longValue(),
+                                chapterNo > 0 ? "第" + chapterNo + "章 " + name : name);
+                    } catch (Exception ignored) {
                     }
-                } else {
-                    h.btnChapter.setVisibility(View.GONE);
-                    h.btnAction.setVisibility(View.VISIBLE);
-                    h.btnAction.setText("复习加强".equals(name) ? "进入复习" : "去解析");
-                    h.itemView.setOnClickListener(v -> {
-                        if ("复习加强".equals(name)) {
-                            startActivity(new Intent(getContext(), com.znxsgl.student.ReviewActivity.class));
-                        } else if ("错题解析".equals(name)) {
-                            showWrongAnalysis();
-                        }
-                    });
-                    h.btnAction.setOnClickListener(v -> h.itemView.performClick());
                 }
+                applyRecentChaptersToCards();
             }
-            @Override public int getItemCount() { return panelData.size(); }
-            @Override public int getItemViewType(int pos) { return pos % 2; } // 0=左边(有margin), 1=右边(无margin)
+            @Override public void onFailure(Call<List<Map<String, Object>>> call, Throwable t) {
+            }
         });
     }
 
-    static class PanelVH extends RecyclerView.ViewHolder {
-        TextView tvName, tvSub, tvBig, tvMeta, btnChapter, btnAction;
-        View sheetBack, cardMain, metaStrip;
-        PanelVH(View v) { super(v);
-            tvName = v.findViewById(R.id.tv_name);
-            tvSub = v.findViewById(R.id.tv_sub);
-            tvBig = v.findViewById(R.id.tv_big);
-            tvMeta = v.findViewById(R.id.tv_meta);
-            btnChapter = v.findViewById(R.id.btn_chapter);
-            btnAction = v.findViewById(R.id.btn_action);
-            sheetBack = v.findViewById(R.id.sheet_back);
-            cardMain = v.findViewById(R.id.card_main);
-            metaStrip = v.findViewById(R.id.ll_meta_strip);
+    /** 把最近章节文字刷到已有卡片上（不重建卡片，保留拖动位置） */
+    private void applyRecentChaptersToCards() {
+        for (Map.Entry<Long, com.znxsgl.student.widget.CoursePaperView> e : paperCards.entrySet()) {
+            e.getValue().setRecentChapter(recentChapterText.get(e.getKey()));
         }
     }
 
-    /** 卡片主色：饱和考试卡配色（红/绿/蓝/橙），按 2×2 区块循环 */
-    private static final int[] PANEL_COLORS = {
-            0xFFF0696B, // 珊瑚红
-            0xFF41B189, // 石绿
-            0xFF5B7BD5, // 靛蓝
-            0xFFE8834F  // 暖橙
-    };
-
-    /** 套用卡片主色：主色卡 + 右侧浅色错层纸片 + 底部深色信息条 + 白色胶囊按钮 */
-    private void stylePanel(PanelVH h, int color) {
-        // 主卡片：饱和纯色 + 14dp 圆角
-        android.graphics.drawable.GradientDrawable card = new android.graphics.drawable.GradientDrawable();
-        card.setColor(color);
-        card.setCornerRadius(dp(14));
-        h.cardMain.setBackground(card);
-
-        // 背后纸片：主色混白 55%，右侧露出一条浅色边
-        android.graphics.drawable.GradientDrawable back = new android.graphics.drawable.GradientDrawable();
-        back.setColor(androidx.core.graphics.ColorUtils.blendARGB(color, android.graphics.Color.WHITE, 0.55f));
-        back.setCornerRadius(dp(14));
-        h.sheetBack.setBackground(back);
-
-        // 底部信息条：主色压深 14%，底部圆角与卡片一致、顶部平角
-        android.graphics.drawable.GradientDrawable strip = new android.graphics.drawable.GradientDrawable();
-        strip.setColor(androidx.core.graphics.ColorUtils.blendARGB(color, android.graphics.Color.BLACK, 0.14f));
-        float r = dp(14);
-        strip.setCornerRadii(new float[]{0, 0, 0, 0, r, r, r, r});
-        h.metaStrip.setBackground(strip);
-
-        // 开始按钮：白色胶囊 + 深一档主色文字
-        h.btnAction.setTextColor(darken(color, 0.62f));
+    /** 每个账号单独保存卡片位置与层级，换账号互不影响 */
+    private String paperPosKey() {
+        return "paper_pos_" + Integer.toHexString(token == null ? 0 : token.hashCode());
     }
 
-    /** 与黑色混合，得到同色系更深的一档 */
-    private int darken(int color, float ratio) {
-        int r = (int) (((color >> 16) & 0xFF) * ratio);
-        int g = (int) (((color >> 8) & 0xFF) * ratio);
-        int b = (int) ((color & 0xFF) * ratio);
-        return 0xFF000000 | (r << 16) | (g << 8) | b;
+    private String paperZKey() {
+        return "paper_z_" + Integer.toHexString(token == null ? 0 : token.hashCode());
+    }
+
+    /** 按保存的位置铺卡片；没保存过的卡片从左上角往下依次铺开，保证每个课程名都露出来 */
+    private void applyPaperLayout() {
+        if (!paperLayoutPending || !(paperBoard instanceof ViewGroup)) return;
+        ViewGroup board = (ViewGroup) paperBoard;
+        if (board.getWidth() <= 0 || paperCards.isEmpty()) return; // 等布局完成后再摆
+        int contentW = board.getWidth() - board.getPaddingLeft() - board.getPaddingRight();
+        int contentH = board.getHeight() - board.getPaddingTop() - board.getPaddingBottom();
+        if (contentW <= 0 || contentH <= 0) return;
+        paperLayoutPending = false;
+
+        int defW = defaultCardW(), defH = defaultCardH(defW);
+        int n = paperCards.size();
+        int step = defaultStep(n, contentH, defH);
+        float baseX = -(contentW - defW) / 2f;
+        float baseY = -(contentH - defH) / 2f;
+
+        Map<Long, float[]> saved = loadSavedPaperPositions();
+
+        // 层级：保存的顺序在前（末尾在最上层），新课程按默认顺序补在后面。
+        // 没有有效的位置记录时（首次使用或旧格式已被丢弃），层级也回到默认顺序
+        paperZOrder.clear();
+        if (!saved.isEmpty()) {
+            for (Long id : loadSavedPaperOrder()) {
+                if (paperCards.containsKey(id) && !paperZOrder.contains(id)) paperZOrder.add(id);
+            }
+        }
+        for (Long id : paperCards.keySet()) {
+            if (!paperZOrder.contains(id)) paperZOrder.add(id);
+        }
+
+        int i = 0;
+        for (Long id : paperCards.keySet()) {
+            com.znxsgl.student.widget.CoursePaperView card = paperCards.get(id);
+            float[] pos = saved.get(id);
+            // 长按角改过大小的卡片：恢复保存的宽高
+            int w = defW, h = defH;
+            if (pos != null && pos.length >= 4) {
+                w = Math.max(dp(112), Math.round(pos[2]));
+                h = Math.max(dp(84), Math.round(pos[3]));
+            }
+            ViewGroup.LayoutParams lp = card.getLayoutParams();
+            if (lp != null && (lp.width != w || lp.height != h)) {
+                lp.width = w;
+                lp.height = h;
+                card.setLayoutParams(lp);
+            }
+            if (pos != null) {
+                card.setTranslationX(pos[0]);
+                card.setTranslationY(pos[1]);
+            } else {
+                card.setTranslationX(baseX);
+                card.setTranslationY(baseY + i * step);
+            }
+            card.setRotation(0f);
+            i++;
+        }
+        applyZOrder();
+    }
+
+    /** 默认铺开的纵向步长：既让每个课程名露出来，又保证所有卡片都落在可视区域内 */
+    private int defaultStep(int n, int contentH, int cardH) {
+        if (n <= 1) return 0;
+        return Math.max(dp(30), Math.min(dp(46), (contentH - cardH - dp(8)) / (n - 1)));
+    }
+
+    /** 按 paperZOrder 重排层级：越靠后越在上层 */
+    private void applyZOrder() {
+        float density = getResources().getDisplayMetrics().density;
+        for (int idx = 0; idx < paperZOrder.size(); idx++) {
+            com.znxsgl.student.widget.CoursePaperView card = paperCards.get(paperZOrder.get(idx));
+            if (card == null) continue;
+            card.bringToFront();
+            card.setRestElevation(dp(6) + idx * 0.7f * density);
+        }
+    }
+
+    /** 拖动结束：这张卡置顶，并记住所有卡片的当前位置与层级 */
+    private void onPaperMoved(com.znxsgl.student.widget.CoursePaperView card) {
+        Long id = null;
+        for (Map.Entry<Long, com.znxsgl.student.widget.CoursePaperView> e : paperCards.entrySet()) {
+            if (e.getValue() == card) { id = e.getKey(); break; }
+        }
+        if (id == null) return;
+        paperZOrder.remove(id);
+        paperZOrder.add(id);
+        applyZOrder();
+        savePaperState();
+    }
+
+    private void savePaperState() {
+        if (prefs == null || paperCards.isEmpty()) return;
+        try {
+            JSONObject pos = new JSONObject();
+            for (Map.Entry<Long, com.znxsgl.student.widget.CoursePaperView> e : paperCards.entrySet()) {
+                com.znxsgl.student.widget.CoursePaperView c = e.getValue();
+                ViewGroup.LayoutParams lp = c.getLayoutParams();
+                org.json.JSONArray a = new org.json.JSONArray();
+                a.put(c.getTranslationX());
+                a.put(c.getTranslationY());
+                a.put(lp != null ? lp.width : c.getWidth());
+                a.put(lp != null ? lp.height : c.getHeight());
+                pos.put(String.valueOf(e.getKey()), a);
+            }
+            org.json.JSONArray z = new org.json.JSONArray();
+            for (Long id : paperZOrder) z.put((long) id);
+            prefs.edit()
+                    .putString(paperPosKey(), pos.toString())
+                    .putString(paperZKey(), z.toString())
+                    .apply();
+        } catch (Exception ignored) {
+        }
+    }
+
+    private Map<Long, float[]> loadSavedPaperPositions() {
+        Map<Long, float[]> map = new HashMap<>();
+        if (prefs == null) return map;
+        try {
+            JSONObject obj = new JSONObject(prefs.getString(paperPosKey(), "{}"));
+            java.util.Iterator<String> keys = obj.keys();
+            while (keys.hasNext()) {
+                String k = keys.next();
+                org.json.JSONArray a = obj.optJSONArray(k);
+                // 旧版本只保存了坐标、没有宽高，是旧布局规则下的数据，直接丢弃
+                if (a == null || a.length() < 4) continue;
+                float[] v = new float[a.length()];
+                for (int idx = 0; idx < a.length(); idx++) v[idx] = (float) a.optDouble(idx);
+                map.put(Long.parseLong(k), v);
+            }
+        } catch (Exception ignored) {
+        }
+        return map;
+    }
+
+    private List<Long> loadSavedPaperOrder() {
+        List<Long> list = new ArrayList<>();
+        if (prefs == null) return list;
+        try {
+            org.json.JSONArray a = new org.json.JSONArray(prefs.getString(paperZKey(), "[]"));
+            for (int i = 0; i < a.length(); i++) list.add(a.optLong(i));
+        } catch (Exception ignored) {
+        }
+        return list;
+    }
+
+    /** 右上角「+」：清掉用户摆放，所有卡片错峰飞回左上角依次铺开 */
+    private void resetPaperLayoutWithAnimation() {
+        if (!(paperBoard instanceof ViewGroup) || paperCards.isEmpty()) return;
+        ViewGroup board = (ViewGroup) paperBoard;
+        if (prefs != null) prefs.edit().remove(paperPosKey()).remove(paperZKey()).apply();
+        paperZOrder.clear();
+        paperZOrder.addAll(paperCards.keySet());
+
+        int contentW = board.getWidth() - board.getPaddingLeft() - board.getPaddingRight();
+        int contentH = board.getHeight() - board.getPaddingTop() - board.getPaddingBottom();
+        if (contentW <= 0 || contentH <= 0) return;
+        int defW = defaultCardW(), defH = defaultCardH(defW);
+        int n = paperZOrder.size();
+        int step = defaultStep(n, contentH, defH);
+        float baseX = -(contentW - defW) / 2f;
+        float baseY = -(contentH - defH) / 2f;
+
+        float density = getResources().getDisplayMetrics().density;
+        for (int i = 0; i < n; i++) {
+            com.znxsgl.student.widget.CoursePaperView card = paperCards.get(paperZOrder.get(i));
+            if (card == null) continue;
+            // 顺手把长按角改过的尺寸恢复默认
+            ViewGroup.LayoutParams lp = card.getLayoutParams();
+            if (lp != null && (lp.width != defW || lp.height != defH)) {
+                lp.width = defW;
+                lp.height = defH;
+                card.setLayoutParams(lp);
+            }
+            card.bringToFront();
+            card.setRestElevation(dp(6) + i * 0.7f * density);
+            card.animate()
+                    .translationX(baseX)
+                    .translationY(baseY + i * step)
+                    .rotation(0f)
+                    .setDuration(420)
+                    .setStartDelay(i * 16L)
+                    .setInterpolator(new android.view.animation.DecelerateInterpolator(1.6f))
+                    .start();
+        }
+    }
+
+    /** 点课程纸卡：直接进入该课程的章节 */
+    private void openCourseCard(Object item) {
+        if (!(item instanceof StudentCourse) || getContext() == null) return;
+        StudentCourse c = (StudentCourse) item;
+        startActivity(new Intent(getContext(), ChapterLearnActivity.class)
+                .putExtra("courseId", c.getCourseId())
+                .putExtra("courseName", c.getCourseName()));
     }
 
     private int dp(int val) {
@@ -467,6 +637,7 @@ public class FocusFragment extends Fragment {
             showWrongAnalysis();
             return;
         }
+        currentQuizCourseId = courseId;
         com.znxsgl.student.dialog.FullscreenLoaderDialog loading =
                 new com.znxsgl.student.dialog.FullscreenLoaderDialog(requireContext(),
                         com.znxsgl.student.dialog.FullscreenLoaderDialog.LoaderType.RARE_COW);
@@ -562,8 +733,9 @@ public class FocusFragment extends Fragment {
             // 重置到第1题：ViewPager2会保留上次测评停留的位置，不重置会导致新测试直接显示旧页（如第15题）
             if (viewPagerQuiz != null) viewPagerQuiz.setCurrentItem(0, false);
             updateQuizProgress(0);
-            if (rvQuizPanels != null) rvQuizPanels.setVisibility(View.GONE);
+            if (paperBoard != null) paperBoard.setVisibility(View.GONE);
             llQuizArea.setVisibility(View.VISIBLE);
+            setQuizStatusBar(true);
             setNavVisible(false);   // 全屏答题：隐藏悬浮导航
             lastPageIndex=0; lastPageEntryTime=SystemClock.elapsedRealtime();
             quizActive = true;
@@ -572,11 +744,67 @@ public class FocusFragment extends Fragment {
 
     // ===== 采集 + 提交 =====
 
-    /** 更新顶部答题进度条（按当前题号百分比） */
+    /** 答题页是白底，状态栏跟随白色；退出答题恢复透明（露出整页虹彩背景） */
+    private void setQuizStatusBar(boolean quiz) {
+        if (getActivity() == null) return;
+        android.view.Window window = getActivity().getWindow();
+        window.setStatusBarColor(quiz ? 0xFFFFFFFF : android.graphics.Color.TRANSPARENT);
+        androidx.core.view.WindowCompat.getInsetsController(window, window.getDecorView())
+                .setAppearanceLightStatusBars(quiz);
+        androidx.core.view.WindowCompat.getInsetsController(window, window.getDecorView())
+                .setAppearanceLightNavigationBars(quiz);
+    }
+
+    /** 背景是全屏的，内容区补回状态栏与系统导航栏的高度 */
+    private void applySystemBarInsets(View root) {
+        int navBar = systemBarHeight("navigation_bar_height");
+        if (paperBoard != null) {
+            paperBoard.setPadding(paperBoard.getPaddingLeft(),
+                    paperBoard.getPaddingTop() + systemBarHeight("status_bar_height"),
+                    paperBoard.getPaddingRight(),
+                    paperBoard.getPaddingBottom() + navBar);
+        }
+        View submitBar = root.findViewById(R.id.quiz_submit_bar);
+        if (submitBar != null) {
+            submitBar.setPadding(submitBar.getPaddingLeft(), submitBar.getPaddingTop(),
+                    submitBar.getPaddingRight(), submitBar.getPaddingBottom() + navBar);
+        }
+        // 「+」按钮贴在状态栏下方右侧
+        View resetBtn = root.findViewById(R.id.btn_paper_reset);
+        if (resetBtn != null && resetBtn.getLayoutParams() instanceof FrameLayout.LayoutParams) {
+            FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) resetBtn.getLayoutParams();
+            lp.topMargin = systemBarHeight("status_bar_height") + dp(8);
+            resetBtn.setLayoutParams(lp);
+        }
+    }
+
+    private int systemBarHeight(String name) {
+        int id = getResources().getIdentifier(name, "dimen", "android");
+        return id > 0 ? getResources().getDimensionPixelSize(id) : 0;
+    }
+
+    /** 更新顶部答题进度：分段进度条 + 题号（旧细线进度条保留同步） */
     private void updateQuizProgress(int pos) {
-        if (quizProgress == null) return;
         int total = quizQuestions.size();
-        quizProgress.setProgress(total <= 0 ? 0 : (int) (((pos + 1) * 100f) / total));
+        if (quizSegments != null) quizSegments.setProgress(pos, total);
+        if (tvQuizCounter != null) {
+            tvQuizCounter.setText((pos + 1) + "/" + Math.max(total, 1));
+        }
+        if (quizProgress != null) {
+            quizProgress.setProgress(total <= 0 ? 0 : (int) (((pos + 1) * 100f) / total));
+        }
+    }
+
+    /** 顶部栏补状态栏高度，避免分段进度条被状态栏遮住 */
+    private void applyQuizHeaderInset(View root) {
+        View header = root.findViewById(R.id.quiz_header);
+        if (header == null) return;
+        int statusBar = 0;
+        int id = getResources().getIdentifier("status_bar_height", "dimen", "android");
+        if (id > 0) statusBar = getResources().getDimensionPixelSize(id);
+        float density = getResources().getDisplayMetrics().density;
+        int top = statusBar + (int) (6 * density);
+        header.setPadding(header.getPaddingLeft(), top, header.getPaddingRight(), (int) (6 * density));
     }
 
     private void collectAndSubmit() {
@@ -635,9 +863,10 @@ public class FocusFragment extends Fragment {
                     int total = quizQuestions.size();
                     quizQuestions.clear(); quizAdapter.notifyDataSetChanged();
                     llQuizArea.setVisibility(View.GONE);
-                    if (rvQuizPanels != null) rvQuizPanels.setVisibility(View.VISIBLE);
+                    if (paperBoard != null) paperBoard.setVisibility(View.VISIBLE);
                     setNavVisible(true);
                     quizActive = false;
+                    setQuizStatusBar(false);
                     if (r.isSuccessful() && r.body() != null) {
                         startQuizResult(r.body(), total);
                     } else {
@@ -651,9 +880,10 @@ public class FocusFragment extends Fragment {
                     pd.dismiss();
                     quizQuestions.clear(); quizAdapter.notifyDataSetChanged();
                     llQuizArea.setVisibility(View.GONE);
-                    if (rvQuizPanels != null) rvQuizPanels.setVisibility(View.VISIBLE);
+                    if (paperBoard != null) paperBoard.setVisibility(View.VISIBLE);
                     setNavVisible(true);
                     quizActive = false;
+                    setQuizStatusBar(false);
                     Toast.makeText(RetrofitClient.safeContext(getContext()),"提交失败：" + UiMsg.network(t), Toast.LENGTH_SHORT).show();
                 });
             }
@@ -671,6 +901,8 @@ public class FocusFragment extends Fragment {
         it.putExtra("skipCount", skip);
         it.putExtra("totalQuestions", totalQuestions);
         it.putExtra("totalDurationSec", duration);
+        it.putExtra("courseId", currentQuizCourseId);
+        it.putExtra("sessionId", latestSessionId != null ? latestSessionId : 0L);
 
         Object s = data.get("suggestion");
         it.putExtra("suggestion", s != null ? s.toString() : "");
@@ -752,7 +984,7 @@ public class FocusFragment extends Fragment {
         quizQuestions.clear();
         if (quizAdapter != null) quizAdapter.notifyDataSetChanged();
         if (llQuizArea != null) llQuizArea.setVisibility(View.GONE);
-        if (rvQuizPanels != null) rvQuizPanels.setVisibility(View.VISIBLE);
+        if (paperBoard != null) paperBoard.setVisibility(View.VISIBLE);
         setNavVisible(true);
     }
 
@@ -1161,10 +1393,22 @@ public class FocusFragment extends Fragment {
         super.onResume();
         // 从后台切回前台时刷新课程列表（30 秒内复用缓存）
         loadCoursesThrottled();
+        // 从章节页返回后刷新「最近学习」文字
+        loadRecentChapters(false);
         if (!quizActive && (llQuizArea==null||llQuizArea.getVisibility()!=View.VISIBLE))
             handler.postDelayed(this::autoStart, 3000);
     }
     @Override public void onPause() { super.onPause(); if(!quizActive) stopAndSave(); }
+
+    @Override
+    public void onDestroyView() {
+        paperBoard = null;
+        paperCards.clear();
+        paperZOrder.clear();
+        paperLayoutPending = false;
+        handler.removeCallbacksAndMessages(null);
+        super.onDestroyView();
+    }
 
     private void autoStart() {
         if (running) return;

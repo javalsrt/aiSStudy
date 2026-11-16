@@ -10,17 +10,17 @@
         android:icon="@drawable/ic_ai"
         android:title="AI 助手" />
     <!--
-      调试期：用「测试」页临时替换「资讯」页（Material 底部导航最多 5 项，不能两者同时存在）。
-      样式开发完成后恢复资讯：把下方 nav_test 整段注释掉，放开这段 nav_news 即可。
+      恢复「咨询」页（原「资讯」页，内容为职教政策与资讯）。
+      「测试」页保留代码作为样式样板，但不再挂到底部导航。
     -->
-    <!--
     <item android:id="@+id/nav_news"
         android:icon="@drawable/ic_news"
-        android:title="资讯" />
-    -->
+        android:title="咨询" />
+    <!--
     <item android:id="@+id/nav_test"
         android:icon="@drawable/ic_test"
         android:title="测试" />
+    -->
     <item android:id="@+id/nav_profile"
         android:icon="@drawable/ic_profile"
         android:title="我的" />

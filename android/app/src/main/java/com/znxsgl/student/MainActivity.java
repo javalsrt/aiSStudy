@@ -26,6 +26,7 @@ import com.google.android.material.badge.BadgeDrawable;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.znxsgl.student.fragment.AiAssistantFragment;
 import com.znxsgl.student.fragment.FocusFragment;
+import com.znxsgl.student.fragment.NewsFragment;
 import com.znxsgl.student.fragment.ScheduleFragment;
 import com.znxsgl.student.fragment.ProfileFragment;
 import com.znxsgl.student.fragment.TestFragment;
@@ -51,7 +52,7 @@ public class MainActivity extends AppCompatActivity {
     private Fragment currentFragment;
     private FocusFragment focusFragment;
     private BottomNavigationView bottomNav;
-    /** 底部导航的毛玻璃底（随导航一起显示/隐藏） */
+    /** 底部导航的半透明玻璃底（随导航一起显示/隐藏） */
     private GlassNavBackgroundView navGlass;
     /** 当前页面是否开启沉浸式（内容画到系统栏下方） */
     private boolean edgeToEdgeLayout;
@@ -399,8 +400,6 @@ public class MainActivity extends AppCompatActivity {
             if (navGlass != null) {
                 navGlass.setVisibility(android.view.View.VISIBLE);
                 navGlass.animate().alpha(1f).setDuration(180L).start();
-                // 隐藏期间页面可能已滚动，重新截取毛玻璃底图
-                navGlass.refresh();
             }
         } else {
             bottomNav.animate().alpha(0f).setDuration(180L)
@@ -571,7 +570,8 @@ public class MainActivity extends AppCompatActivity {
     /**
      * 按目标页面套用窗口外观：状态栏配色 + 内容是否延伸到状态栏下方。
      *
-     * <p>沉浸式（内容画到状态栏下）只给「测试」页开：它的顶部渐变要从屏幕最顶端铺开。
+     * <p>沉浸式（内容画到状态栏下）目前没有页签使用；保留这段逻辑给测试页/后续需要
+     * 全屏渐变的页面。
      * 这里必须逐页显式开关——本项目切页用的是 show/hide，被隐藏的 Fragment 不会走
      * onPause，靠 Fragment 自己恢复的话，只要进过一次「测试」页，
      * setDecorFitsSystemWindows(false) 就会一直生效，其他页面顶部全被状态栏压住。
@@ -579,8 +579,11 @@ public class MainActivity extends AppCompatActivity {
      * <p>AI 助手页不走沉浸式：状态栏取渐变顶边同色（aurora_top）与其无缝衔接。
      */
     private void applyStatusBarFor(Fragment fragment) {
-        boolean edgeToEdge = fragment instanceof TestFragment;
+        // 学习页背景要铺满整页（含状态栏与底部系统栏），所以也走沉浸式
+        boolean edgeToEdge = fragment instanceof TestFragment || fragment instanceof FocusFragment;
         boolean auroraTop = fragment instanceof AiAssistantFragment;
+        // 学习页改为浅色点场背景，状态栏/导航栏统一使用深色图标
+        boolean lightBarsOnDark = false;
 
         edgeToEdgeLayout = edgeToEdge;
         // 沉浸式才让胶囊避开导航栏高度；普通页面立刻退回 16dp，不能等下一次 inset 下发
@@ -602,11 +605,11 @@ public class MainActivity extends AppCompatActivity {
         }
 
         getWindow().setStatusBarColor(statusBarColor);
-        getWindow().setNavigationBarColor(0xFFF2F2F7);
+        getWindow().setNavigationBarColor(edgeToEdge ? Color.TRANSPARENT : 0xFFF2F2F7);
         WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView())
-                .setAppearanceLightStatusBars(true);
+                .setAppearanceLightStatusBars(!lightBarsOnDark);
         WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView())
-                .setAppearanceLightNavigationBars(true);
+                .setAppearanceLightNavigationBars(!lightBarsOnDark);
     }
 
     private Fragment getFragmentById(int id) {
@@ -617,7 +620,7 @@ public class MainActivity extends AppCompatActivity {
         Fragment fragment;
         if (id == R.id.nav_schedule) fragment = new ScheduleFragment();
         else if (id == R.id.nav_profile) fragment = new ProfileFragment();
-        else if (id == R.id.nav_test) fragment = new TestFragment();
+        else if (id == R.id.nav_news) fragment = new NewsFragment();
         else if (id == R.id.nav_ai) fragment = new AiAssistantFragment();
         else {
             if (focusFragment == null) focusFragment = new FocusFragment();
@@ -643,10 +646,8 @@ public class MainActivity extends AppCompatActivity {
         if (currentFragment != null) {
             transaction.hide(currentFragment);
         }
-        transaction.commit();
+        transaction.commitNow();
         currentFragment = fragment;
-        // 切换动画结束后重新截取导航背后的内容，避免毛玻璃底残留上一页画面
-        if (navGlass != null) navGlass.postDelayed(navGlass::refresh, 320L);
         // 跟踪 FocusFragment
         if (fragment instanceof FocusFragment) focusFragment = (FocusFragment) fragment;
     }

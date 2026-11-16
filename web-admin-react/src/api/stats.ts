@@ -12,6 +12,102 @@ import type {
   QuizReportDetail,
 } from '@/types'
 
+// ===== BKT 学情追踪 =====
+
+export type MasteryStudent = {
+  userId: number
+  name: string
+  mastery: number
+  attempts: number
+  weakCount: number
+  evidence: 'enough' | 'low'
+}
+
+export type MasteryKnowledge = {
+  knowledgeId: number
+  name: string
+  mastery: number
+  attempts: number
+  correct: number
+}
+
+export type MasteryDetail = {
+  userId: number
+  courseId: number
+  mastery: number
+  attempts: number
+  weakCount: number
+  knowledge: MasteryKnowledge[]
+}
+
+export type MasteryPoint = {
+  sessionId: number
+  before: number
+  after: number
+  questionCount: number
+  correctCount: number
+  time: string
+}
+
+export type MasteryDistribution = {
+  knowledgeId: number
+  name: string
+  count: number
+  lowCount: number
+  min: number
+  max: number
+  p25: number
+  p50: number
+  p75: number
+}
+
+export type MasteryCompareStudent = {
+  userId: number
+  mastery: number
+  knowledge: MasteryKnowledge[]
+}
+
+export const getMasteryCourses = () => {
+  return request.get<any, { id: number; name: string }[]>('/teacher/mastery/courses')
+}
+
+export const getMasteryStudents = (courseId: number, keyword?: string) => {
+  const q = keyword ? `&keyword=${encodeURIComponent(keyword)}` : ''
+  return request.get<any, { students: MasteryStudent[] }>(
+    `/teacher/mastery/students?courseId=${courseId}${q}`,
+  )
+}
+
+export const getMasteryStudent = (userId: number, courseId: number) => {
+  return request.get<any, MasteryDetail>(
+    `/teacher/mastery/student/${userId}?courseId=${courseId}`,
+  )
+}
+
+export const getMasteryHistory = (studentId: number, knowledgeId: number) => {
+  return request.get<any, { points: MasteryPoint[] }>(
+    `/teacher/mastery/history?studentId=${studentId}&knowledgeId=${knowledgeId}`,
+  )
+}
+
+export const getMasteryCompare = (studentIds: number[], courseId: number) => {
+  return request.get<any, { students: MasteryCompareStudent[] }>(
+    `/teacher/mastery/compare?studentIds=${studentIds.join(',')}&courseId=${courseId}`,
+  )
+}
+
+export const getMasteryDistribution = (courseId: number) => {
+  return request.get<any, { knowledge: MasteryDistribution[] }>(
+    `/teacher/mastery/distribution?courseId=${courseId}`,
+  )
+}
+
+export const resetMastery = (userId: number, courseId: number) => {
+  return request.post<any, { msg: string }>(
+    `/teacher/mastery/reset?userId=${userId}&courseId=${courseId}`,
+  )
+}
+
 // 教师数据总览
 export const getTeacherStats = () => {
   return request.get<any, TeacherStats>('/teacher/stats')

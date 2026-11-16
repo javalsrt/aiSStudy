@@ -10,6 +10,7 @@ import {
   TeacherChatNotification,
 } from '@/api/chat'
 import { cn } from '@/lib/utils'
+import { CursorToggle } from './cursor-toggle'
 import { ThemeToggle } from './theme-toggle'
 
 /**
@@ -104,10 +105,13 @@ export function SidebarFooter() {
 
   return (
     <div className="mt-auto space-y-2">
-      {/* 明暗切换 */}
+      {/* 外观：目标光标 + 明暗切换 */}
       <div className="flex items-center justify-between px-1">
         <span className="text-caption-2-medium text-ink-tertiary">外观</span>
-        <ThemeToggle />
+        <div className="flex items-center gap-2.5">
+          <CursorToggle />
+          <ThemeToggle />
+        </div>
       </div>
 
       <div className="flex items-center gap-2">

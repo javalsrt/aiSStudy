@@ -149,6 +149,58 @@
                 </LinearLayout>
             </LinearLayout>
 
+            <!-- BKT 知识点掌握度（有数据时显示） -->
+            <LinearLayout
+                android:id="@+id/card_mastery"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:orientation="vertical"
+                android:background="@drawable/bg_card_white"
+                android:padding="16dp"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="知识点掌握度"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/ink" />
+
+                    <TextView
+                        android:id="@+id/tv_mastery_overall"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="--"
+                        android:textSize="20sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/primary" />
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="贝叶斯知识追踪（BKT）实时估算，答对上升、答错下降"
+                    android:textSize="12sp"
+                    android:textColor="@color/ink_subtle" />
+
+                <LinearLayout
+                    android:id="@+id/ll_mastery"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:orientation="vertical" />
+            </LinearLayout>
+
             <!-- 六维能力评分 -->
             <LinearLayout
                 android:id="@+id/card_scores"

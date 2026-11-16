@@ -3,10 +3,22 @@ import ReactDOM from 'react-dom/client'
 import { RouterProvider } from 'react-router-dom'
 import { router } from './router'
 import { useAuthStore } from './store/auth'
+import { useCursorStore } from './store/cursor'
 import { initTheme } from './store/theme'
 import { TargetCursor } from '@/components/ui/target-cursor'
 import { AuthPixelTransition } from '@/components/transition/auth-pixel-transition'
 import '@/styles/globals.css'
+
+function AppCursor() {
+  const enabled = useCursorStore((state) => state.enabled)
+  if (!enabled) return null
+  return (
+    <TargetCursor
+      targetSelector=".cursor-target, button, a[href], [role='button'], [role='tab']"
+      spinDuration={5}
+    />
+  )
+}
 
 function App() {
   return (
@@ -17,10 +29,7 @@ function App() {
           v7_startTransition: true,
         }}
       />
-      <TargetCursor
-        targetSelector=".cursor-target, button, a[href], [role='button'], [role='tab']"
-        spinDuration={5}
-      />
+      <AppCursor />
       <AuthPixelTransition />
     </>
   )

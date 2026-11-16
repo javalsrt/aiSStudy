@@ -3,6 +3,7 @@ package com.znxsgl.student;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.text.Editable;
+import android.text.TextUtils;
 import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.LayoutInflater;
@@ -75,7 +76,7 @@ public class QuizPagerAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
     private void bindChoice(ChoiceVH vh, QuizQuestion q, String question, int pos) {
         vh.tvTag.setText("单选题");
         vh.tvNum.setText((pos + 1) + "/" + questions.size());
-        RichTextRenderer.set(vh.tvQuestion, question);
+        bindStem(vh.tvQuestion, vh.tvStemMore, question);
         bindGraph(vh.graphView, q);
         vh.llOptions.removeAllViews();
 
@@ -100,7 +101,7 @@ public class QuizPagerAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
     private void bindJudge(JudgeVH vh, QuizQuestion q, String question, int pos) {
         vh.tvTag.setText("判断题");
         vh.tvNum.setText((pos + 1) + "/" + questions.size());
-        RichTextRenderer.set(vh.tvQuestion, question);
+        bindStem(vh.tvQuestion, vh.tvStemMore, question);
         bindGraph(vh.graphView, q);
 
         boolean selectedTrue = "正确".equals(q.getUserAnswer());
@@ -135,7 +136,7 @@ public class QuizPagerAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
     private void bindAnalysis(AnalysisVH vh, QuizQuestion q, String question, int pos) {
         vh.tvTag.setText("解析题");
         vh.tvNum.setText((pos + 1) + "/" + questions.size());
-        RichTextRenderer.set(vh.tvQuestion, question);
+        bindStem(vh.tvQuestion, vh.tvStemMore, question);
         bindGraph(vh.graphView, q);
         bindTextAnswer(vh.etAnswer, q);
     }
@@ -144,13 +145,26 @@ public class QuizPagerAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
     private void bindFill(FillVH vh, QuizQuestion q, String question, int pos) {
         vh.tvTag.setText("填空题");
         vh.tvNum.setText((pos + 1) + "/" + questions.size());
-        RichTextRenderer.set(vh.tvQuestion, question);
+        bindStem(vh.tvQuestion, vh.tvStemMore, question);
         bindGraph(vh.graphView, q);
         bindTextAnswer(vh.etAnswer, q);
     }
 
     /**
+     * 题干绑定：完整显示，不再折叠。
+     * 答题页本身留白充足，长题干可以直接铺开；需要时整页滚动即可。
+     */
+    private void bindStem(TextView tv, TextView more, String text) {
+        if (tv == null) return;
+        RichTextRenderer.setStem(tv, text);
+        tv.setMaxLines(Integer.MAX_VALUE);
+        tv.setEllipsize(null);
+        if (more != null) more.setVisibility(View.GONE);
+    }
+
+    /**
      * 函数图像绑定：题目带 graph 表达式且解析成功时显示坐标曲线，否则隐藏。
+     * 图形高度按屏高 36% 设置并支持点击全屏，保证手机上能看清坐标与曲线。
      */
     private void bindGraph(FunctionPlotView view, QuizQuestion q) {
         if (view == null) return;
@@ -160,7 +174,21 @@ public class QuizPagerAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             return;
         }
         boolean ok = view.setExpression(g);
-        view.setVisibility(ok ? View.VISIBLE : View.GONE);
+        if (!ok) {
+            view.setVisibility(View.GONE);
+            return;
+        }
+        view.setVisibility(View.VISIBLE);
+        view.setExpandHint(true);
+        ViewGroup.LayoutParams lp = view.getLayoutParams();
+        if (lp != null) {
+            int target = (int) (view.getResources().getDisplayMetrics().heightPixels * 0.40f);
+            if (lp.height != target) {
+                lp.height = target;
+                view.setLayoutParams(lp);
+            }
+        }
+        view.setOnClickListener(v -> FigureViewerActivity.open(v.getContext(), g));
     }
 
     /**
@@ -224,7 +252,7 @@ public class QuizPagerAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
         row.setGravity(Gravity.CENTER_VERTICAL);
         LinearLayout.LayoutParams rowLp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        rowLp.setMargins(0, 0, 0, dp(ctx, 12));
+        rowLp.setMargins(0, 0, 0, dp(ctx, 10));
         row.setLayoutParams(rowLp);
 
         TextView chip = new TextView(ctx);
@@ -294,34 +322,38 @@ public class QuizPagerAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
 
     // ===== ViewHolders =====
     static class ChoiceVH extends RecyclerView.ViewHolder {
-        TextView tvTag, tvNum, tvQuestion; LinearLayout llOptions; FunctionPlotView graphView;
+        TextView tvTag, tvNum, tvQuestion, tvStemMore; LinearLayout llOptions; FunctionPlotView graphView;
         ChoiceVH(View v) { super(v);
             tvTag = v.findViewById(R.id.tv_quiz_tag); tvNum = v.findViewById(R.id.tv_quiz_num);
             tvQuestion = v.findViewById(R.id.tv_quiz_question); llOptions = v.findViewById(R.id.ll_options);
+            tvStemMore = v.findViewById(R.id.tv_stem_more);
             graphView = v.findViewById(R.id.graph_view); }
     }
     static class JudgeVH extends RecyclerView.ViewHolder {
-        TextView tvTag, tvNum, tvQuestion;
+        TextView tvTag, tvNum, tvQuestion, tvStemMore;
         AnimatedChoiceButton btnTrue, btnFalse;
         FunctionPlotView graphView;
         JudgeVH(View v) { super(v);
             tvTag = v.findViewById(R.id.tv_quiz_tag); tvNum = v.findViewById(R.id.tv_quiz_num);
             tvQuestion = v.findViewById(R.id.tv_quiz_question);
+            tvStemMore = v.findViewById(R.id.tv_stem_more);
             btnTrue = v.findViewById(R.id.btn_true); btnFalse = v.findViewById(R.id.btn_false);
             graphView = v.findViewById(R.id.graph_view); }
     }
     public static class AnalysisVH extends RecyclerView.ViewHolder {
-        public TextView tvTag, tvNum, tvQuestion; public EditText etAnswer; FunctionPlotView graphView;
+        public TextView tvTag, tvNum, tvQuestion, tvStemMore; public EditText etAnswer; FunctionPlotView graphView;
         AnalysisVH(View v) { super(v);
             tvTag = v.findViewById(R.id.tv_quiz_tag); tvNum = v.findViewById(R.id.tv_quiz_num);
             tvQuestion = v.findViewById(R.id.tv_quiz_question); etAnswer = v.findViewById(R.id.et_answer);
+            tvStemMore = v.findViewById(R.id.tv_stem_more);
             graphView = v.findViewById(R.id.graph_view); }
     }
     public static class FillVH extends RecyclerView.ViewHolder {
-        public TextView tvTag, tvNum, tvQuestion; public EditText etAnswer; FunctionPlotView graphView;
+        public TextView tvTag, tvNum, tvQuestion, tvStemMore; public EditText etAnswer; FunctionPlotView graphView;
         FillVH(View v) { super(v);
             tvTag = v.findViewById(R.id.tv_quiz_tag); tvNum = v.findViewById(R.id.tv_quiz_num);
             tvQuestion = v.findViewById(R.id.tv_quiz_question); etAnswer = v.findViewById(R.id.et_answer);
+            tvStemMore = v.findViewById(R.id.tv_stem_more);
             graphView = v.findViewById(R.id.graph_view); }
     }
 }

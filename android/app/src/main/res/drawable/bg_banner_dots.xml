@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 轮播图底部圆点的半透明胶囊底 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#4D000000" />
+    <corners android:radius="12dp" />
+</shape>

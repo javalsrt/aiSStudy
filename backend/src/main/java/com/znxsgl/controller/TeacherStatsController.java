@@ -24,10 +24,188 @@ public class TeacherStatsController {
 
     private final JdbcTemplate jdbc;
     private final ScheduleWebSocketHandler wsHandler;
+    private final com.znxsgl.service.MasteryService masteryService;
 
-    public TeacherStatsController(JdbcTemplate jdbc, ScheduleWebSocketHandler wsHandler) {
+    public TeacherStatsController(JdbcTemplate jdbc, ScheduleWebSocketHandler wsHandler,
+                                  com.znxsgl.service.MasteryService masteryService) {
         this.jdbc = jdbc;
         this.wsHandler = wsHandler;
+        this.masteryService = masteryService;
+    }
+
+    // ===== BKT 学情追踪 =====
+
+    /** 已配置知识点的课程（学情追踪下拉，避免出现没有追踪数据的实践课） */
+    @GetMapping("/mastery/courses")
+    public ResponseEntity<List<Map<String, Object>>> masteryCourses() {
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT DISTINCT c.id, c.course_name FROM knowledge_point k " +
+                        "JOIN course c ON c.id = k.course_id WHERE k.status = 1 ORDER BY c.course_name");
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Map<String, Object> r : rows) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("id", r.get("id"));
+            item.put("name", r.get("course_name"));
+            out.add(item);
+        }
+        return ResponseEntity.ok(out);
+    }
+
+    /** 学生掌握度列表（学习统计 → 学情追踪） */
+    @GetMapping("/mastery/students")
+    public ResponseEntity<Map<String, Object>> masteryStudents(
+            @RequestParam Long courseId,
+            @RequestParam(required = false) Long classId,
+            @RequestParam(required = false) String keyword,
+            Authentication auth) {
+        boolean isAdmin = auth.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+        List<Object> params = new ArrayList<>();
+        params.add(courseId);
+        StringBuilder sql = new StringBuilder(
+                "SELECT u.id, u.real_name, u.class_id, " +
+                        "COALESCE(SUM(m.p_mastery * GREATEST(m.attempts,1)) / NULLIF(SUM(GREATEST(m.attempts,1)),0), 0.3) AS mastery, " +
+                        "COALESCE(SUM(m.attempts), 0) AS attempts, " +
+                        "COALESCE(SUM(CASE WHEN m.attempts >= 3 AND m.p_mastery < 0.4 THEN 1 ELSE 0 END), 0) AS weak " +
+                        "FROM user u LEFT JOIN user_knowledge_mastery m " +
+                        "ON m.user_id = u.id AND m.course_id = ? " +
+                        "WHERE u.role = 1");
+        if (keyword != null && !keyword.trim().isEmpty()) {
+            sql.append(" AND u.real_name LIKE ?");
+            params.add("%" + keyword.trim() + "%");
+        }
+        if (classId != null) {
+            sql.append(" AND u.class_id = ?");
+            params.add(classId);
+        } else if (!isAdmin) {
+            Long teacherUserId = (Long) auth.getPrincipal();
+            Long realTeacherId = getRealTeacherId(teacherUserId);
+            List<Long> classIds = jdbc.queryForList(
+                    "SELECT DISTINCT cc.class_id FROM course_class cc JOIN course c ON c.id = cc.course_id " +
+                            "WHERE c.teacher_id = ?", Long.class, realTeacherId);
+            if (classIds.isEmpty()) {
+                return ResponseEntity.ok(Map.of("students", Collections.emptyList()));
+            }
+            sql.append(" AND u.class_id IN (").append(placeholders(classIds.size())).append(")");
+            params.addAll(classIds);
+        }
+        sql.append(" GROUP BY u.id, u.real_name, u.class_id ORDER BY attempts DESC, mastery ASC LIMIT 200");
+        List<Map<String, Object>> rows = jdbc.queryForList(sql.toString(), params.toArray());
+
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Map<String, Object> r : rows) {
+            int attempts = ((Number) r.get("attempts")).intValue();
+            double mastery = ((Number) r.get("mastery")).doubleValue();
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("userId", ((Number) r.get("id")).longValue());
+            item.put("name", r.get("real_name"));
+            item.put("classId", r.get("class_id"));
+            item.put("mastery", mastery);
+            item.put("attempts", attempts);
+            item.put("weakCount", ((Number) r.get("weak")).intValue());
+            item.put("evidence", attempts >= 3 ? "enough" : "low");
+            out.add(item);
+        }
+        return ResponseEntity.ok(Map.of("courseId", courseId, "students", out));
+    }
+
+    /** 单个学生的知识点掌握度 */
+    @GetMapping("/mastery/student/{userId}")
+    public ResponseEntity<Map<String, Object>> masteryStudent(@PathVariable Long userId,
+                                                              @RequestParam Long courseId) {
+        List<Map<String, Object>> kps = masteryService.knowledgeList(userId, courseId);
+        int attempts = 0, weak = 0;
+        for (Map<String, Object> k : kps) {
+            int a = ((Number) k.get("attempts")).intValue();
+            attempts += a;
+            if (a >= 3 && ((Number) k.get("mastery")).doubleValue() < 0.4) weak++;
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("userId", userId);
+        out.put("courseId", courseId);
+        out.put("mastery", masteryService.courseMastery(userId, courseId));
+        out.put("attempts", attempts);
+        out.put("weakCount", weak);
+        out.put("knowledge", kps);
+        return ResponseEntity.ok(out);
+    }
+
+    /** 知识点掌握度曲线（来自每次交卷的快照） */
+    @GetMapping("/mastery/history")
+    public ResponseEntity<Map<String, Object>> masteryHistory(@RequestParam Long studentId,
+                                                              @RequestParam Long knowledgeId) {
+        return ResponseEntity.ok(Map.of("points", masteryService.history(studentId, knowledgeId)));
+    }
+
+    /** 多学生对比 */
+    @GetMapping("/mastery/compare")
+    public ResponseEntity<Map<String, Object>> masteryCompare(@RequestParam String studentIds,
+                                                              @RequestParam Long courseId) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (String s : studentIds.split(",")) {
+            if (s.trim().isEmpty()) continue;
+            Long uid = Long.valueOf(s.trim());
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("userId", uid);
+            item.put("mastery", masteryService.courseMastery(uid, courseId));
+            item.put("knowledge", masteryService.knowledgeList(uid, courseId));
+            out.add(item);
+        }
+        return ResponseEntity.ok(Map.of("students", out));
+    }
+
+    /** 班级分布：各知识点掌握度的 P25/P50/P75/最低/最高，用于预警和分布条 */
+    @GetMapping("/mastery/distribution")
+    public ResponseEntity<Map<String, Object>> masteryDistribution(@RequestParam Long courseId) {
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT k.id, k.name, m.p_mastery FROM knowledge_point k " +
+                        "JOIN user_knowledge_mastery m ON m.knowledge_id = k.id AND m.attempts >= 3 " +
+                        "WHERE k.course_id = ? AND k.status = 1 ORDER BY k.sort_order",
+                courseId);
+        Map<Long, String> names = new LinkedHashMap<>();
+        Map<Long, List<Double>> values = new LinkedHashMap<>();
+        for (Map<String, Object> r : rows) {
+            Long id = ((Number) r.get("id")).longValue();
+            names.putIfAbsent(id, String.valueOf(r.get("name")));
+            values.computeIfAbsent(id, k -> new ArrayList<>())
+                    .add(((Number) r.get("p_mastery")).doubleValue());
+        }
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Map.Entry<Long, List<Double>> e : values.entrySet()) {
+            List<Double> list = e.getValue();
+            Collections.sort(list);
+            int n = list.size();
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("knowledgeId", e.getKey());
+            item.put("name", names.get(e.getKey()));
+            item.put("count", n);
+            item.put("lowCount", list.stream().filter(p -> p < 0.4).count());
+            item.put("min", list.get(0));
+            item.put("max", list.get(n - 1));
+            item.put("p25", percentile(list, 0.25));
+            item.put("p50", percentile(list, 0.50));
+            item.put("p75", percentile(list, 0.75));
+            out.add(item);
+        }
+        return ResponseEntity.ok(Map.of("courseId", courseId, "knowledge", out));
+    }
+
+    private double percentile(List<Double> sorted, double q) {
+        if (sorted.isEmpty()) return 0;
+        int idx = (int) Math.round((sorted.size() - 1) * q);
+        return sorted.get(Math.max(0, Math.min(sorted.size() - 1, idx)));
+    }
+
+    /** 重置演示账号的掌握度与快照 */
+    @PostMapping("/mastery/reset")
+    public ResponseEntity<Map<String, Object>> masteryReset(@RequestParam Long userId,
+                                                            @RequestParam Long courseId) {
+        masteryService.reset(userId, courseId);
+        return ResponseEntity.ok(Map.of("msg", "已重置", "userId", userId));
+    }
+
+    private String placeholders(int n) {
+        return String.join(",", Collections.nCopies(n, "?"));
     }
 
     /** 教师/管理员数据总览：管理员查看全校学生，教师仅查看所教班级学生 */

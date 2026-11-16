@@ -8,15 +8,13 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="@color/canvas"
-    android:paddingTop="16dp"
-    android:paddingHorizontal="12dp"
+    android:background="@android:color/transparent"
+    android:paddingTop="8dp"
+    android:paddingHorizontal="20dp"
     android:paddingBottom="12dp">
 
     <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent"
-        android:orientation="vertical"
-        android:background="@drawable/bg_quiz_card"
-        android:padding="20dp">
+        android:orientation="vertical">
 
         <ScrollView android:layout_width="match_parent" android:layout_height="0dp"
             android:layout_weight="1"
@@ -39,18 +37,26 @@
                     <TextView android:id="@+id/tv_quiz_num" android:layout_width="wrap_content"
                         android:layout_height="wrap_content" android:text="1/15"
                         android:textSize="13sp" android:textColor="@color/ink_subtle"
-                        android:fontFamily="@font/harmonyos_sans_sc_medium" />
+                        android:fontFamily="@font/harmonyos_sans_sc_medium"
+                        android:visibility="gone" />
                 </LinearLayout>
 
                 <TextView android:id="@+id/tv_quiz_question" android:layout_width="match_parent"
                     android:layout_height="wrap_content" android:text="题目内容"
-                    android:textSize="19sp" android:textColor="@color/ink"
-                    android:lineSpacingExtra="6dp" android:layout_marginBottom="20dp" />
+                    android:textSize="22sp" android:textStyle="bold" android:textColor="@color/ink"
+                    android:lineSpacingExtra="8dp" android:layout_marginBottom="6dp" />
+
+                <TextView android:id="@+id/tv_stem_more"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="展开全文" android:textSize="12sp" android:textColor="@color/primary"
+                    android:paddingTop="2dp" android:paddingBottom="10dp"
+                    android:visibility="gone" />
 
                 <com.znxsgl.student.widget.FunctionPlotView
                     android:id="@+id/graph_view"
-                    android:layout_width="match_parent" android:layout_height="190dp"
-                    android:layout_marginBottom="20dp"
+                    android:layout_width="match_parent" android:layout_height="300dp"
+                    android:layout_marginTop="8dp"
+                    android:layout_marginBottom="16dp"
                     android:visibility="gone"
                     android:background="@drawable/bg_graph_panel"
                     android:padding="10dp" />

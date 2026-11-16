@@ -180,10 +180,10 @@ public class QuestionGenerationService {
         String schema;
         String rule;
         if ("单选".equals(type)) {
-            schema = "[{\"type\":\"单选\",\"subject\":\"" + subject + "\",\"question\":\"...\",\"options\":[\"A.xxx\",\"B.xxx*\"]}]";
+            schema = "[{\"type\":\"单选\",\"subject\":\"" + subject + "\",\"question\":\"...\",\"knowledge\":\"知识点名称\",\"options\":[\"A.xxx\",\"B.xxx*\"]}]";
             rule = "- 选择题4个选项，正确答案末尾加 *";
         } else if ("判断".equals(type)) {
-            schema = "[{\"type\":\"判断\",\"subject\":\"" + subject + "\",\"question\":\"...\",\"options\":[\"正确*\",\"错误\"]}]";
+            schema = "[{\"type\":\"判断\",\"subject\":\"" + subject + "\",\"question\":\"...\",\"knowledge\":\"知识点名称\",\"options\":[\"正确*\",\"错误\"]}]";
             rule = "- 判断题正确项加 *";
         } else if ("解析".equals(type)) {
             schema = "[{\"type\":\"解析\",\"subject\":\"" + subject + "\",\"question\":\"...\",\"answer\":\"...\"}]";
@@ -200,6 +200,7 @@ public class QuestionGenerationService {
                 "出题范围：仅基于以下章节内容出题，不要超纲：\n" +
                 "---\n%s\n---\n" +
                 "要求：\n%s\n" +
+                "- 选择题/判断题必须额外输出 knowledge 字段：本题对应的知识点名称（4-12字）；同一知识点在不同题目中必须使用完全相同的名称\n" +
                 "- 涉及数学公式时必须使用 LaTeX 语法：行内公式用 $...$ 包裹（如 $x^2+1$），独立公式用 $$...$$ 包裹，分数用 \\frac{}{}，禁止用 x^2/2! 这类纯文本形式表达公式。\n" +
                 "- 只输出纯JSON数组，不要解释，不要Markdown代码块。\n" +
                 "- 格式示例：%s",

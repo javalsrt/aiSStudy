@@ -68,11 +68,15 @@ public class QuizController {
     }
 
     private final QuestionGenerationService questionGenerationService;
+    private final com.znxsgl.service.MasteryService masteryService;
+    private final com.znxsgl.service.DemoQuizService demoQuizService;
 
     public QuizController(LlmService llmService, QuizSessionMapper sessionMapper,
                           QuizAnswerMapper answerMapper, QuestionBookmarkMapper bookmarkMapper,
                           UserMapper userMapper, JdbcTemplate jdbc, RagService ragService,
-                          QuestionGenerationService questionGenerationService) {
+                          QuestionGenerationService questionGenerationService,
+                          com.znxsgl.service.MasteryService masteryService,
+                          com.znxsgl.service.DemoQuizService demoQuizService) {
         this.llmService = llmService;
         this.sessionMapper = sessionMapper;
         this.answerMapper = answerMapper;
@@ -81,6 +85,8 @@ public class QuizController {
         this.jdbc = jdbc;
         this.ragService = ragService;
         this.questionGenerationService = questionGenerationService;
+        this.masteryService = masteryService;
+        this.demoQuizService = demoQuizService;
     }
 
     /**
@@ -159,20 +165,44 @@ public class QuizController {
             List<Long> chapterIds = jdbc.queryForList(
                     "SELECT DISTINCT chapter_id FROM chapter_read_progress WHERE user_id = ? AND course_id = ?",
                     Long.class, userId, courseId);
-            if (chapterIds.isEmpty()) {
+            // 演示账号使用固定题库，不依赖章节学习进度
+            boolean demo = false;
+            try {
+                com.znxsgl.entity.User demoUser = userMapper.selectById(userId);
+                demo = demoUser != null && demoQuizService.isDemo(demoUser.getUsername());
+            } catch (Exception ignored) {}
+            if (chapterIds.isEmpty() && !demo) {
                 task.status = "error";
                 task.error = "请先学习章节内容再答题";
                 return;
             }
 
-            // 并行拆分题型 + 单飞锁 + Redis 共享缓存 + 预生成题库
-            List<Map<String, Object>> questions =
-                    questionGenerationService.getOrGenerate(courseId, subject, subjectType, difficulty, chapterIds);
+            // 演示账号：本地 12 道固定单选题，不调用大模型
+            String demoRaw = demo ? demoQuizService.rawQuestions(courseId) : null;
+            List<Map<String, Object>> questions;
+            if (demoRaw != null && !demoRaw.isEmpty()) {
+                questions = parseQuestions(demoRaw);
+            } else {
+                // 并行拆分题型 + 单飞锁 + Redis 共享缓存 + 预生成题库
+                questions = questionGenerationService.getOrGenerate(courseId, subject, subjectType, difficulty, chapterIds);
+            }
             if (questions == null || questions.isEmpty()) {
                 task.status = "error";
                 String fail = com.znxsgl.service.LlmService.getLastFailure();
                 task.error = "题目生成失败，请稍后重试" + (fail == null || fail.isEmpty() ? "" : "（" + fail + "）");
                 return;
+            }
+            // 演示账号固定练第一个知识点（4 道），便于同一知识点反复演示答对/答错的变化
+            if (demo && questions.size() > 4) {
+                questions = new ArrayList<>(questions.subList(0, 4));
+            }
+            // BKT：给题目写 qid 并绑定知识点（失败不影响出题）
+            try {
+                masteryService.bindQuestions(courseId, questions);
+                // 按弱项排序：掌握度低的知识点优先练（题库共享，顺序个性化）
+                questions = masteryService.orderByWeakness(userId, courseId, questions);
+            } catch (Exception ex) {
+                System.out.println("=== 知识点绑定失败: " + ex.getMessage());
             }
 
             int sessionNo = sessionMapper.countByUser(userId) + 1;
@@ -365,6 +395,13 @@ public class QuizController {
         }
         }
 
+        // BKT：按知识点更新掌握度并写快照（失败不影响交卷）
+        try {
+            masteryService.updateFromSession(userId, session.getCourseId(), sessionId, savedAnswers);
+        } catch (Exception e) {
+            System.out.println("=== BKT 更新失败: " + e.getMessage());
+        }
+
         // 收集本次错题/空题，便于报告页直接展示
         List<Map<String, String>> wrongAnswers = new ArrayList<>();
         for (QuizAnswer qa : savedAnswers) {
@@ -385,6 +422,32 @@ public class QuizController {
         result.put("wrongAnswers", wrongAnswers);
         if (evalResult != null) result.putAll(evalResult);
         return ResponseEntity.ok(result);
+    }
+
+    /** 学生端：我的知识点掌握度（报告页/首页使用） */
+    @GetMapping("/mastery")
+    public ResponseEntity<Map<String, Object>> myMastery(@RequestParam Long courseId,
+                                                         @RequestParam(required = false) Long sessionId,
+                                                         Authentication auth) {
+        Long userId = (Long) auth.getPrincipal();
+        List<Map<String, Object>> knowledge = masteryService.knowledgeList(userId, courseId);
+        // 报告页：附带本次交卷造成的掌握度变化
+        if (sessionId != null && sessionId > 0) {
+            Map<Long, double[]> changes = masteryService.sessionChanges(userId, sessionId);
+            for (Map<String, Object> item : knowledge) {
+                double[] ch = changes.get(((Number) item.get("knowledgeId")).longValue());
+                if (ch != null) {
+                    item.put("before", ch[0]);
+                    item.put("after", ch[1]);
+                    item.put("delta", ch[1] - ch[0]);
+                }
+            }
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("courseId", courseId);
+        out.put("mastery", masteryService.courseMastery(userId, courseId));
+        out.put("knowledge", knowledge);
+        return ResponseEntity.ok(out);
     }
 
     // ===== Prompt =====
@@ -482,6 +545,7 @@ public class QuizController {
                     q.put("options", ol);
                 }
                 if (n.has("answer")) q.put("correctAnswer", n.path("answer").asText());
+                if (n.hasNonNull("knowledge")) q.put("knowledge", n.path("knowledge").asText("").trim());
                 // 函数图像表达式（可选）：前端据此绘制坐标曲线
                 if (n.hasNonNull("graph")) {
                     String g = n.path("graph").asText("").trim();

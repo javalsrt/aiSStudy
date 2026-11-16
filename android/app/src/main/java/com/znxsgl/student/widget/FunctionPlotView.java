@@ -4,6 +4,7 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Path;
+import android.graphics.RectF;
 import android.util.AttributeSet;
 import android.view.View;
 
@@ -41,6 +42,12 @@ public class FunctionPlotView extends View {
     private Node node;
     private double yMin = -10d;
     private double yMax = 10d;
+
+    /** 题目卡片里显示「全屏」角标，提示图形可点开；全屏页不显示 */
+    private boolean expandHint = false;
+    private final Paint hintBgPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint hintTextPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final RectF hintRect = new RectF();
 
     public FunctionPlotView(Context context) {
         super(context);
@@ -230,6 +237,30 @@ public class FunctionPlotView extends View {
             }
             canvas.drawText(fmt(v), px, labelBaseline, labelPaint);
         }
+
+        // 右下角「全屏」角标：提示图形可以点开看大图
+        if (expandHint) {
+            float hd = getResources().getDisplayMetrics().density;
+            float hw = 44 * hd;
+            float hh = 22 * hd;
+            hintRect.set(getWidth() - hw - 8 * hd, getHeight() - hh - 8 * hd,
+                    getWidth() - 8 * hd, getHeight() - 8 * hd);
+            hintBgPaint.setColor(0xF2FFFFFF);
+            canvas.drawRoundRect(hintRect, 6 * hd, 6 * hd, hintBgPaint);
+            hintTextPaint.setColor(0xFF6E6E73);
+            hintTextPaint.setTextSize(10 * hd);
+            hintTextPaint.setTextAlign(Paint.Align.CENTER);
+            Paint.FontMetrics fm = hintTextPaint.getFontMetrics();
+            float base = hintRect.centerY() - (fm.ascent + fm.descent) / 2f;
+            canvas.drawText("全屏", hintRect.centerX(), base, hintTextPaint);
+        }
+    }
+
+    /** 是否在右下角显示「全屏」角标（仅题目卡片使用） */
+    public void setExpandHint(boolean show) {
+        if (expandHint == show) return;
+        expandHint = show;
+        invalidate();
     }
 
     /** 从 1/2/5/10/20 中选出使单格像素宽度不小于 minPx 的最小步长 */

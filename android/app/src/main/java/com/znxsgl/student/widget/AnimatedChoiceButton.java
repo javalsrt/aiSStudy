@@ -93,7 +93,8 @@ public class AnimatedChoiceButton extends AppCompatTextView {
             super.onDraw(canvas);
             return;
         }
-        float radius = h / 2f; // 胶囊全圆角
+        // 与选项、卡片、输入框统一的 G2 圆角（16dp），不再使用胶囊
+        float radius = 16f * getResources().getDisplayMetrics().density;
         rect.set(0, 0, w, h);
         if (squirclePath == null || squircleW != w || squircleH != h) {
             squirclePath = SquirclePath.create(rect, radius);

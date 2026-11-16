@@ -205,6 +205,11 @@ public interface ApiService {
             @Header("Authorization") String token,
             @Query("courseId") long courseId);
 
+    /** 每门课程最近学习的章节（学习页课程卡片展示用） */
+    @GET("/api/chapter-progress/recent")
+    Call<List<Map<String, Object>>> getRecentChapters(
+            @Header("Authorization") String token);
+
     @POST("/api/quiz/evaluate")
     Call<Map<String, Object>> evaluateQuiz(
             @Header("Authorization") String token,
@@ -238,6 +243,13 @@ public interface ApiService {
     @GET("/api/quiz/review-plan")
     Call<Map<String, Object>> getReviewPlan(
             @Header("Authorization") String token);
+
+    /** 我的知识点掌握度（BKT）：传 sessionId 时附带本次作答引起的掌握度变化 */
+    @GET("/api/quiz/mastery")
+    Call<Map<String, Object>> getMastery(
+            @Header("Authorization") String token,
+            @Query("courseId") long courseId,
+            @Query("sessionId") long sessionId);
 
     // 考试作业
     @GET("/api/exam-homework/student/{id}")

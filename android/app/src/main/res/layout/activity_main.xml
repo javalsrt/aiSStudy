@@ -18,8 +18,8 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
-    <!-- 悬浮药丸导航的毛玻璃底：截取导航正后方的页面内容做缩放模糊，
-         叠加白色薄雾、玻璃高光与描边；自身不接收触摸事件 -->
+    <!-- 悬浮药丸导航的半透明玻璃底：纯绘制（白雾 + 高光 + 描边），页面颜色自然透过来，
+         不截取页面内容，切换页面的淡入淡出过程中也不会出现残影或分层；自身不接收触摸事件 -->
     <com.znxsgl.student.widget.GlassNavBackgroundView
         android:id="@+id/nav_glass"
         android:layout_width="match_parent"

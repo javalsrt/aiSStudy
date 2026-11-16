@@ -3,6 +3,7 @@ package com.znxsgl.student;
 import android.animation.ValueAnimator;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -21,11 +22,17 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
+import com.znxsgl.student.network.ApiService;
+import com.znxsgl.student.network.RetrofitClient;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
 
 public class QuizResultActivity extends AppCompatActivity {
 
@@ -89,6 +96,9 @@ public class QuizResultActivity extends AppCompatActivity {
 
         // 本次错题
         renderWrongAnswers(it.getStringExtra("wrongAnswersJson"));
+
+        // BKT 知识点掌握度（异步加载，不阻塞报告展示）
+        loadMastery(it.getLongExtra("courseId", 0), it.getLongExtra("sessionId", 0));
 
         findViewById(R.id.btn_done).setOnClickListener(v -> finish());
 
@@ -354,6 +364,157 @@ public class QuizResultActivity extends AppCompatActivity {
                 tvCorrectAnswer = v.findViewById(R.id.tv_correct_answer);
             }
         }
+    }
+
+    // ===== BKT 知识点掌握度 =====
+
+    private void loadMastery(long courseId, long sessionId) {
+        if (courseId <= 0) return;
+        RetrofitClient.getInstance().create(ApiService.class)
+                .getMastery(token, courseId, sessionId)
+                .enqueue(new Callback<Map<String, Object>>() {
+                    @Override
+                    public void onResponse(Call<Map<String, Object>> call, Response<Map<String, Object>> resp) {
+                        if (!resp.isSuccessful() || resp.body() == null) return;
+                        runOnUiThread(() -> renderMastery(resp.body()));
+                    }
+
+                    @Override
+                    public void onFailure(Call<Map<String, Object>> call, Throwable t) {
+                        // 掌握度属于附加信息，加载失败不影响报告主体
+                    }
+                });
+    }
+
+    @SuppressWarnings("unchecked")
+    private void renderMastery(Map<String, Object> body) {
+        List<Map<String, Object>> list;
+        try {
+            list = (List<Map<String, Object>>) body.get("knowledge");
+        } catch (Exception e) {
+            return;
+        }
+        if (list == null || list.isEmpty()) return;
+
+        // 优先只展示本次有作答的知识点；本次没有命中知识点时展示全部
+        List<Map<String, Object>> shown = new ArrayList<>();
+        for (Map<String, Object> item : list) {
+            if (toInt(item.get("attempts")) > 0) shown.add(item);
+        }
+        if (shown.isEmpty()) shown = list;
+
+        Object overall = body.get("mastery");
+        double overallP = overall instanceof Number ? ((Number) overall).doubleValue() : 0;
+        ((TextView) findViewById(R.id.tv_mastery_overall)).setText(Math.round(overallP * 100) + "%");
+
+        LinearLayout container = findViewById(R.id.ll_mastery);
+        container.removeAllViews();
+        for (Map<String, Object> item : shown) {
+            container.addView(buildMasteryRow(item));
+        }
+        findViewById(R.id.card_mastery).setVisibility(View.VISIBLE);
+    }
+
+    private View buildMasteryRow(Map<String, Object> item) {
+        double mastery = Math.max(0, Math.min(1, toDouble(item.get("mastery"))));
+        int attempts = toInt(item.get("attempts"));
+
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams rowLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        rowLp.bottomMargin = dp(14);
+        row.setLayoutParams(rowLp);
+
+        // 第一行：知识点名称 + 本次变化 + 百分比
+        LinearLayout head = new LinearLayout(this);
+        head.setOrientation(LinearLayout.HORIZONTAL);
+        head.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        head.setLayoutParams(new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+
+        TextView name = new TextView(this);
+        name.setText(String.valueOf(item.getOrDefault("name", "知识点")));
+        name.setTextSize(15);
+        name.setTextColor(0xFF1C1C1E);
+        LinearLayout.LayoutParams nameLp = new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+        name.setLayoutParams(nameLp);
+        head.addView(name);
+
+        Object deltaObj = item.get("delta");
+        if (deltaObj instanceof Number) {
+            double delta = ((Number) deltaObj).doubleValue();
+            TextView tvDelta = new TextView(this);
+            tvDelta.setText(String.format(Locale.getDefault(), "%+.1f%%", delta * 100));
+            tvDelta.setTextSize(12);
+            tvDelta.setTextColor(delta >= 0 ? 0xFF34C759 : 0xFFFF3B30);
+            LinearLayout.LayoutParams dlp = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+            dlp.rightMargin = dp(8);
+            tvDelta.setLayoutParams(dlp);
+            head.addView(tvDelta);
+        }
+
+        TextView pct = new TextView(this);
+        pct.setText(Math.round(mastery * 100) + "%");
+        pct.setTextSize(16);
+        pct.setTypeface(null, android.graphics.Typeface.BOLD);
+        pct.setTextColor(attempts > 0 ? 0xFF0A84FF : 0xFF8E8E93);
+        head.addView(pct);
+        row.addView(head);
+
+        // 第二行：掌握度进度条
+        LinearLayout track = new LinearLayout(this);
+        track.setOrientation(LinearLayout.HORIZONTAL);
+        GradientDrawable trackBg = new GradientDrawable();
+        trackBg.setColor(0xFFE5E5EA);
+        trackBg.setCornerRadius(dp(4));
+        track.setBackground(trackBg);
+        LinearLayout.LayoutParams trackLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(8));
+        trackLp.topMargin = dp(8);
+        track.setLayoutParams(trackLp);
+
+        View fill = new View(this);
+        GradientDrawable fillBg = new GradientDrawable();
+        fillBg.setColor(masteryColor(mastery));
+        fillBg.setCornerRadius(dp(4));
+        fill.setBackground(fillBg);
+        track.addView(fill, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT,
+                Math.max((float) mastery, 0.001f)));
+        track.addView(new View(this), new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT,
+                Math.max((float) (1 - mastery), 0.001f)));
+        row.addView(track);
+
+        // 未练习的知识点给出提示，避免把先验初值误解为真实水平
+        if (attempts <= 0) {
+            TextView hint = new TextView(this);
+            hint.setText("尚未练习，显示 BKT 初始值 30%");
+            hint.setTextSize(11);
+            hint.setTextColor(0xFF8E8E93);
+            LinearLayout.LayoutParams hlp = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+            hlp.topMargin = dp(4);
+            hint.setLayoutParams(hlp);
+            row.addView(hint);
+        }
+        return row;
+    }
+
+    private int masteryColor(double p) {
+        if (p >= 0.8) return 0xFF34C759;
+        if (p >= 0.6) return 0xFF0A84FF;
+        if (p >= 0.4) return 0xFFFF9500;
+        return 0xFFFF3B30;
+    }
+
+    private double toDouble(Object v) {
+        return v instanceof Number ? ((Number) v).doubleValue() : 0;
+    }
+
+    private int toInt(Object v) {
+        return v instanceof Number ? ((Number) v).intValue() : 0;
     }
 
     private int dp(int v) {

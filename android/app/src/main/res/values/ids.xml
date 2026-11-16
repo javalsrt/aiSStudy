@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 富文本异步公式重新调度监听器的 tag key，避免同一个 TextView 重复添加监听 -->
+    <item name="rich_text_reschedule_listener" type="id" />
+</resources>

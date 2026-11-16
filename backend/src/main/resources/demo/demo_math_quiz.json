@@ -1,0 +1,86 @@
+[
+  {
+    "type": "单选",
+    "subject": "数学",
+    "knowledge": "函数与极限",
+    "question": "$\\lim_{x\\to 0}\\frac{\\sin x}{x}$ 等于？",
+    "options": ["A. $1$*", "B. $0$", "C. $\\infty$", "D. 不存在"]
+  },
+  {
+    "type": "单选",
+    "subject": "数学",
+    "knowledge": "函数与极限",
+    "question": "函数 $f(x)=x^2$ 在 $x=2$ 处的极限是？",
+    "options": ["A. $2$", "B. $4$*", "C. $8$", "D. $0$"]
+  },
+  {
+    "type": "单选",
+    "subject": "数学",
+    "knowledge": "函数与极限",
+    "question": "下列函数在 $x=0$ 处连续的是？",
+    "options": ["A. $f(x)=\\frac{1}{x}$", "B. $f(x)=x+1$*", "C. $f(x)=\\frac{|x|}{x}$", "D. $f(x)=\\ln x$"]
+  },
+  {
+    "type": "单选",
+    "subject": "数学",
+    "knowledge": "函数与极限",
+    "question": "$\\lim_{x\\to 1}(2x+3)$ 等于？",
+    "options": ["A. $3$", "B. $5$*", "C. $1$", "D. 不存在"]
+  },
+  {
+    "type": "单选",
+    "subject": "数学",
+    "knowledge": "一致连续",
+    "question": "一致连续的 $\\varepsilon$-$\\delta$ 定义中，$\\delta$ 的选取与什么无关？",
+    "options": ["A. $\\varepsilon$", "B. 点的位置*", "C. 函数本身", "D. 区间"]
+  },
+  {
+    "type": "单选",
+    "subject": "数学",
+    "knowledge": "一致连续",
+    "question": "函数 $f(x)=x^2$ 在下列哪个区间上一致连续？",
+    "options": ["A. $(0,+\\infty)$", "B. $[0,1]$*", "C. $\\mathbb{R}$", "D. $(1,+\\infty)$"]
+  },
+  {
+    "type": "单选",
+    "subject": "数学",
+    "knowledge": "一致连续",
+    "question": "若函数在闭区间 $[a,b]$ 上连续，则它在该区间上？",
+    "options": ["A. 一定一致连续*", "B. 一定不连续", "C. 不一定连续", "D. 没有定义"]
+  },
+  {
+    "type": "单选",
+    "subject": "数学",
+    "knowledge": "一致连续",
+    "question": "一致连续的函数一定满足？",
+    "options": ["A. 连续*", "B. 可导", "C. 有界", "D. 单调"]
+  },
+  {
+    "type": "单选",
+    "subject": "数学",
+    "knowledge": "导数与微分",
+    "question": "$(x^2)'$ 等于？",
+    "options": ["A. $2x$*", "B. $x$", "C. $2$", "D. $x^2$"]
+  },
+  {
+    "type": "单选",
+    "subject": "数学",
+    "knowledge": "导数与微分",
+    "question": "$(\\sin x)'$ 等于？",
+    "options": ["A. $\\cos x$*", "B. $-\\sin x$", "C. $\\tan x$", "D. $-\\cos x$"]
+  },
+  {
+    "type": "单选",
+    "subject": "数学",
+    "knowledge": "导数与微分",
+    "question": "导数 $f'(x_0)$ 的几何意义是？",
+    "options": ["A. 切线斜率*", "B. 函数值", "C. 曲线下面积", "D. 弧长"]
+  },
+  {
+    "type": "单选",
+    "subject": "数学",
+    "knowledge": "导数与微分",
+    "question": "函数 $f(x)=3x+1$ 的导数是？",
+    "options": ["A. $3$*", "B. $1$", "C. $3x$", "D. $0$"]
+  }
+]

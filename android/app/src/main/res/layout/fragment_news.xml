@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 「资讯」页：职教政策列表（标题 + 来源 + 官方原文外链） -->
+<!-- 「咨询」页：顶部轮播 + 职教政策/资讯列表（标题 + 来源 + 官方原文外链） -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
@@ -26,7 +27,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="资讯"
+                android:text="咨询"
                 android:textSize="26sp"
                 android:textColor="@color/ink"
                 android:fontFamily="sans-serif-medium" />
@@ -35,7 +36,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="2dp"
-                android:text="职教政策 · 来源官方，点击看原文"
+                android:text="职教政策与资讯 · 来源官方，点击看原文"
                 android:textSize="12sp"
                 android:textColor="@color/ink_subtle" />
         </LinearLayout>
@@ -48,10 +49,46 @@
             android:src="@drawable/ic_refresh"
             android:tint="@color/ink_subtle"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="刷新资讯"
+            android:contentDescription="刷新咨询"
             android:clickable="true"
             android:focusable="true" />
     </LinearLayout>
+
+    <!-- 顶部轮播：两张咨询/资讯配图，自动播放，底部圆点指示 -->
+    <com.google.android.material.card.MaterialCardView
+        android:layout_width="match_parent"
+        android:layout_height="180dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="12dp"
+        android:clipToOutline="true"
+        app:cardBackgroundColor="@color/canvas"
+        app:cardCornerRadius="16dp"
+        app:cardElevation="0dp"
+        app:strokeWidth="0dp">
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+
+            <androidx.viewpager2.widget.ViewPager2
+                android:id="@+id/banner_pager"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+
+            <LinearLayout
+                android:id="@+id/banner_dots"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="bottom|center_horizontal"
+                android:layout_marginBottom="10dp"
+                android:background="@drawable/bg_banner_dots"
+                android:importantForAccessibility="no"
+                android:orientation="horizontal"
+                android:paddingHorizontal="8dp"
+                android:paddingVertical="4dp" />
+        </FrameLayout>
+    </com.google.android.material.card.MaterialCardView>
 
     <!-- 列表 / 加载 / 空态 -->
     <FrameLayout

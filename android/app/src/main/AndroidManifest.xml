@@ -53,6 +53,10 @@
             android:name=".QuizResultActivity"
             android:exported="false" />
         <activity
+            android:name=".FigureViewerActivity"
+            android:exported="false"
+            android:theme="@style/Theme.ZnxsglStudent" />
+        <activity
             android:name=".ReviewActivity"
             android:exported="false" />
         <activity

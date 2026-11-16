@@ -29,10 +29,10 @@ public class HoldSubmitButton extends AppCompatTextView {
 
     private static final long HOLD_DURATION_MS = 1500L;
 
-    // 配色（浅蓝底 + 主蓝扫过 + 白字）
-    private static final int COLOR_BG = 0xFFA9D2FF;        // 浅蓝底
-    private static final int COLOR_SWEEP = 0xFF0A84FF;     // 扫过色块（主蓝）
-    private static final int COLOR_TEXT_IDLE = 0xFF0A84FF; // 静止文字（主蓝）
+    // 配色（浅灰底 + 黑色扫过 + 白字）
+    private static final int COLOR_BG = 0xFFE9EAEE;        // 浅灰底
+    private static final int COLOR_SWEEP = 0xFF1D1D1F;     // 扫过色块（黑色）
+    private static final int COLOR_TEXT_IDLE = 0xFF1D1D1F; // 静止文字（深色）
     private static final int COLOR_TEXT_ACTIVE = 0xFFFFFFFF; // 按满文字（白）
 
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);

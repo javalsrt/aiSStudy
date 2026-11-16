@@ -54,6 +54,7 @@ import {
   ChevronRight,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { MasteryPanel } from '@/components/mastery-panel'
 import { useRole } from '@/hooks/use-role'
 import {
   getTeacherStats,
@@ -436,6 +437,7 @@ export function StatsPage() {
           <TabsTrigger value="students">学生列表</TabsTrigger>
           <TabsTrigger value="classRanking">班级排行</TabsTrigger>
           <TabsTrigger value="trend">近7天趋势</TabsTrigger>
+          <TabsTrigger value="mastery">学情追踪</TabsTrigger>
         </TabsList>
 
         {/* 学生列表 + 学习画像 */}
@@ -1355,6 +1357,10 @@ export function StatsPage() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="mastery" className="mt-6">
+          <MasteryPanel />
         </TabsContent>
       </Tabs>
 

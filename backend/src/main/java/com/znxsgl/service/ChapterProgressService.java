@@ -37,6 +37,32 @@ public class ChapterProgressService {
     }
 
     /**
+     * 每门课程最近学习的章节：按完成时间取该课程最新的一条阅读记录
+     */
+    public List<Map<String, Object>> getRecentChapterPerCourse(Long userId) {
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT p.course_id AS courseId, p.chapter_id AS chapterId, " +
+                "c.chapter_no AS chapterNo, c.chapter_name AS chapterName, " +
+                "MAX(p.completed_at) AS lastStudiedAt " +
+                "FROM chapter_read_progress p JOIN course_chapter c ON c.id = p.chapter_id " +
+                "WHERE p.user_id = ? " +
+                "GROUP BY p.course_id, p.chapter_id, c.chapter_no, c.chapter_name " +
+                "ORDER BY lastStudiedAt DESC", userId);
+        List<Map<String, Object>> result = new java.util.ArrayList<>();
+        java.util.Set<Long> seen = new java.util.HashSet<>();
+        for (Map<String, Object> row : rows) {
+            Object courseId = row.get("courseId");
+            if (!(courseId instanceof Number)) continue;
+            if (seen.add(((Number) courseId).longValue())) {
+                // 时间戳只用于排序，不返回给客户端
+                row.remove("lastStudiedAt");
+                result.add(row);
+            }
+        }
+        return result;
+    }
+
+    /**
      * 返回已完成的 lessonId 列表
      */
     public List<Long> getCompletedLessons(Long userId, Long courseId) {
