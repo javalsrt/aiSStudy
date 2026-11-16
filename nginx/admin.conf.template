@@ -1,0 +1,11 @@
+# ============================================
+# 管理端后台（HTTP 外壳：未配置证书时使用）
+# 本文件由容器启动脚本 40-https.sh 复制为 /etc/nginx/conf.d/admin.conf
+# 证书就位后会自动切换成 admin-ssl.conf.template（同端口 8081 走 TLS）
+# ============================================
+server {
+    listen 8081;
+    server_name zhixuezhida.top www.zhixuezhida.top _;
+
+    include /etc/nginx/admin-server.inc;
+}

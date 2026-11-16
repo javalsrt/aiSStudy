@@ -17,7 +17,11 @@ COPY --from=build /app/dist /usr/share/nginx/html
 # 项目官网（纯静态站点，由 nginx.conf 中 80 端口 server 托管）
 COPY website/ /usr/share/nginx/website
 # HTTPS：模板 + 启动检测脚本（有证书才启用 443，无证书保持 HTTP）
+# 管理端 8081 同样由脚本在 HTTP/HTTPS 两个外壳之间切换，共用 admin-server.inc
 COPY nginx/https.conf.template /etc/nginx/https.conf.template
+COPY nginx/admin.conf.template /etc/nginx/admin.conf.template
+COPY nginx/admin-ssl.conf.template /etc/nginx/admin-ssl.conf.template
+COPY nginx/admin-server.inc /etc/nginx/admin-server.inc
 COPY nginx/40-https.sh /docker-entrypoint.d/40-https.sh
 RUN sed -i 's/\r$//' /docker-entrypoint.d/40-https.sh && chmod +x /docker-entrypoint.d/40-https.sh
 EXPOSE 80 443

@@ -4,6 +4,7 @@
 # /etc/nginx/conf.d/https.conf：
 #   - 检测到 /etc/nginx/ssl/fullchain.pem 与 key.pem  -> 启用 443
 #   - 证书缺失                                        -> 不启用，官网保持纯 HTTP
+# 管理端 :8081 的 HTTPS 由 admin-ssl.conf.template 负责，不在此文件
 # 证书放置位置：部署目录下的 ssl/ 目录
 # ============================================
 server {
