@@ -1,0 +1,1 @@
+# 把 HTTPS 证书放这里（fullchain.pem + key.pem），重启 nginx 容器自动启用 HTTPS

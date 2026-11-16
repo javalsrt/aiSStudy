@@ -1,0 +1,43 @@
+# ============================================
+# 站点1 HTTPS：项目官网 zhzdai.xyz
+# 本文件不是生效配置，由容器启动脚本 nginx/40-https.sh 决定是否复制为
+# /etc/nginx/conf.d/https.conf：
+#   - 检测到 /etc/nginx/ssl/fullchain.pem 与 key.pem  -> 启用 443
+#   - 证书缺失                                        -> 不启用，官网保持纯 HTTP
+# 证书放置位置：部署目录下的 ssl/ 目录
+# ============================================
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name zhzdai.xyz www.zhzdai.xyz;
+
+    ssl_certificate     /etc/nginx/ssl/fullchain.pem;
+    ssl_certificate_key /etc/nginx/ssl/key.pem;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
+    ssl_session_cache   shared:SSL:10m;
+    ssl_session_timeout 1h;
+
+    root /usr/share/nginx/website;
+    index start.html index.html;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    location /assets/ {
+        expires 30d;
+        add_header Cache-Control "public, immutable";
+    }
+
+    # App 安装包下载：不做 SPA 回退，直接用安卓安装包 MIME 类型返回
+    location /apk/ {
+        default_type application/vnd.android.package-archive;
+        add_header Cache-Control "no-cache";
+        try_files $uri =404;
+    }
+
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript image/svg+xml;
+    gzip_min_length 1k;
+}

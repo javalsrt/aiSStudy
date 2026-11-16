@@ -55,6 +55,10 @@ application-local.yml
 application-dev.yml
 .env
 
+# ===== HTTPS 证书(私钥绝不入库) =====
+ssl/*
+!ssl/.gitkeep
+
 # ===== 运行时上传文件(不入库) =====
 backend/uploads/
 
