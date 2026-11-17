@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     每次运行会自动完成：
-      1) 用 mysqldump 导出当前数据库到 init-db/znxsgltest.sql
+      1) 用 mysqldump 导出当前数据库到 .db-backup/znxsgltest.sql（本地备份，不入仓库）
       2) git add -A
       3) git commit（自动生成提交信息，也可手动指定）
       4) git push origin 当前分支
@@ -49,8 +49,8 @@ if (-not $dumpExe) {
     throw '未找到 mysqldump，请安装 MySQL 客户端，或设置 MYSQLDUMP 环境变量'
 }
 
-$dumpFile = Join-Path $repoRoot 'init-db\znxsgltest.sql'
-$tempFile = Join-Path $repoRoot 'init-db\znxsgltest.sql.tmp'
+$dumpFile = Join-Path $repoRoot '.db-backup\znxsgltest.sql'
+$tempFile = Join-Path $repoRoot '.db-backup\znxsgltest.sql.tmp'
 $dumpDir = Split-Path -Parent $dumpFile
 if (-not (Test-Path $dumpDir)) { New-Item -ItemType Directory -Path $dumpDir | Out-Null }
 

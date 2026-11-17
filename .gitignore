@@ -82,5 +82,12 @@ docs/test-artifacts/
 
 uploads/
 
-# 官网 App 安装包需随仓库一起部署，单独放行
-!website/apk/*.apk
+# ===== 大文件与运行数据(不入库) =====
+# 数据库全量导出：由 sync-github.ps1 导出到 .db-backup/，不再进仓库
+init-db/znxsgltest.sql
+scripts/znxsgltest.sql
+.db-backup/
+# 安卓安装包改发布到 GitHub Releases / 对象存储
+website/apk/
+# 架构图设计稿的渲染校验截图，非交付物
+docs/archify/*.visual-check*.png

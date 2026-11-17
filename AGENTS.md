@@ -4,7 +4,7 @@
 
 - 用户说“推送”“同步 GitHub”“同步仓库”时，**不得只执行 `git push`**。
 - 必须先运行项目根目录的 `sync-github.ps1`（也可双击 `sync-github.bat`），由脚本完成：
-  1. `mysqldump` 导出当前数据库到 `init-db/znxsgltest.sql`
+  1. `mysqldump` 导出当前数据库到 `.db-backup/znxsgltest.sql`（本地备份，不入仓库）
   2. `git add -A`
   3. `git commit`
   4. `git push origin HEAD`
