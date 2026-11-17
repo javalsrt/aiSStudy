@@ -5,8 +5,11 @@
 (() => {
   const host = window.location.hostname;
   if (!host) return;  // file:// 直接打开时跳过，保留锚点行为
-  const port = (host === 'localhost' || host === '127.0.0.1') ? '5174' : '8081';
-  const adminLoginUrl = 'http://' + host + ':' + port + '/login';
+  const isLocal = host === 'localhost' || host === '127.0.0.1';
+  const port = isLocal ? '5174' : '8081';
+  // 线上管理端已启用 HTTPS（与官网共用证书）；本地 Vite 开发服务器仍是 HTTP
+  const protocol = isLocal ? 'http' : 'https';
+  const adminLoginUrl = protocol + '://' + host + ':' + port + '/login';
   ['navCtaLink', 'startLink'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.href = adminLoginUrl;

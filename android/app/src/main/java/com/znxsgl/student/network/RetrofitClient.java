@@ -20,8 +20,8 @@ import java.util.concurrent.TimeUnit;
 
 public class RetrofitClient {
 
-    /** 线上服务器（nginx 反代 /api/ 与 /ws/） */
-    public static final String URL_SERVER = "http://8.163.105.116:8081";
+    /** 线上服务器（nginx 反代 /api/ 与 /ws/，8081 已启用 HTTPS） */
+    public static final String URL_SERVER = "https://zhzdai.xyz:8081";
     /** 本地开发：模拟器固定用 10.0.2.2（自动映射到宿主机 localhost:8080） */
     public static final String URL_LOCAL = "http://10.0.2.2:8080";
 

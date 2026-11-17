@@ -557,6 +557,8 @@ a { color: inherit; text-decoration: none; }
   .hero-inner { grid-template-columns: 1fr; text-align: center; }
   .hero-sub { margin-left: auto; margin-right: auto; }
   .hero-actions, .hero-stats { justify-content: center; }
+  /* 居中时两侧留出安全间距，避免「管理端」胶囊按钮贴住/超出屏幕左侧被裁切 */
+  .hero-actions { padding: 10px 14px; }
   .hero-phone { margin-top: 48px; }
   .grid-3, .grid-4 { grid-template-columns: repeat(2, 1fr); }
   .demo { grid-template-columns: 1fr; max-width: 800px; margin: 0 auto; }

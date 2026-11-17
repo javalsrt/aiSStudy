@@ -9,7 +9,7 @@ import { getToken, logout } from './store.js'
  *   ⚠️ 发布前请修改 PROD_BASE 为线上后端地址
  */
 const DEV_BASE = 'http://192.168.0.146:8080'
-const PROD_BASE = 'https://your-domain.com'
+const PROD_BASE = 'https://zhzdai.xyz:8081'
 
 // uni-app 构建：开发环境 NODE_ENV === 'development'，生产构建为 'production'
 const BASE = process.env.NODE_ENV === 'development' ? DEV_BASE : PROD_BASE
