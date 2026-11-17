@@ -37,7 +37,8 @@ fi
 echo "==> [3/4] 配置环境变量"
 if [ ! -f .env ]; then
   echo "DEEPSEEK_API_KEY=" > .env
-  echo "已生成 .env，请填入 DEEPSEEK_API_KEY 以启用 AI 问答功能（不填也可正常使用其他功能）"
+  echo "JWT_SECRET=$(openssl rand -hex 32)" >> .env
+  echo "已生成 .env（含随机 JWT_SECRET），请填入 DEEPSEEK_API_KEY 以启用 AI 问答功能（不填也可正常使用其他功能）"
 fi
 
 echo "==> [4/4] 构建并启动（首次构建约 5-10 分钟）"

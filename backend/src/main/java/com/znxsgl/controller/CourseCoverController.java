@@ -153,7 +153,8 @@ public class CourseCoverController {
             int dot = originalName.lastIndexOf('.');
             if (dot >= 0) {
                 String ext = originalName.substring(dot).toLowerCase();
-                if (ext.matches("\\.[a-z0-9]{1,5}")) return ext;
+                // 安全：只接受常见图片扩展名，避免落盘 .html/.svg 等可执行脚本的类型
+                if (ext.matches("\\.(png|jpe?g|webp|gif)")) return ext;
             }
         }
         return ".jpg";

@@ -266,8 +266,33 @@ public class ChatController {
             File dir = new File(uploadDir);
             if (!dir.exists()) dir.mkdirs();
 
-            String filename = System.currentTimeMillis() + "_" + file.getOriginalFilename();
-            Path filePath = Paths.get(uploadDir, filename);
+            // 安全：原始文件名不可信（可能带 ../、\ 或控制字符），只取最后一段并过滤
+            String originalName = file.getOriginalFilename();
+            String baseName = originalName == null ? "" : originalName.replace('\\', '/');
+            int slash = baseName.lastIndexOf('/');
+            if (slash >= 0) baseName = baseName.substring(slash + 1);
+            baseName = baseName.replaceAll("[\\p{Cntrl}]", "").trim();
+            if (baseName.isEmpty() || ".".equals(baseName) || "..".equals(baseName)) {
+                baseName = "file";
+            }
+            // 扩展名白名单：拒绝 html/svg/js 等可在浏览器中执行脚本的类型
+            int dot = baseName.lastIndexOf('.');
+            String ext = dot >= 0 ? baseName.substring(dot + 1).toLowerCase() : "";
+            Set<String> allowedExt = Set.of("png", "jpg", "jpeg", "gif", "webp", "bmp",
+                    "pdf", "txt", "md", "csv", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "zip");
+            if (!allowedExt.contains(ext)) {
+                return ResponseEntity.badRequest().body(Map.of("error", "不支持的文件类型：" + ext));
+            }
+
+            // 文件名加随机前缀，避免覆盖与猜测
+            String filename = System.currentTimeMillis() + "_"
+                    + UUID.randomUUID().toString().substring(0, 8) + "_" + baseName;
+            Path dirPath = Paths.get(uploadDir).toAbsolutePath().normalize();
+            Path filePath = dirPath.resolve(filename).normalize();
+            // 安全：落盘路径必须仍在课程上传目录内
+            if (!filePath.startsWith(dirPath)) {
+                return ResponseEntity.badRequest().body(Map.of("error", "非法文件名"));
+            }
             Files.write(filePath, file.getBytes());
 
             String relPath = "/uploads/chat/" + folder + "/" + filename;
@@ -286,7 +311,13 @@ public class ChatController {
     public ResponseEntity<Resource> downloadFile(@RequestParam String url) {
         try {
             String relPath = url.startsWith("/uploads/") ? url.substring(9) : url;
-            Path filePath = Paths.get(System.getProperty("user.dir"), "uploads", relPath).toAbsolutePath().normalize();
+            Path uploadRoot = Paths.get(System.getProperty("user.dir"), "uploads").toAbsolutePath().normalize();
+            Path filePath = uploadRoot.resolve(relPath).normalize();
+            // 安全：禁止通过 ../ 跳出 uploads 根目录读取服务器上的任意文件
+            if (!filePath.startsWith(uploadRoot)) {
+                log.warn("拒绝越界的文件访问: {}", url);
+                return ResponseEntity.badRequest().build();
+            }
             Resource resource = new UrlResource(filePath.toUri());
             if (!resource.exists() || !resource.isReadable()) {
                 log.warn("文件不存在或不可读: {}", filePath);

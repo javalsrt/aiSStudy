@@ -3,9 +3,6 @@ package com.znxsgl.config;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
-import jakarta.annotation.PostConstruct;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -16,31 +13,24 @@ import java.util.Date;
 @Component
 public class JwtUtil {
 
-    private static final Logger log = LoggerFactory.getLogger(JwtUtil.class);
-    private static final String DEFAULT_SECRET = "ZnxsglRAGLearningApp2026SecretKeyForJWTTokenGenerationMustBe256Bits";
     private static final int MIN_SECRET_BYTES = 32; // HS256 最少 256 位 = 32 字节
 
     private final SecretKey key;
     private final long expiration;
-    private final String rawSecret;
 
     public JwtUtil(@Value("${jwt.secret}") String secret,
                    @Value("${jwt.expiration:86400000}") long expiration) {
-        byte[] secretBytes = secret.getBytes(StandardCharsets.UTF_8);
+        byte[] secretBytes = secret == null ? new byte[0] : secret.getBytes(StandardCharsets.UTF_8);
+        if (secretBytes.length == 0) {
+            throw new IllegalStateException(
+                "未配置 JWT_SECRET：请在环境变量或服务器 .env 中设置至少 32 字节的随机密钥");
+        }
         if (secretBytes.length < MIN_SECRET_BYTES) {
             throw new IllegalStateException(
                 "JWT secret 长度不足，至少需要 " + MIN_SECRET_BYTES + " 字节（256 位），当前 " + secretBytes.length + " 字节");
         }
         this.key = Keys.hmacShaKeyFor(secretBytes);
         this.expiration = expiration;
-        this.rawSecret = secret;
-    }
-
-    @PostConstruct
-    public void warnIfDefaultSecret() {
-        if (DEFAULT_SECRET.equals(rawSecret)) {
-            log.warn("JWT 使用默认开发密钥（仅限本地，生产请注入 JWT_SECRET）");
-        }
     }
 
     public String generateToken(Long userId, String username, Integer role) {

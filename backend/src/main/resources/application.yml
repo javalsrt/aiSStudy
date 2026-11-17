@@ -52,8 +52,9 @@ mybatis-plus:
   meta-object-handler: com.znxsgl.config.MyBatisPlusMetaObjectHandler
 
 jwt:
-  # 通过环境变量 JWT_SECRET 注入，本地开发默认值仅供测试使用
-  secret: ${JWT_SECRET:ZnxsglRAGLearningApp2026SecretKeyForJWTTokenGenerationMustBe256Bits}
+  # 必须由环境变量 JWT_SECRET 注入（至少 32 字节随机串）；仓库不再提供默认值，
+  # 否则公开仓库中的固定密钥可被用来伪造 token
+  secret: ${JWT_SECRET:}
   expiration: 604800000
 
 # LLM 对话模型配置（当前使用 DeepSeek V4.1 Flash）

@@ -61,7 +61,7 @@ services:
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
       APP_REDIS_ENABLED: "true"
-      JWT_SECRET: ZnxsglRAGLearningApp2026SecretKeyForJWTTokenGenerationMustBe256Bits
+      JWT_SECRET: ${JWT_SECRET:?请在服务器 .env 中配置 JWT_SECRET（至少 32 位随机字符串，可用 openssl rand -hex 32 生成）}
       # 作息表图片识别（OpenAI 兼容多模态模型）：不配置则管理端「图片识别」按钮提示未启用
       VISION_API_KEY: ${VISION_API_KEY:-}
       VISION_URL: ${VISION_URL:-https://api.siliconflow.cn/v1/chat/completions}
