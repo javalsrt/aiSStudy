@@ -74,6 +74,8 @@ test/screenshots/
 .trae/
 .trae-html-share-packages/
 *.apk
+# 例外：官网「App 下载」需要安装包随仓库部署（服务器 pull 后由 Dockerfile.frontend 打进镜像）
+!website/apk/*.apk
 
 # ===== 测试产物/临时归档(体积大,不入库) =====
 docs/test-artifacts/
@@ -87,7 +89,6 @@ uploads/
 init-db/znxsgltest.sql
 scripts/znxsgltest.sql
 .db-backup/
-# 安卓安装包改发布到 GitHub Releases / 对象存储
-website/apk/
+# 安卓安装包：website/apk 已作为官网下载源纳入仓库，不再整体忽略
 # 架构图设计稿的渲染校验截图，非交付物
 docs/archify/*.visual-check*.png
