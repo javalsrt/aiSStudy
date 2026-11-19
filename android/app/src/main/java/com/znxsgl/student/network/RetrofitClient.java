@@ -28,10 +28,51 @@ public class RetrofitClient {
     private static final String PREFS_NAME = "znxsgl";
     public static final String KEY_BASE_URL = "base_url";
 
+    /** 生产环境的域名/IP：历史版本可能持久化了这些地址的 HTTP 形式，统一迁移到 HTTPS */
+    private static final String[] PROD_HOSTS = {"zhzdai.xyz", "www.zhzdai.xyz", "8.163.105.116"};
+
+    /**
+     * 规范化请求地址：
+     * 服务器已全面启用 HTTPS，旧安装包在 SharedPreferences 里保存的
+     * http://zhzdai.xyz:8081 之类的地址会返回 400，这里强制迁移为 URL_SERVER。
+     * 本地开发地址（10.0.2.2 等非生产主机）保持原样。
+     */
+    private static String normalizeBaseUrl(String url) {
+        if (url == null) return URL_SERVER;
+        String u = url.trim();
+        if (u.isEmpty()) return URL_SERVER;
+        while (u.endsWith("/")) u = u.substring(0, u.length() - 1);
+
+        String lower = u.toLowerCase(java.util.Locale.ROOT);
+        String rest;
+        if (lower.startsWith("https://")) rest = lower.substring(8);
+        else if (lower.startsWith("http://")) rest = lower.substring(7);
+        else return u; // 非标准写法，不擅自改写
+
+        // 去掉路径与端口，只留主机名
+        int slash = rest.indexOf('/');
+        if (slash >= 0) rest = rest.substring(0, slash);
+        int colon = rest.indexOf(':');
+        if (colon >= 0) rest = rest.substring(0, colon);
+
+        for (String host : PROD_HOSTS) {
+            if (host.equals(rest)) return URL_SERVER;
+        }
+        return u;
+    }
+
     /** 当前请求地址：默认服务器，可在 App「设置 → 请求地址」中切换为本地并持久化 */
     public static String getBaseUrl() {
         if (appContext == null) return URL_SERVER;
-        return appContext.getSharedPreferences(PREFS_NAME, 0).getString(KEY_BASE_URL, URL_SERVER);
+        SharedPreferences prefs = appContext.getSharedPreferences(PREFS_NAME, 0);
+        String stored = prefs.getString(KEY_BASE_URL, URL_SERVER);
+        String normalized = normalizeBaseUrl(stored);
+        if (!normalized.equals(stored)) {
+            // 旧 HTTP 地址一次性迁移回写，后续请求直接走 HTTPS
+            prefs.edit().putString(KEY_BASE_URL, normalized).apply();
+            instance = null;
+        }
+        return normalized;
     }
 
     public static boolean isServer() {
@@ -43,11 +84,12 @@ public class RetrofitClient {
      * 同时销毁 Retrofit 单例，下一次请求按新地址重建。
      */
     public static void setBaseUrl(Context context, String url) {
+        String normalized = normalizeBaseUrl(url);
         Context ctx = context != null ? context.getApplicationContext() : appContext;
         if (ctx != null) {
             appContext = ctx;
             // 用 commit 保证紧接着的 getBaseUrl() 读到新值
-            ctx.getSharedPreferences(PREFS_NAME, 0).edit().putString(KEY_BASE_URL, url).commit();
+            ctx.getSharedPreferences(PREFS_NAME, 0).edit().putString(KEY_BASE_URL, normalized).commit();
         }
         instance = null;
     }
